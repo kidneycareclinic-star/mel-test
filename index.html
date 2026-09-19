@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Nephrology EHR — Agentic Harness (Synthetic Demo)</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">🫘</span>
+      <div>
+        <h1>Nephrology EHR <span class="badge">synthetic</span></h1>
+        <p class="sub">Agentic clinical-harness demo · all patient data is fabricated</p>
+      </div>
+    </div>
+    <div class="top-right">
+      <span id="patientCount" class="chip">—</span>
+      <span class="chip chip-warn">⚠ demo · not for clinical use</span>
+    </div>
+  </header>
+
+  <div class="layout">
+    <!-- LEFT: patient census -->
+    <aside class="census">
+      <div class="panel-head">
+        <h2>Patient census</h2>
+        <input id="search" type="search" placeholder="Filter…" />
+      </div>
+      <ul id="patientList" class="patient-list"></ul>
+    </aside>
+
+    <!-- MIDDLE: chart -->
+    <main class="chart">
+      <section class="panel" id="demographics">
+        <h2 id="ptName">—</h2>
+        <div class="meta" id="ptMeta"></div>
+      </section>
+
+      <section class="panel">
+        <h2>Latest labs</h2>
+        <div id="labsGrid" class="labs-grid"></div>
+      </section>
+
+      <section class="panel">
+        <h2>Active medications</h2>
+        <div id="medsList" class="meds-list"></div>
+      </section>
+    </main>
+
+    <!-- RIGHT: agent -->
+    <aside class="agent-pane">
+      <div class="panel-head">
+        <h2>🩺 Nephro agent</h2>
+        <span class="chip chip-agent" id="agentStatus">idle</span>
+      </div>
+
+      <div id="findings" class="findings"></div>
+
+      <div id="chat" class="chat"></div>
+
+      <form id="askForm" class="ask">
+        <input id="query" type="text" placeholder="Ask: summarize, labs, next steps, risk…" autocomplete="off" />
+        <button type="submit">Ask</button>
+      </form>
+      <div class="suggestions" id="suggestions"></div>
+    </aside>
+  </div>
+
+  <script src="data.js"></script>
+  <script src="agent.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
