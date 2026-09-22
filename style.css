@@ -317,3 +317,22 @@ body {
   font-family:ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size:11px; color:var(--accent);
 }
+
+
+/* ---- judgment fabric ---- */
+.judgment-summary {
+  display:grid; grid-template-columns:repeat(2, minmax(0, 1fr));
+  gap:6px;
+}
+.judge-chip {
+  border:1px solid var(--border); background:var(--panel-2);
+  border-radius:8px; padding:7px 9px;
+}
+.judge-chip span {
+  display:block; color:var(--muted); font-size:9px; text-transform:uppercase;
+  letter-spacing:.45px;
+}
+.judge-chip strong { display:block; margin-top:2px; font-size:11px; font-weight:600; }
+.judge-chip.good { border-left:3px solid var(--good); }
+.judge-chip.warn { border-left:3px solid var(--warn); }
+.judge-chip.accent { border-left:3px solid var(--accent); }
