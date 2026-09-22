@@ -104,12 +104,12 @@ function renderWorkspace() {
   $("#contextTitle").textContent = w.context;
   $("#contextBadge").textContent = w.badge;
   $("#search").placeholder = `Filter ${currentSetting} census…`;
-  $(".workspace-tab").forEach((b) =>
+  $$(".workspace-tab").forEach((b) =>
     b.classList.toggle("active", b.dataset.setting === currentSetting)
   );
 
   $("#workspaceSubtabs").classList.toggle("hidden", currentSetting !== "dialysis");
-  $(".workspace-subtab").forEach((b) =>
+  $$(".workspace-subtab").forEach((b) =>
     b.classList.toggle("active", b.dataset.dialysisMode === currentDialysisMode)
   );
 
@@ -719,7 +719,7 @@ document.addEventListener("keydown", (event) => {
   }
 });
 
-$(".workspace-tab").forEach((btn) => {
+$$(".workspace-tab").forEach((btn) => {
   btn.addEventListener("click", () => {
     currentSetting = btn.dataset.setting;
     expandedPatientId = null;
@@ -728,7 +728,7 @@ $(".workspace-tab").forEach((btn) => {
   });
 });
 
-$(".workspace-subtab").forEach((btn) => {
+$$(".workspace-subtab").forEach((btn) => {
   btn.addEventListener("click", () => {
     currentDialysisMode = btn.dataset.dialysisMode;
     expandedPatientId = null;
