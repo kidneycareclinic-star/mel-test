@@ -188,10 +188,70 @@ body {
   transition:transform .12s ease, border-color .12s ease, background .12s ease;
 }
 .lab-cell:hover { transform:translateY(-1px); border-color:#4b5f85; }
-.lab-cell.tone-green { background:rgba(61,220,151,.12); }
-.lab-cell.tone-yellow { background:rgba(255,180,84,.14); }
-.lab-cell.tone-red { background:rgba(255,107,107,.14); }
-.lab-cell.tone-blue { background:rgba(76,194,255,.13); }
+.lab-cell.tone-green {
+  background:#2eea8b;
+  border-color:#63f3ae;
+  color:#06140d;
+}
+.lab-cell.tone-yellow {
+  background:#ffd84d;
+  border-color:#ffe477;
+  color:#171300;
+}
+.lab-cell.tone-red {
+  background:#ff5c5c;
+  border-color:#ff8585;
+  color:#1a0505;
+}
+.lab-cell.tone-blue {
+  background:#45c8ff;
+  border-color:#78d8ff;
+  color:#04141c;
+}
+.lab-cell.tone-green .l-name,
+.lab-cell.tone-green .l-ref,
+.lab-cell.tone-green .l-unit,
+.lab-cell.tone-yellow .l-name,
+.lab-cell.tone-yellow .l-ref,
+.lab-cell.tone-yellow .l-unit,
+.lab-cell.tone-red .l-name,
+.lab-cell.tone-red .l-ref,
+.lab-cell.tone-red .l-unit,
+.lab-cell.tone-blue .l-name,
+.lab-cell.tone-blue .l-ref,
+.lab-cell.tone-blue .l-unit {
+  color:rgba(0,0,0,.68);
+}
+.lab-cell.tone-green .lab-card-actions button,
+.lab-cell.tone-yellow .lab-card-actions button,
+.lab-cell.tone-red .lab-card-actions button,
+.lab-cell.tone-blue .lab-card-actions button {
+  background:rgba(255,255,255,.34);
+  color:#07101c;
+  border-color:rgba(0,0,0,.22);
+}
+.lab-cell.tone-green .lab-card-actions button:hover,
+.lab-cell.tone-yellow .lab-card-actions button:hover,
+.lab-cell.tone-red .lab-card-actions button:hover,
+.lab-cell.tone-blue .lab-card-actions button:hover {
+  background:rgba(255,255,255,.52);
+  color:#000;
+  border-color:rgba(0,0,0,.4);
+}
+.lab-cell.tone-green .lab-trend-detail,
+.lab-cell.tone-yellow .lab-trend-detail,
+.lab-cell.tone-red .lab-trend-detail,
+.lab-cell.tone-blue .lab-trend-detail {
+  border-top-color:rgba(0,0,0,.2);
+}
+.lab-cell.tone-green .lab-trend-content,
+.lab-cell.tone-yellow .lab-trend-content,
+.lab-cell.tone-red .lab-trend-content,
+.lab-cell.tone-blue .lab-trend-content {
+  background:rgba(255,255,255,.30);
+  border-color:rgba(0,0,0,.15);
+  color:#07101c;
+}
 .lab-cell.expanded {
   grid-column:1 / -1;
   cursor:default;
