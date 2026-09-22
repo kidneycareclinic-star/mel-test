@@ -3,61 +3,162 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Nephrology EHR — Agentic Harness (Synthetic Demo)</title>
-<link rel="stylesheet" href="style.css" />
+<title>Nephrology Agentic Harness — Synthetic Demo</title>
+<link rel="stylesheet" href="style.css?v=light-theme-20260922" />
 </head>
 <body>
   <header class="topbar">
     <div class="brand">
       <span class="logo">🫘</span>
       <div>
-        <h1>Nephrology EHR <span class="badge">synthetic</span></h1>
-        <p class="sub">Agentic clinical-harness demo · all patient data is fabricated</p>
+        <h1>Nephrology Agentic Harness <span class="badge">synthetic</span></h1>
+        <p class="sub">Physician intelligence + workflow layer above office, hospital, dialysis and transplant systems</p>
       </div>
     </div>
     <div class="top-right">
+      <button id="themeToggle" class="theme-toggle" type="button" aria-label="Switch color theme">☀ Light</button>
       <span id="patientCount" class="chip">—</span>
       <span class="chip chip-warn">⚠ demo · not for clinical use</span>
     </div>
   </header>
 
-  <div class="layout">
-    <!-- LEFT: patient census -->
+  <nav class="workspace-tabs" aria-label="Nephrology workspace">
+    <button class="workspace-tab active" data-setting="office">
+      <span class="tab-icon">🏥</span>
+      <span><strong>Office</strong><small>CKD · HTN · GN</small></span>
+    </button>
+    <button class="workspace-tab" data-setting="hospital">
+      <span class="tab-icon">🛏️</span>
+      <span><strong>Hospital</strong><small>Consults · AKI · ICU</small></span>
+    </button>
+    <button class="workspace-tab" data-setting="dialysis">
+      <span class="tab-icon">🩸</span>
+      <span><strong>Dialysis</strong><small>HD rounds · PD rounds · longitudinal</small></span>
+    </button>
+    <button class="workspace-tab" data-setting="transplant">
+      <span class="tab-icon">🫛</span>
+      <span><strong>Transplant</strong><small>Evaluation · waitlist · post-transplant</small></span>
+    </button>
+  </nav>
+
+  <div id="workspaceSubtabs" class="workspace-subtabs hidden" aria-label="Dialysis modality">
+    <button class="workspace-subtab active" data-dialysis-mode="hemodialysis">Hemodialysis round</button>
+    <button class="workspace-subtab" data-dialysis-mode="peritoneal">Peritoneal dialysis round</button>
+  </div>
+
+  <div class="workspace-strip">
+    <div>
+      <span class="eyebrow">ACTIVE WORKSPACE</span>
+      <strong id="workspaceTitle">Office nephrology</strong>
+      <span id="workspaceSubtitle" class="workspace-sub">Longitudinal outpatient kidney care</span>
+    </div>
+    <div class="workspace-actions">
+      <span class="chip chip-agent" id="workspaceMode">office</span>
+      <span class="chip">Shared patient state</span>
+    </div>
+  </div>
+
+  <div class="layout" id="mainLayout">
     <aside class="census">
       <div class="panel-head">
-        <h2>Patient census</h2>
-        <input id="search" type="search" placeholder="Filter…" />
+        <div>
+          <h2 id="censusTitle">Office census</h2>
+          <div class="micro" id="censusMeta">Patients active in this workspace</div>
+        </div>
       </div>
+      <input id="search" type="search" placeholder="Filter census…" />
       <ul id="patientList" class="patient-list"></ul>
     </aside>
 
-    <!-- MIDDLE: chart -->
-    <main class="chart">
-      <section class="panel" id="demographics">
-        <h2 id="ptName">—</h2>
-        <div class="meta" id="ptMeta"></div>
+    <div id="centerResizeHandle" class="center-resize-handle" title="Drag to resize middle pane" aria-hidden="true"></div>
+    <main class="chart" id="centerPane">
+      <section class="panel identity-panel" id="demographics">
+        <div class="identity-row">
+          <div>
+            <span class="eyebrow">SHARED PATIENT IDENTITY</span>
+            <h2 id="ptName">—</h2>
+            <div class="meta" id="ptMeta"></div>
+          </div>
+          <div id="careFootprint" class="care-footprint"></div>
+        </div>
+      </section>
+
+      <section class="panel context-panel">
+        <div class="panel-head">
+          <div>
+            <h2 id="contextTitle">Office context</h2>
+            <div class="micro" id="contextMeta">Workspace-specific episode data layered on the shared patient record</div>
+          </div>
+          <span class="chip" id="contextBadge">longitudinal</span>
+        </div>
+        <div id="contextGrid" class="context-grid"></div>
+        <div id="contextDetail" class="context-detail"></div>
+      </section>
+
+      <section class="panel prechart-panel">
+        <div class="panel-head">
+          <div>
+            <h2>Pre-charting note</h2>
+            <div class="micro">Lab trends opened for review are added here for the selected synthetic patient</div>
+          </div>
+          <button id="clearPrechartBtn" class="small-btn" type="button">Clear</button>
+        </div>
+        <div id="prechartNote" class="prechart-note"></div>
+      </section>
+
+      <section class="panel state-panel">
+        <div class="panel-head">
+          <div>
+            <h2>Longitudinal patient state</h2>
+            <div class="micro">Persistent kidney state shared across Office, Hospital and Dialysis</div>
+          </div>
+          <span class="chip chip-agent">patient state</span>
+        </div>
+        <div id="stateGrid" class="state-grid"></div>
+      </section>
+
+      <section class="panel loop-panel">
+        <div class="panel-head">
+          <div>
+            <h2>Open-loop engine</h2>
+            <div class="micro">Longitudinal obligations that persist beyond an encounter note</div>
+          </div>
+          <div class="loop-head-actions">
+            <span id="loopSummary" class="chip">—</span>
+            <button id="addLoopBtn" class="small-btn" type="button">+ Add loop</button>
+          </div>
+        </div>
+        <div id="openLoopList" class="open-loop-list"></div>
       </section>
 
       <section class="panel">
-        <h2>Latest labs</h2>
+        <div class="panel-head">
+          <h2>Source data · latest labs</h2>
+          <span class="micro">Evidence beneath the patient-state summary</span>
+        </div>
         <div id="labsGrid" class="labs-grid"></div>
       </section>
 
       <section class="panel">
-        <h2>Active medications</h2>
+        <div class="panel-head">
+          <h2>Source data · active medications</h2>
+          <span class="micro">Shared medication list</span>
+        </div>
         <div id="medsList" class="meds-list"></div>
       </section>
     </main>
 
-    <!-- RIGHT: agent -->
     <aside class="agent-pane">
       <div class="panel-head">
-        <h2>🩺 Nephro agent</h2>
+        <div>
+          <h2>🩺 Nephro agent</h2>
+          <div class="micro">One shared agent framework · workspace-aware presentation</div>
+        </div>
         <span class="chip chip-agent" id="agentStatus">idle</span>
       </div>
 
+      <div id="judgmentSummary" class="judgment-summary"></div>
       <div id="findings" class="findings"></div>
-
       <div id="chat" class="chat"></div>
 
       <form id="askForm" class="ask">
@@ -68,8 +169,25 @@
     </aside>
   </div>
 
+  <div id="provenanceBackdrop" class="provenance-backdrop hidden"></div>
+  <aside id="provenanceDrawer" class="provenance-drawer hidden" aria-label="Provenance inspector">
+    <div class="prov-head">
+      <div>
+        <span class="eyebrow">PROVENANCE INSPECTOR</span>
+        <h2 id="provTitle">Source details</h2>
+      </div>
+      <button id="closeProvBtn" class="icon-btn" type="button" aria-label="Close provenance inspector">×</button>
+    </div>
+    <div id="provBody" class="prov-body"></div>
+  </aside>
+
+  <script src="theme.js?v=light-theme-visible-20260922"></script>
   <script src="data.js"></script>
+  <script src="open-loop.js"></script>
+  <script src="patient-state.js"></script>
+  <script src="judgment-fabric.js"></script>
   <script src="agent.js"></script>
   <script src="app.js"></script>
+  <script src="lab-trends-ui.js"></script>
 </body>
 </html>
