@@ -10,7 +10,7 @@
  * ========================================================================= */
 
 const PATIENT_STATE_ENGINE = (() => {
-  const VERSION = "0.1.0";
+  const VERSION = "0.2.0";
 
   function source(kind, label, field, observedAt, confidence = 1) {
     return {
@@ -36,18 +36,29 @@ const PATIENT_STATE_ENGINE = (() => {
   }
 
   function normalizeOpenLoops(patient, rawLoops) {
-    return (rawLoops || []).map((loop, index) => ({
-      id: `${patient.id}-loop-${String(index + 1).padStart(2, "0")}`,
-      type: loop.type || "task",
-      label: loop.label || "Unspecified follow-up",
-      status: loop.status || "pending",
-      owner: "nephrology-team",
-      patientId: patient.id,
+    const liveLoops = (typeof OPEN_LOOP_ENGINE !== "undefined")
+      ? OPEN_LOOP_ENGINE.list(patient)
+      : (rawLoops || []).map((loop, index) => ({
+          id: `${patient.id}-loop-${String(index + 1).padStart(2, "0")}`,
+          patientId: patient.id,
+          type: loop.type || "task",
+          label: loop.label || "Unspecified follow-up",
+          status: loop.status || "pending",
+          owner: "nephrology-team",
+          workspace: "shared",
+          createdFrom: "synthetic-longitudinal-state",
+          createdAt: patient.lastVisit || null,
+          completedAt: null,
+          history: [],
+        }));
+
+    return liveLoops.map((loop) => ({
+      ...loop,
       source: source(
-        "synthetic-workflow",
-        "Synthetic longitudinal follow-up state",
-        "openLoops",
-        patient.lastVisit,
+        "open-loop-engine",
+        "Open-Loop Engine",
+        loop.id,
+        loop.createdAt || patient.lastVisit,
         1
       ),
     }));
