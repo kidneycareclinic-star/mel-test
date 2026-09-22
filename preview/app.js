@@ -712,6 +712,12 @@ $("#search").addEventListener("input", (e) => renderCensus(e.target.value));
 $("#addLoopBtn").addEventListener("click", addOpenLoop);
 $("#closeProvBtn").addEventListener("click", closeProvenance);
 $("#provenanceBackdrop").addEventListener("click", closeProvenance);
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && expandedPatientId) {
+    expandedPatientId = null;
+    renderCensus($("#search").value);
+  }
+});
 
 $(".workspace-tab").forEach((btn) => {
   btn.addEventListener("click", () => {
