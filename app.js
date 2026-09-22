@@ -8,6 +8,7 @@ let currentSetting = "office";
 let currentPatient = null;
 let currentState = null;
 let currentFindings = [];
+let expandedPatientId = null;
 
 const LAB_META = [
   ["eGFR", "mL/min/1.73m²"], ["Creatinine", "mg/dL"], ["Potassium", "mEq/L"],
@@ -105,15 +106,23 @@ function renderCensus(filter = "") {
   const pts = settingPatients();
   list.innerHTML = "";
 
-  pts.filter((p) =>
-    !q ||
-    p.name.toLowerCase().includes(q) ||
-    p.diagnosis.toLowerCase().includes(q) ||
-    p.id.toLowerCase().includes(q)
-  ).forEach((p) => {
+  pts.filter((p) => {
+    const problemText = (p.problemList || [])
+      .map((problem) => `${problem.name} ${problem.code} ${problem.codedLabel}`)
+      .join(" ")
+      .toLowerCase();
+
+    return !q ||
+      p.name.toLowerCase().includes(q) ||
+      p.diagnosis.toLowerCase().includes(q) ||
+      p.id.toLowerCase().includes(q) ||
+      problemText.includes(q);
+  }).forEach((p) => {
     const li = document.createElement("li");
     li.dataset.id = p.id;
+    li.className = "patient-tile";
     if (currentPatient && currentPatient.id === p.id) li.classList.add("active");
+    if (expandedPatientId === p.id) li.classList.add("expanded");
 
     const maxSev = AGENT.deriveFindings(buildState(p)).reduce((m, f) => {
       const rank = { critical: 4, high: 3, medium: 2, info: 1 }[f.sev];
@@ -126,11 +135,54 @@ function renderCensus(filter = "") {
       ? '<span class="p-flag" style="background:#2a1d13;color:#ffb454">flag</span>'
       : '<span class="p-flag" style="background:#132432;color:#3ddc97">stable</span>';
 
+    const problems = (p.problemList || []).map((problem) => `
+      <div class="problem-row ${problem.primary ? "primary" : ""}">
+        <div class="problem-main">
+          <span class="problem-name">${problem.name}</span>
+          ${problem.primary ? '<span class="primary-badge">primary</span>' : ""}
+        </div>
+        <div class="problem-code-wrap">
+          <span class="problem-code">${problem.code}</span>
+          <span class="problem-system">ICD-10-CM · candidate</span>
+        </div>
+        <div class="problem-coded-label">${problem.codedLabel}</div>
+      </div>`).join("");
+
     li.innerHTML = `
-      <div class="p-name">${p.name} <span style="color:var(--muted);font-weight:400">· ${p.age}${p.sex}</span></div>
-      <div class="p-sub">${p.diagnosis} · eGFR ${p.labs.eGFR.value}</div>
-      ${flag}`;
-    li.addEventListener("click", () => selectPatient(p));
+      <div class="patient-tile-compact">
+        <div class="p-name">${p.name} <span style="color:var(--muted);font-weight:400">· ${p.age}${p.sex}</span></div>
+        <div class="p-sub">${p.diagnosis} · eGFR ${p.labs.eGFR.value}</div>
+        ${flag}
+        <span class="expand-hint">${expandedPatientId === p.id ? "expanded" : "click to expand"}</span>
+      </div>
+      <div class="patient-tile-detail">
+        <div class="tile-detail-head">
+          <div>
+            <span class="eyebrow">ACTIVE PROBLEM LIST</span>
+            <strong>${p.name}</strong>
+            <div class="micro">${p.id} · ${(p.problemList || []).length} active problem(s)</div>
+          </div>
+          <button type="button" class="tile-close" aria-label="Collapse patient card">×</button>
+        </div>
+        <div class="problem-list">${problems || '<div class="problem-empty">No active problems recorded.</div>'}</div>
+        <div class="tile-resize-note">Drag lower-right corner to resize</div>
+      </div>`;
+
+    li.addEventListener("click", (event) => {
+      if (event.target.closest(".tile-close")) return;
+      expandedPatientId = p.id;
+      selectPatient(p);
+    });
+
+    const close = li.querySelector(".tile-close");
+    if (close) {
+      close.addEventListener("click", (event) => {
+        event.stopPropagation();
+        expandedPatientId = null;
+        renderCensus($("#search").value);
+      });
+    }
+
     list.appendChild(li);
   });
 
@@ -608,6 +660,7 @@ $("#provenanceBackdrop").addEventListener("click", closeProvenance);
 $$(".workspace-tab").forEach((btn) => {
   btn.addEventListener("click", () => {
     currentSetting = btn.dataset.setting;
+    expandedPatientId = null;
     $("#search").value = "";
     renderWorkspace();
   });
