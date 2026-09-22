@@ -67,6 +67,46 @@ const DIAGNOSES = {
   "Nephrotic syndrome": { stage: "NS", eGFR: null },
 };
 
+
+/* -------------------------------------------------------------------------
+ * Synthetic problem-list catalog (candidate ICD-10-CM display codes)
+ * Codes are attached to explicitly generated synthetic diagnoses; the UI
+ * labels them as candidates rather than final billing selections.
+ * ----------------------------------------------------------------------- */
+const ICD10_CANDIDATES = {
+  "CKD stage 3a": { code: "N18.31", label: "Chronic kidney disease, stage 3a" },
+  "CKD stage 3b": { code: "N18.32", label: "Chronic kidney disease, stage 3b" },
+  "CKD stage 4": { code: "N18.4", label: "Chronic kidney disease, stage 4" },
+  "CKD stage 5": { code: "N18.5", label: "Chronic kidney disease, stage 5" },
+  "AKI": { code: "N17.9", label: "Acute kidney failure, unspecified" },
+  "Type 2 diabetes": { code: "E11.9", label: "Type 2 diabetes mellitus without complications" },
+  "Hypertension": { code: "I10", label: "Essential (primary) hypertension" },
+  "IgA nephropathy": { code: "N02.B9", label: "Other recurrent and persistent immunoglobulin A nephropathy" },
+  "Polycystic kidney disease": { code: "Q61.3", label: "Polycystic kidney, unspecified" },
+  "Nephrotic syndrome": { code: "N04.9", label: "Nephrotic syndrome with unspecified morphologic changes" },
+  "Hyperlipidemia": { code: "E78.5", label: "Hyperlipidemia, unspecified" },
+  "Obesity": { code: "E66.9", label: "Obesity, unspecified" },
+};
+
+function buildProblemList(patient, index) {
+  const labels = [patient.diagnosis];
+  if (patient.diagnosis !== "Hypertension" && index % 2 === 0) labels.push("Hypertension");
+  if (index % 3 === 0) labels.push("Hyperlipidemia");
+  if (patient.diagnosis !== "Type 2 diabetes" && index % 4 === 0) labels.push("Type 2 diabetes");
+  if (index % 5 === 0) labels.push("Obesity");
+
+  return [...new Set(labels)].map((name, position) => ({
+    id: patient.id + "-problem-" + String(position + 1).padStart(2, "0"),
+    name,
+    code: ICD10_CANDIDATES[name] ? ICD10_CANDIDATES[name].code : "—",
+    codedLabel: ICD10_CANDIDATES[name] ? ICD10_CANDIDATES[name].label : name,
+    primary: position === 0,
+    status: "active",
+    codeSystem: "ICD-10-CM",
+    codingStatus: "candidate",
+  }));
+}
+
 /* -------------------------------------------------------------------------
  * Generator
  * ----------------------------------------------------------------------- */
@@ -294,6 +334,7 @@ function buildContexts(p, index) {
 
 patients.forEach((p, idx) => {
   const index = idx + 1;
+  p.problemList = buildProblemList(p, index);
   p.longitudinal = buildLongitudinalState(p, index);
   p.contexts = buildContexts(p, index);
 });
