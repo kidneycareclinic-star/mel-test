@@ -177,3 +177,123 @@ for (let i = 1; i <= 24; i++) patients.push(makePatient(i));
 
 /* Attach so the app can reach them */
 window.PATIENTS = patients;
+
+
+/* =========================================================================
+ * Shared longitudinal patient-state model
+ * One synthetic identity can participate in multiple care settings. Setting
+ * contexts are overlays; they do not create separate patient records.
+ * ========================================================================= */
+function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+function buildLongitudinalState(p, index) {
+  const currentEgfr = p.labs.eGFR.value;
+  const currentUpcr = p.labs.UPCR.value;
+  const currentHb = p.labs.Hemoglobin.value;
+  const currentK = p.labs.Potassium.value;
+  const currentPhos = p.labs.Phosphate.value;
+  const currentPth = p.labs.PTH.value;
+  const currentBicarb = p.labs.Bicarbonate.value;
+
+  const slope = ((index % 5) - 2) * 1.1;
+  const e1 = clamp(Math.round(currentEgfr - slope * 3 + ((index % 3) - 1) * 2), 5, 110);
+  const e2 = clamp(Math.round(currentEgfr - slope * 2 + (index % 2 ? 1 : -1)), 5, 110);
+  const e3 = clamp(Math.round(currentEgfr - slope), 5, 110);
+
+  const proteinFactor = 1 + (((index % 5) - 2) * 0.08);
+  const bpSys = 118 + (index * 7) % 42;
+  const bpDia = 68 + (index * 5) % 24;
+
+  return {
+    kidney: {
+      label: p.diagnosis,
+      stage: p.ckdStage,
+      currentEgfr,
+      trajectory: [
+        { date: "2025-12", value: e1 },
+        { date: "2026-03", value: e2 },
+        { date: "2026-06", value: e3 },
+        { date: "2026-09", value: currentEgfr },
+      ],
+      trajectoryLabel: currentEgfr < e1 - 5 ? "declining" : currentEgfr > e1 + 5 ? "improving" : "relatively stable",
+    },
+    proteinuria: {
+      current: currentUpcr,
+      trajectory: [
+        Number(Math.max(0.05, currentUpcr * proteinFactor * 0.82).toFixed(1)),
+        Number(Math.max(0.05, currentUpcr * proteinFactor * 0.92).toFixed(1)),
+        Number(currentUpcr.toFixed(1)),
+      ],
+    },
+    bpVolume: {
+      latestBp: bpSys + "/" + bpDia,
+      edema: index % 6 === 0 ? "1+ peripheral edema" : index % 4 === 0 ? "trace edema" : "no edema documented",
+      weightTrend: index % 5 === 0 ? "upward" : index % 5 === 1 ? "downward" : "stable",
+    },
+    electrolytes: {
+      potassium: currentK,
+      bicarbonate: currentBicarb,
+      status: currentK > 5.0 || currentBicarb < 22 ? "review" : "stable",
+    },
+    anemia: {
+      hemoglobin: currentHb,
+      status: currentHb < 11 ? "review" : "stable",
+    },
+    ckdMbd: {
+      phosphate: currentPhos,
+      pth: currentPth,
+      status: currentPhos > 4.5 || currentPth > 65 ? "review" : "stable",
+    },
+    kidneyProtection: {
+      raas: p.meds.some((m) => ["Lisinopril", "Losartan"].includes(m)),
+      sglt2: false,
+      nsaidExposure: p.meds.includes("Ibuprofen"),
+    },
+    openLoops: [
+      ...(index % 4 === 0 ? [{ type: "lab", label: "Repeat chemistry", status: "pending" }] : []),
+      ...(index % 7 === 0 ? [{ type: "imaging", label: "Renal imaging follow-up", status: "pending" }] : []),
+    ],
+  };
+}
+
+function buildContexts(p, index) {
+  const advanced = ["4", "5", "AKI"].includes(p.ckdStage);
+  const dialysisEligible = p.ckdStage === "5";
+  return {
+    office: {
+      active: true,
+      visitType: index % 2 ? "CKD follow-up" : "Nephrology return",
+      lastVisit: p.lastVisit,
+      focus: p.diagnosis,
+      bp: p.longitudinal.bpVolume.latestBp,
+      openLoops: p.longitudinal.openLoops.length,
+      previsit: index % 4 === 0 ? "Review pending items" : "Pre-visit brief ready",
+    },
+    hospital: {
+      active: p.ckdStage === "AKI" || advanced || index % 5 === 0,
+      location: index % 2 ? "Medical floor" : "ICU",
+      consultType: p.ckdStage === "AKI" ? "AKI consult" : "Nephrology consult",
+      hospitalDay: (index % 6) + 1,
+      trigger: p.ckdStage === "AKI" ? "Rising creatinine / AKI" : advanced ? "Advanced CKD / inpatient renal issue" : "Electrolyte / volume review",
+      urineOutput: index % 4 === 0 ? "trend needs review" : "documented",
+      preRound: index % 5 === 0 ? "Needs physician review" : "Pre-round brief ready",
+    },
+    dialysis: {
+      active: dialysisEligible,
+      unit: "Synthetic Dialysis Center",
+      chair: (index % 20) + 1,
+      modality: "In-center HD",
+      access: index % 2 ? "AV fistula" : "AV graft",
+      attendance: index % 4 === 0 ? "1 recent missed treatment" : "no recent missed treatments",
+      idwg: (1.4 + (index % 6) * 0.35).toFixed(1) + " kg",
+      dryWeight: (58 + (index % 18) * 1.7).toFixed(1) + " kg",
+      roundStatus: index % 4 === 0 ? "Needs review" : "Ready for round",
+    },
+  };
+}
+
+patients.forEach((p, idx) => {
+  const index = idx + 1;
+  p.longitudinal = buildLongitudinalState(p, index);
+  p.contexts = buildContexts(p, index);
+});
