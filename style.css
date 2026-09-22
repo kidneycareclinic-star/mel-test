@@ -336,3 +336,139 @@ body {
 .judge-chip.good { border-left:3px solid var(--good); }
 .judge-chip.warn { border-left:3px solid var(--warn); }
 .judge-chip.accent { border-left:3px solid var(--accent); }
+
+
+/* ---- expandable census patient cards ---- */
+.patient-tile { position:relative; }
+.patient-tile .patient-tile-detail { display:none; }
+.patient-tile .expand-hint {
+  display:block; clear:both; margin-top:5px; color:var(--muted);
+  font-size:9px; text-transform:uppercase; letter-spacing:.45px;
+}
+.patient-tile.expanded {
+  position:fixed;
+  left:14px;
+  top:188px;
+  width:420px;
+  min-width:320px;
+  max-width:min(720px, calc(100vw - 28px));
+  height:auto;
+  min-height:260px;
+  max-height:72vh;
+  resize:both;
+  overflow:auto;
+  z-index:45;
+  background:#151e2f;
+  border:1px solid var(--accent);
+  box-shadow:0 18px 50px rgba(0,0,0,.48);
+  cursor:default;
+  padding:12px;
+}
+.patient-tile.expanded .patient-tile-compact {
+  padding-bottom:10px;
+  border-bottom:1px solid var(--border);
+  margin-bottom:10px;
+}
+.patient-tile.expanded .patient-tile-detail { display:block; }
+.patient-tile.expanded .expand-hint { color:var(--accent); }
+.tile-detail-head {
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:12px;
+  margin-bottom:10px;
+}
+.tile-detail-head strong {
+  display:block;
+  font-size:14px;
+  margin-top:2px;
+}
+.tile-close {
+  flex:0 0 auto;
+  border:1px solid var(--border);
+  background:var(--panel-2);
+  color:var(--muted);
+  border-radius:6px;
+  font-size:18px;
+  line-height:1;
+  padding:3px 8px;
+  cursor:pointer;
+}
+.tile-close:hover { color:var(--accent); border-color:var(--accent); }
+.problem-list { display:flex; flex-direction:column; gap:7px; }
+.problem-row {
+  display:grid;
+  grid-template-columns:minmax(0, 1fr) auto;
+  gap:4px 10px;
+  padding:8px 9px;
+  border:1px solid var(--border);
+  border-radius:7px;
+  background:var(--panel-2);
+}
+.problem-row.primary { border-left:3px solid var(--accent); }
+.problem-main {
+  display:flex;
+  align-items:center;
+  gap:6px;
+  min-width:0;
+}
+.problem-name {
+  font-weight:600;
+  font-size:12px;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.primary-badge {
+  padding:1px 5px;
+  border-radius:8px;
+  font-size:8px;
+  text-transform:uppercase;
+  letter-spacing:.4px;
+  color:var(--accent);
+  border:1px solid #1f5a80;
+  background:#122436;
+}
+.problem-code-wrap {
+  display:flex;
+  align-items:flex-end;
+  flex-direction:column;
+  gap:1px;
+}
+.problem-code {
+  font-family:ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size:12px;
+  color:var(--text);
+}
+.problem-system { color:var(--muted); font-size:8px; }
+.problem-coded-label {
+  grid-column:1 / -1;
+  color:var(--muted);
+  font-size:10px;
+  line-height:1.35;
+}
+.problem-empty {
+  color:var(--muted);
+  font-size:11px;
+  border:1px dashed var(--border);
+  border-radius:7px;
+  padding:10px;
+}
+.tile-resize-note {
+  margin-top:9px;
+  padding-top:8px;
+  border-top:1px solid var(--border);
+  color:var(--muted);
+  font-size:9px;
+  text-align:right;
+}
+@media (max-width: 700px) {
+  .patient-tile.expanded {
+    left:10px;
+    right:10px;
+    top:150px;
+    width:auto;
+    max-width:none;
+    resize:vertical;
+  }
+}
