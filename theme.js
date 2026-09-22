@@ -25,7 +25,7 @@
     const button = document.getElementById("themeToggle");
     if (button) {
       const light = theme === "light";
-      button.textContent = light ? "Dark mode" : "Light mode";
+      button.textContent = light ? "🌙 Dark" : "☀ Light";
       button.setAttribute("aria-pressed", light ? "true" : "false");
       button.title = light ? "Switch to dark mode" : "Switch to light mode";
     }
