@@ -57,7 +57,7 @@
     </div>
   </div>
 
-  <div class="layout">
+  <div class="layout" id="mainLayout">
     <aside class="census">
       <div class="panel-head">
         <div>
@@ -69,7 +69,8 @@
       <ul id="patientList" class="patient-list"></ul>
     </aside>
 
-    <main class="chart">
+    <div id="centerResizeHandle" class="center-resize-handle" title="Drag to resize middle pane" aria-hidden="true"></div>
+    <main class="chart" id="centerPane">
       <section class="panel identity-panel" id="demographics">
         <div class="identity-row">
           <div>
@@ -91,6 +92,17 @@
         </div>
         <div id="contextGrid" class="context-grid"></div>
         <div id="contextDetail" class="context-detail"></div>
+      </section>
+
+      <section class="panel prechart-panel">
+        <div class="panel-head">
+          <div>
+            <h2>Pre-charting note</h2>
+            <div class="micro">Lab trends opened for review are added here for the selected synthetic patient</div>
+          </div>
+          <button id="clearPrechartBtn" class="small-btn" type="button">Clear</button>
+        </div>
+        <div id="prechartNote" class="prechart-note"></div>
       </section>
 
       <section class="panel state-panel">
