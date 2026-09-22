@@ -1,7 +1,6 @@
 /* =========================================================================
- * Nephrology Agentic Harness — workspace-aware UI shell
- * Existing visual language and shared nephrology agent are preserved.
- * Office, Hospital and Dialysis are peer workspaces over one harness.
+ * Nephrology Agentic Harness — shared patient-state UI
+ * One patient identity + one longitudinal kidney state + care-setting overlays.
  * ========================================================================= */
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => Array.from(document.querySelectorAll(sel));
@@ -18,8 +17,12 @@ const LAB_META = [
 ];
 
 const SUGGESTIONS = [
-  "Summarize this patient", "Interpret the labs", "What are the next steps?",
-  "What is the risk?", "Review medications", "Any nephrotoxic meds?"
+  "Summarize this patient",
+  "Interpret the labs",
+  "What are the next steps?",
+  "What is the risk?",
+  "Review medications",
+  "Any nephrotoxic meds?",
 ];
 
 const WORKSPACES = {
@@ -27,60 +30,31 @@ const WORKSPACES = {
     title: "Office nephrology",
     subtitle: "Longitudinal outpatient kidney care",
     census: "Office census",
-    context: "Office context",
+    context: "Office encounter context",
     badge: "longitudinal",
-    filter: (_, i) => i % 3 === 0,
   },
   hospital: {
     title: "Hospital nephrology",
     subtitle: "Consults, inpatient kidney events and rounds",
     census: "Hospital census",
-    context: "Hospital context",
+    context: "Hospital episode context",
     badge: "inpatient",
-    filter: (_, i) => i % 3 === 1,
   },
   dialysis: {
     title: "Dialysis nephrology",
     subtitle: "Chairside rounds and longitudinal dialysis workflow",
     census: "Dialysis census",
-    context: "Dialysis context",
+    context: "Dialysis treatment context",
     badge: "rounding",
-    filter: (_, i) => i % 3 === 2,
   },
 };
 
+function activeInSetting(p, setting = currentSetting) {
+  return Boolean(p.contexts && p.contexts[setting] && p.contexts[setting].active);
+}
+
 function settingPatients() {
-  return window.PATIENTS.filter(WORKSPACES[currentSetting].filter);
-}
-
-function patientNumber(p) {
-  return Number(String(p.id).replace(/\D/g, "")) || 1;
-}
-
-function contextFor(p) {
-  const n = patientNumber(p);
-  if (currentSetting === "office") {
-    return [
-      ["Visit type", n % 2 ? "CKD follow-up" : "Nephrology return", "accent"],
-      ["Last visit", p.lastVisit, ""],
-      ["Primary focus", p.diagnosis, "warn"],
-      ["Open-loop status", n % 4 === 0 ? "1 pending item" : "No pending items", n % 4 === 0 ? "warn" : "good"],
-    ];
-  }
-  if (currentSetting === "hospital") {
-    return [
-      ["Location", n % 2 ? "Medical floor" : "ICU", "accent"],
-      ["Consult type", p.ckdStage === "AKI" ? "AKI consult" : "Kidney consult", "warn"],
-      ["Hospital day", String((n % 6) + 1), ""],
-      ["Agent state", n % 5 === 0 ? "Needs physician review" : "Pre-round brief ready", n % 5 === 0 ? "warn" : "good"],
-    ];
-  }
-  return [
-    ["Unit", "Synthetic Dialysis Center", "accent"],
-    ["Chair", String((n % 20) + 1), ""],
-    ["Modality", "In-center HD", ""],
-    ["Round status", n % 4 === 0 ? "Needs review" : "Ready for round", n % 4 === 0 ? "warn" : "good"],
-  ];
+  return window.PATIENTS.filter((p) => activeInSetting(p));
 }
 
 function sevDot(sev) {
@@ -98,12 +72,9 @@ function renderWorkspace() {
   $("#search").placeholder = `Filter ${currentSetting} census…`;
   $$(".workspace-tab").forEach((b) => b.classList.toggle("active", b.dataset.setting === currentSetting));
   renderCensus($("#search").value);
-  const pts = settingPatients();
-  if (!currentPatient || !pts.some((p) => p.id === currentPatient.id)) {
-    if (pts.length) selectPatient(pts[0]);
-  } else {
-    renderContext(currentPatient);
-  }
+
+  if (!currentPatient && window.PATIENTS.length) currentPatient = window.PATIENTS[0];
+  if (currentPatient) renderPatient(currentPatient, false);
 }
 
 function renderCensus(filter = "") {
@@ -113,7 +84,10 @@ function renderCensus(filter = "") {
   list.innerHTML = "";
 
   pts.filter((p) =>
-    !q || p.name.toLowerCase().includes(q) || p.diagnosis.toLowerCase().includes(q) || p.id.toLowerCase().includes(q)
+    !q ||
+    p.name.toLowerCase().includes(q) ||
+    p.diagnosis.toLowerCase().includes(q) ||
+    p.id.toLowerCase().includes(q)
   ).forEach((p) => {
     const li = document.createElement("li");
     li.dataset.id = p.id;
@@ -123,6 +97,7 @@ function renderCensus(filter = "") {
       const rank = { critical: 4, high: 3, medium: 2, info: 1 }[f.sev];
       return rank > m ? rank : m;
     }, 0);
+
     const flag = maxSev >= 4
       ? '<span class="p-flag" style="background:#2a141b;color:#ff4d6d">critical</span>'
       : maxSev === 3
@@ -138,27 +113,203 @@ function renderCensus(filter = "") {
   });
 
   $("#patientCount").textContent = `${pts.length} ${currentSetting} patients`;
-  $("#censusMeta").textContent = `${pts.length} synthetic patients assigned to this workspace`;
+  $("#censusMeta").textContent = `${pts.length} synthetic patients active in this workspace`;
+}
+
+function renderCareFootprint(p) {
+  const box = $("#careFootprint");
+  const labels = [
+    ["office", "Office"],
+    ["hospital", "Hospital"],
+    ["dialysis", "Dialysis"],
+  ];
+  box.innerHTML = labels.map(([key, label]) => {
+    const active = activeInSetting(p, key);
+    const here = key === currentSetting;
+    return `<span class="footprint-chip ${active ? "active" : "inactive"} ${here ? "current" : ""}">${label}${active ? " ✓" : ""}</span>`;
+  }).join("");
+}
+
+function contextCards(p) {
+  const c = p.contexts[currentSetting];
+  if (!c || !c.active) return [];
+
+  if (currentSetting === "office") {
+    return [
+      ["Visit type", c.visitType, "accent"],
+      ["Blood pressure", c.bp, ""],
+      ["Primary focus", c.focus, "warn"],
+      ["Open loops", c.openLoops ? `${c.openLoops} pending` : "none pending", c.openLoops ? "warn" : "good"],
+    ];
+  }
+
+  if (currentSetting === "hospital") {
+    return [
+      ["Location", c.location, "accent"],
+      ["Consult", c.consultType, "warn"],
+      ["Hospital day", String(c.hospitalDay), ""],
+      ["Pre-round state", c.preRound, c.preRound.includes("Needs") ? "warn" : "good"],
+    ];
+  }
+
+  return [
+    ["Unit", c.unit, "accent"],
+    ["Chair", String(c.chair), ""],
+    ["Access", c.access, ""],
+    ["Round state", c.roundStatus, c.roundStatus.includes("Needs") ? "warn" : "good"],
+  ];
+}
+
+function contextDetail(p) {
+  const c = p.contexts[currentSetting];
+  if (!c || !c.active) {
+    const label = currentSetting[0].toUpperCase() + currentSetting.slice(1);
+    return `
+      <div class="empty-context">
+        <strong>No active ${label.toLowerCase()} episode for this shared patient.</strong>
+        <span>The longitudinal kidney state remains visible because identity and clinical state persist across workspaces.</span>
+      </div>`;
+  }
+
+  if (currentSetting === "office") {
+    return `
+      <div class="context-story">
+        <span class="story-label">PRE-VISIT BRIEF</span>
+        <strong>${c.previsit}</strong>
+        <span>Last nephrology visit ${c.lastVisit}. Current office focus: ${c.focus}. The harness carries unresolved tasks forward rather than relying on the note alone.</span>
+      </div>`;
+  }
+
+  if (currentSetting === "hospital") {
+    return `
+      <div class="context-story">
+        <span class="story-label">INPATIENT EVENT</span>
+        <strong>${c.trigger}</strong>
+        <span>Hospital day ${c.hospitalDay} · ${c.location} · urine output ${c.urineOutput}. The hospital layer is episode-oriented while the chronic kidney state remains underneath.</span>
+      </div>`;
+  }
+
+  return `
+    <div class="context-story">
+      <span class="story-label">TODAY'S DIALYSIS ROUND</span>
+      <strong>${c.modality} · chair ${c.chair}</strong>
+      <span>Dry weight ${c.dryWeight} · IDWG ${c.idwg} · ${c.access} · ${c.attendance}. Dialysis data are a treatment context attached to the same longitudinal patient record.</span>
+    </div>`;
 }
 
 function renderContext(p) {
   const grid = $("#contextGrid");
+  const detail = $("#contextDetail");
   grid.innerHTML = "";
-  contextFor(p).forEach(([label, value, tone]) => {
-    const card = document.createElement("div");
-    card.className = "context-card" + (tone ? " " + tone : "");
-    card.innerHTML = `<span class="c-label">${label}</span><span class="c-value">${value}</span>`;
-    grid.appendChild(card);
+
+  const cards = contextCards(p);
+  if (!cards.length) {
+    grid.classList.add("empty");
+  } else {
+    grid.classList.remove("empty");
+    cards.forEach(([label, value, tone]) => {
+      const card = document.createElement("div");
+      card.className = "context-card" + (tone ? " " + tone : "");
+      card.innerHTML = `<span class="c-label">${label}</span><span class="c-value">${value}</span>`;
+      grid.appendChild(card);
+    });
+  }
+  detail.innerHTML = contextDetail(p);
+}
+
+function miniTrend(values, tone = "accent") {
+  const nums = values.map((v) => Number(v));
+  const min = Math.min(...nums);
+  const max = Math.max(...nums);
+  const spread = Math.max(1, max - min);
+  return `
+    <div class="spark ${tone}">
+      ${nums.map((v) => {
+        const h = 18 + ((v - min) / spread) * 28;
+        return `<span style="height:${h}px" title="${v}"></span>`;
+      }).join("")}
+    </div>`;
+}
+
+function protectionText(s) {
+  const parts = [];
+  parts.push(s.raas ? "RAAS blockade present" : "No ACEi/ARB listed");
+  parts.push(s.sglt2 ? "SGLT2i listed" : "No SGLT2i listed");
+  if (s.nsaidExposure) parts.push("NSAID exposure flagged");
+  return parts.join(" · ");
+}
+
+function renderPatientState(p) {
+  const s = p.longitudinal;
+  const grid = $("#stateGrid");
+  grid.innerHTML = "";
+
+  const cards = [
+    {
+      title: "Kidney function",
+      value: `eGFR ${s.kidney.currentEgfr}`,
+      sub: `${s.kidney.trajectoryLabel} · ${p.diagnosis}`,
+      tone: s.kidney.trajectoryLabel === "declining" ? "warn" : "accent",
+      visual: miniTrend(s.kidney.trajectory.map((x) => x.value), "accent"),
+    },
+    {
+      title: "Proteinuria",
+      value: `UPCR ${s.proteinuria.current} g/g`,
+      sub: "longitudinal urine protein signal",
+      tone: s.proteinuria.current > 3 ? "warn" : "accent",
+      visual: miniTrend(s.proteinuria.trajectory, "warn"),
+    },
+    {
+      title: "BP / volume",
+      value: s.bpVolume.latestBp,
+      sub: `${s.bpVolume.edema} · weight ${s.bpVolume.weightTrend}`,
+      tone: s.bpVolume.edema.includes("1+") ? "warn" : "good",
+    },
+    {
+      title: "Electrolytes / acid-base",
+      value: `K ${s.electrolytes.potassium} · HCO₃ ${s.electrolytes.bicarbonate}`,
+      sub: s.electrolytes.status,
+      tone: s.electrolytes.status === "review" ? "warn" : "good",
+    },
+    {
+      title: "Anemia",
+      value: `Hb ${s.anemia.hemoglobin} g/dL`,
+      sub: s.anemia.status,
+      tone: s.anemia.status === "review" ? "warn" : "good",
+    },
+    {
+      title: "CKD-MBD",
+      value: `Phos ${s.ckdMbd.phosphate} · PTH ${s.ckdMbd.pth}`,
+      sub: s.ckdMbd.status,
+      tone: s.ckdMbd.status === "review" ? "warn" : "good",
+    },
+    {
+      title: "Kidney protection",
+      value: s.kidneyProtection.raas ? "RAAS active" : "Therapy review",
+      sub: protectionText(s.kidneyProtection),
+      tone: s.kidneyProtection.nsaidExposure ? "warn" : "accent",
+    },
+    {
+      title: "Open loops",
+      value: s.openLoops.length ? `${s.openLoops.length} unresolved` : "None",
+      sub: s.openLoops.length ? s.openLoops.map((x) => x.label).join(" · ") : "No tracked unresolved tasks",
+      tone: s.openLoops.length ? "warn" : "good",
+    },
+  ];
+
+  cards.forEach((c) => {
+    const el = document.createElement("div");
+    el.className = `state-card ${c.tone || ""}`;
+    el.innerHTML = `
+      <div class="state-title">${c.title}</div>
+      <div class="state-value">${c.value}</div>
+      <div class="state-sub">${c.sub}</div>
+      ${c.visual || ""}`;
+    grid.appendChild(el);
   });
 }
 
-function selectPatient(p) {
-  currentPatient = p;
-  $("#ptName").innerHTML = `${p.name} <span class="dx-tag">${p.diagnosis}${p.ckdStage && p.ckdStage !== "DM" && p.ckdStage !== "HTN" ? " · " + p.ckdStage : ""}</span>`;
-  $("#ptMeta").innerHTML = `${p.id} · ${p.age} yo · ${p.sex === "F" ? "Female" : "Male"} · ${p.ethnicity} · last visit ${p.lastVisit}`;
-
-  renderContext(p);
-
+function renderSourceData(p) {
   const grid = $("#labsGrid");
   grid.innerHTML = "";
   LAB_META.forEach(([name, unit]) => {
@@ -182,12 +333,28 @@ function selectPatient(p) {
     el.title = MEDS[m] ? `${MEDS[m].dose} — ${MEDS[m].renal}` : "";
     meds.appendChild(el);
   });
+}
+
+function renderPatient(p, resetChat = true) {
+  currentPatient = p;
+  $("#ptName").innerHTML = `${p.name} <span class="dx-tag">${p.diagnosis}${p.ckdStage && !["DM", "HTN"].includes(p.ckdStage) ? " · " + p.ckdStage : ""}</span>`;
+  $("#ptMeta").innerHTML = `${p.id} · ${p.age} yo · ${p.sex === "F" ? "Female" : "Male"} · ${p.ethnicity} · master record shared across care settings`;
+
+  renderCareFootprint(p);
+  renderContext(p);
+  renderPatientState(p);
+  renderSourceData(p);
 
   currentFindings = AGENT.deriveFindings(p);
   renderFindings(currentFindings);
   renderCensus($("#search").value);
-  $("#chat").innerHTML = "";
+
+  if (resetChat) $("#chat").innerHTML = "";
   $("#agentStatus").textContent = "ready";
+}
+
+function selectPatient(p) {
+  renderPatient(p, true);
 }
 
 function renderFindings(findings) {
@@ -224,7 +391,10 @@ function ask(query) {
 
   setTimeout(() => {
     const res = AGENT.run(currentPatient, q);
-    addMsg("agent", res.body, `${currentSetting} agent · ${res.intent}`);
+    const contextPrefix = activeInSetting(currentPatient)
+      ? `${currentSetting} context active`
+      : `${currentSetting} context inactive · answering from shared patient state`;
+    addMsg("agent", res.body, `${contextPrefix} · ${res.intent}`);
     $("#agentStatus").textContent = "ready";
   }, 220);
 }
@@ -234,12 +404,12 @@ $("#askForm").addEventListener("submit", (e) => {
   ask($("#query").value);
   $("#query").value = "";
 });
+
 $("#search").addEventListener("input", (e) => renderCensus(e.target.value));
 
 $$(".workspace-tab").forEach((btn) => {
   btn.addEventListener("click", () => {
     currentSetting = btn.dataset.setting;
-    currentPatient = null;
     $("#search").value = "";
     renderWorkspace();
   });
@@ -253,4 +423,5 @@ SUGGESTIONS.forEach((s) => {
   sug.appendChild(b);
 });
 
+if (window.PATIENTS.length) currentPatient = window.PATIENTS[0];
 renderWorkspace();
