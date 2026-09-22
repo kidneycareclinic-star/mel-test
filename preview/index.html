@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Nephrology Agentic Harness — Synthetic Demo</title>
-<link rel="stylesheet" href="style.css?v=bright-labs-20260922" />
+<link rel="stylesheet" href="style.css?v=light-theme-20260922" />
 </head>
 <body>
   <header class="topbar">
@@ -16,6 +16,7 @@
       </div>
     </div>
     <div class="top-right">
+      <button id="themeToggle" class="theme-toggle" type="button" aria-label="Switch color theme">Light mode</button>
       <span id="patientCount" class="chip">—</span>
       <span class="chip chip-warn">⚠ demo · not for clinical use</span>
     </div>
@@ -180,6 +181,7 @@
     <div id="provBody" class="prov-body"></div>
   </aside>
 
+  <script src="theme.js"></script>
   <script src="data.js"></script>
   <script src="open-loop.js"></script>
   <script src="patient-state.js"></script>
