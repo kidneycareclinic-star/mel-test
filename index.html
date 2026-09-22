@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Nephrology EHR — Agentic Harness (Synthetic Demo)</title>
+<title>Nephrology Agentic Harness — Synthetic Demo</title>
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -11,8 +11,8 @@
     <div class="brand">
       <span class="logo">🫘</span>
       <div>
-        <h1>Nephrology EHR <span class="badge">synthetic</span></h1>
-        <p class="sub">Agentic clinical-harness demo · all patient data is fabricated</p>
+        <h1>Nephrology Agentic Harness <span class="badge">synthetic</span></h1>
+        <p class="sub">Physician intelligence + workflow layer above office, hospital and dialysis systems</p>
       </div>
     </div>
     <div class="top-right">
@@ -21,18 +21,54 @@
     </div>
   </header>
 
+  <nav class="workspace-tabs" aria-label="Nephrology workspace">
+    <button class="workspace-tab active" data-setting="office">
+      <span class="tab-icon">🏥</span>
+      <span><strong>Office</strong><small>CKD · HTN · GN</small></span>
+    </button>
+    <button class="workspace-tab" data-setting="hospital">
+      <span class="tab-icon">🛏️</span>
+      <span><strong>Hospital</strong><small>Consults · AKI · ICU</small></span>
+    </button>
+    <button class="workspace-tab" data-setting="dialysis">
+      <span class="tab-icon">🩸</span>
+      <span><strong>Dialysis</strong><small>HD rounds · longitudinal care</small></span>
+    </button>
+  </nav>
+
+  <div class="workspace-strip">
+    <div>
+      <span class="eyebrow">ACTIVE WORKSPACE</span>
+      <strong id="workspaceTitle">Office nephrology</strong>
+      <span id="workspaceSubtitle" class="workspace-sub">Longitudinal outpatient kidney care</span>
+    </div>
+    <div class="workspace-actions">
+      <span class="chip chip-agent" id="workspaceMode">office</span>
+      <span class="chip">Harness state: synthetic</span>
+    </div>
+  </div>
+
   <div class="layout">
-    <!-- LEFT: patient census -->
     <aside class="census">
       <div class="panel-head">
-        <h2>Patient census</h2>
-        <input id="search" type="search" placeholder="Filter…" />
+        <div>
+          <h2 id="censusTitle">Office census</h2>
+          <div class="micro" id="censusMeta">Synthetic patients assigned to this workspace</div>
+        </div>
       </div>
+      <input id="search" type="search" placeholder="Filter census…" />
       <ul id="patientList" class="patient-list"></ul>
     </aside>
 
-    <!-- MIDDLE: chart -->
     <main class="chart">
+      <section class="panel context-panel">
+        <div class="panel-head">
+          <h2 id="contextTitle">Office context</h2>
+          <span class="chip" id="contextBadge">longitudinal</span>
+        </div>
+        <div id="contextGrid" class="context-grid"></div>
+      </section>
+
       <section class="panel" id="demographics">
         <h2 id="ptName">—</h2>
         <div class="meta" id="ptMeta"></div>
@@ -49,15 +85,16 @@
       </section>
     </main>
 
-    <!-- RIGHT: agent -->
     <aside class="agent-pane">
       <div class="panel-head">
-        <h2>🩺 Nephro agent</h2>
+        <div>
+          <h2>🩺 Nephro agent</h2>
+          <div class="micro">Shared reasoning surface across all workspaces</div>
+        </div>
         <span class="chip chip-agent" id="agentStatus">idle</span>
       </div>
 
       <div id="findings" class="findings"></div>
-
       <div id="chat" class="chat"></div>
 
       <form id="askForm" class="ask">
