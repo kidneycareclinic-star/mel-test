@@ -701,3 +701,162 @@ body {
 .prechart-entry-head span { color:var(--accent); font-size:11px; }
 .prechart-entry-body { font-size:11px; line-height:1.45; }
 .prechart-history { margin-top:5px; color:var(--muted); font-size:9px; line-height:1.4; }
+
+
+/* ---- theme toggle ---- */
+.theme-toggle {
+  border:1px solid var(--border);
+  background:var(--panel-2);
+  color:var(--text);
+  border-radius:18px;
+  padding:5px 10px;
+  font-size:11px;
+  cursor:pointer;
+}
+.theme-toggle:hover { border-color:var(--accent); color:var(--accent); }
+
+/* ---- light theme ---- */
+:root[data-theme="light"] {
+  --bg:#f5f7fb;
+  --panel:#ffffff;
+  --panel-2:#f0f4fa;
+  --border:#cfd8e6;
+  --text:#172033;
+  --muted:#66758d;
+  --accent:#0077c8;
+  --good:#149f61;
+  --warn:#b26b00;
+  --bad:#d63f3f;
+  --critical:#c62845;
+}
+
+:root[data-theme="light"] body {
+  background:var(--bg);
+  color:var(--text);
+}
+:root[data-theme="light"] .topbar {
+  background:linear-gradient(180deg, #ffffff, #f4f7fb);
+  border-bottom-color:var(--border);
+}
+:root[data-theme="light"] .workspace-tabs {
+  background:var(--bg);
+}
+:root[data-theme="light"] .workspace-tab {
+  background:#ffffff;
+  color:var(--text);
+}
+:root[data-theme="light"] .workspace-tab:hover {
+  background:#f2f6fb;
+}
+:root[data-theme="light"] .workspace-tab.active {
+  background:#e8f4fd;
+  border-color:var(--accent);
+  box-shadow:inset 0 -2px 0 rgba(0,119,200,.15);
+}
+:root[data-theme="light"] .workspace-subtab {
+  background:#ffffff;
+}
+:root[data-theme="light"] .workspace-subtab.active {
+  background:#e8f4fd;
+}
+:root[data-theme="light"] .workspace-strip,
+:root[data-theme="light"] .identity-panel,
+:root[data-theme="light"] .context-panel,
+:root[data-theme="light"] .state-panel,
+:root[data-theme="light"] .loop-panel,
+:root[data-theme="light"] .prechart-panel {
+  background:#ffffff;
+}
+:root[data-theme="light"] .context-story,
+:root[data-theme="light"] .empty-context {
+  background:#f7f9fc;
+}
+:root[data-theme="light"] .chip-agent {
+  color:#0067ad;
+  border-color:#9bcdf0;
+  background:#e8f4fd;
+}
+:root[data-theme="light"] .chip-warn {
+  color:#8a5600;
+  border-color:#e7c88f;
+  background:#fff7e6;
+}
+:root[data-theme="light"] .badge {
+  background:#e9eef6;
+  color:#0077c8;
+}
+:root[data-theme="light"] .finding.critical {
+  background:#ffe9ee;
+  border-color:#d53d58;
+  color:#7d1e31;
+}
+:root[data-theme="light"] .finding.high {
+  background:#fff1df;
+  border-color:#d88b2d;
+  color:#70430c;
+}
+:root[data-theme="light"] .finding.medium {
+  background:#f2f5fa;
+  border-color:#c3cedc;
+  color:#334155;
+}
+:root[data-theme="light"] .finding.info {
+  background:#eaf6ff;
+  border-color:#8fc9ef;
+  color:#15527a;
+}
+:root[data-theme="light"] .msg.user {
+  background:#f1f4f9;
+}
+:root[data-theme="light"] .msg.agent {
+  background:#eaf6ff;
+  border-color:#9bcdf0;
+}
+:root[data-theme="light"] .prov-badge,
+:root[data-theme="light"] .primary-badge {
+  color:#0067ad;
+  border-color:#9bcdf0;
+  background:#e8f4fd;
+}
+:root[data-theme="light"] .footprint-chip.active {
+  color:#0a7a48;
+  border-color:#9ed6bc;
+  background:#edf9f3;
+}
+:root[data-theme="light"] .footprint-chip.inactive.current {
+  background:#eaf6ff;
+  border-color:#9bcdf0;
+}
+:root[data-theme="light"] .patient-tile.expanded {
+  background:#ffffff;
+  box-shadow:0 18px 50px rgba(58,72,95,.22);
+}
+:root[data-theme="light"] .provenance-drawer {
+  background:#ffffff;
+  box-shadow:-16px 0 40px rgba(58,72,95,.22);
+}
+:root[data-theme="light"] .provenance-backdrop {
+  background:rgba(40,52,72,.28);
+}
+:root[data-theme="light"] .tile-close {
+  background:#fff0f2;
+  color:#a1243b;
+}
+:root[data-theme="light"] .tile-close:hover {
+  background:#ffe4e9;
+  color:#7e1930;
+}
+:root[data-theme="light"] .lab-view-tabs button {
+  background:rgba(255,255,255,.62);
+  color:#30445f;
+}
+:root[data-theme="light"] .lab-view-tabs button.active {
+  color:#005f9e;
+  border-color:#0077c8;
+  background:#e8f4fd;
+}
+:root[data-theme="light"] .graph-axis { stroke:#8390a4; }
+:root[data-theme="light"] .graph-label { fill:#5f6f85; }
+:root[data-theme="light"] .graph-value { fill:#142033; }
+
+/* Bright lab status colors intentionally remain identical in both themes. */
