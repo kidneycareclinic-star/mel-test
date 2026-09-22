@@ -10,7 +10,7 @@
  * ========================================================================= */
 
 const PATIENT_STATE_ENGINE = (() => {
-  const VERSION = "0.2.0";
+  const VERSION = "0.3.0";
 
   function source(kind, label, field, observedAt, confidence = 1) {
     return {
@@ -266,6 +266,17 @@ const PATIENT_STATE_ENGINE = (() => {
           source("synthetic-medication-list", "Synthetic active medication list", "NSAID", patient.lastVisit, 1)
         ),
       },
+
+      problemList: (patient.problemList || []).map((problem) => ({
+        ...problem,
+        provenance: source(
+          "synthetic-problem-list",
+          "Synthetic active problem list",
+          problem.code || problem.name,
+          patient.lastVisit,
+          1
+        ),
+      })),
 
       medications: {
         active: (patient.meds || []).map((name) => ({
