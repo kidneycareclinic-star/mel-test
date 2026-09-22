@@ -95,6 +95,20 @@
         <div id="stateGrid" class="state-grid"></div>
       </section>
 
+      <section class="panel loop-panel">
+        <div class="panel-head">
+          <div>
+            <h2>Open-loop engine</h2>
+            <div class="micro">Longitudinal obligations that persist beyond an encounter note</div>
+          </div>
+          <div class="loop-head-actions">
+            <span id="loopSummary" class="chip">—</span>
+            <button id="addLoopBtn" class="small-btn" type="button">+ Add loop</button>
+          </div>
+        </div>
+        <div id="openLoopList" class="open-loop-list"></div>
+      </section>
+
       <section class="panel">
         <div class="panel-head">
           <h2>Source data · latest labs</h2>
@@ -132,7 +146,20 @@
     </aside>
   </div>
 
+  <div id="provenanceBackdrop" class="provenance-backdrop hidden"></div>
+  <aside id="provenanceDrawer" class="provenance-drawer hidden" aria-label="Provenance inspector">
+    <div class="prov-head">
+      <div>
+        <span class="eyebrow">PROVENANCE INSPECTOR</span>
+        <h2 id="provTitle">Source details</h2>
+      </div>
+      <button id="closeProvBtn" class="icon-btn" type="button" aria-label="Close provenance inspector">×</button>
+    </div>
+    <div id="provBody" class="prov-body"></div>
+  </aside>
+
   <script src="data.js"></script>
+  <script src="open-loop.js"></script>
   <script src="patient-state.js"></script>
   <script src="agent.js"></script>
   <script src="app.js"></script>
