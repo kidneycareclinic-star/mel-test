@@ -860,3 +860,42 @@ body {
 :root[data-theme="light"] .graph-value { fill:#142033; }
 
 /* Bright lab status colors intentionally remain identical in both themes. */
+
+
+/* ---- theme-toggle visibility / responsive header ---- */
+.topbar { flex-wrap:wrap; }
+.top-right {
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  flex-wrap:wrap;
+  gap:8px;
+}
+.theme-toggle {
+  min-width:92px;
+  font-weight:700;
+  letter-spacing:.1px;
+  box-shadow:0 0 0 1px rgba(76,194,255,.18);
+}
+@media (max-width: 1050px) {
+  .topbar {
+    align-items:flex-start;
+    gap:10px;
+  }
+  .top-right {
+    width:100%;
+    justify-content:flex-start;
+  }
+  .theme-toggle {
+    order:-1;
+  }
+}
+:root[data-theme="light"] .theme-toggle {
+  background:#172033;
+  color:#ffffff;
+  border-color:#172033;
+}
+:root[data-theme="light"] .theme-toggle:hover {
+  background:#25324a;
+  color:#ffffff;
+}
