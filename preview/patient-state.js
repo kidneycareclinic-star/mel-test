@@ -10,7 +10,7 @@
  * ========================================================================= */
 
 const PATIENT_STATE_ENGINE = (() => {
-  const VERSION = "0.3.0";
+  const VERSION = "0.4.0";
 
   function source(kind, label, field, observedAt, confidence = 1) {
     return {
@@ -295,6 +295,7 @@ const PATIENT_STATE_ENGINE = (() => {
         office: normalizeEpisode(patient, "office", patient.contexts && patient.contexts.office),
         hospital: normalizeEpisode(patient, "hospital", patient.contexts && patient.contexts.hospital),
         dialysis: normalizeEpisode(patient, "dialysis", patient.contexts && patient.contexts.dialysis),
+        transplant: normalizeEpisode(patient, "transplant", patient.contexts && patient.contexts.transplant),
       },
 
       openLoops,
