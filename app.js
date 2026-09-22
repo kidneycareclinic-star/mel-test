@@ -16,6 +16,16 @@ const LAB_META = [
   ["Sodium", "mEq/L"], ["Bicarbonate", "mEq/L"], ["BUN", "mg/dL"],
 ];
 
+const PROV_PATHS = {
+  eGFR: ["kidney.function.currentEgfr", (s) => s.kidney.function.currentEgfr],
+  UPCR: ["kidney.proteinuria.current", (s) => s.kidney.proteinuria.current],
+  Potassium: ["electrolytes.potassium", (s) => s.electrolytes.potassium],
+  Bicarbonate: ["electrolytes.bicarbonate", (s) => s.electrolytes.bicarbonate],
+  Hemoglobin: ["anemia.hemoglobin", (s) => s.anemia.hemoglobin],
+  Phosphate: ["ckdMbd.phosphate", (s) => s.ckdMbd.phosphate],
+  PTH: ["ckdMbd.pth", (s) => s.ckdMbd.pth],
+};
+
 const SUGGESTIONS = [
   "Summarize this patient",
   "Interpret the labs",
@@ -284,6 +294,8 @@ function renderPatientState(state) {
       sub: `${trajectoryLabel} · ${nodeValue(state.kidney.diagnosis)}`,
       tone: trajectoryLabel === "declining" ? "warn" : "accent",
       visual: miniTrend(state.kidney.function.trajectory.map((x) => x.value), "accent"),
+      path: "kidney.function.currentEgfr",
+      node: state.kidney.function.currentEgfr,
     },
     {
       title: "Proteinuria",
@@ -291,50 +303,67 @@ function renderPatientState(state) {
       sub: "longitudinal urine protein signal",
       tone: Number(protein) > 3 ? "warn" : "accent",
       visual: miniTrend(state.kidney.proteinuria.trajectory.map((x) => x.value), "warn"),
+      path: "kidney.proteinuria.current",
+      node: state.kidney.proteinuria.current,
     },
     {
       title: "BP / volume",
       value: bp,
       sub: `${edema} · weight ${weightTrend}`,
       tone: String(edema).includes("1+") ? "warn" : "good",
+      path: "bpVolume.latestBp",
+      node: state.bpVolume.latestBp,
     },
     {
       title: "Electrolytes / acid-base",
       value: `K ${k} · HCO₃ ${bicarb}`,
       sub: electrolyteStatus,
       tone: electrolyteStatus === "review" ? "warn" : "good",
+      path: "electrolytes.potassium",
+      node: state.electrolytes.potassium,
     },
     {
       title: "Anemia",
       value: `Hb ${hb} g/dL`,
       sub: anemiaStatus,
       tone: anemiaStatus === "review" ? "warn" : "good",
+      path: "anemia.hemoglobin",
+      node: state.anemia.hemoglobin,
     },
     {
       title: "CKD-MBD",
       value: `Phos ${phos} · PTH ${pth}`,
       sub: mbdStatus,
       tone: mbdStatus === "review" ? "warn" : "good",
+      path: "ckdMbd.phosphate",
+      node: state.ckdMbd.phosphate,
     },
     {
       title: "Kidney protection",
       value: nodeValue(state.kidneyProtection.raas, false) ? "RAAS active" : "Therapy review",
       sub: protectionText(state),
       tone: nodeValue(state.kidneyProtection.nsaidExposure, false) ? "warn" : "accent",
+      path: "kidneyProtection.raas",
+      node: state.kidneyProtection.raas,
     },
     {
       title: "Open loops",
       value: state.openLoops.length ? `${state.openLoops.length} unresolved` : "None",
       sub: state.openLoops.length ? state.openLoops.map((x) => x.label).join(" · ") : "No tracked unresolved tasks",
       tone: state.openLoops.length ? "warn" : "good",
+      path: "openLoops",
+      node: state.openLoops[0] ? { value: state.openLoops.length, provenance: state.openLoops[0].source } : null,
     },
   ];
 
   cards.forEach((c) => {
     const el = document.createElement("div");
-    el.className = `state-card ${c.tone || ""}`;
+    el.className = `state-card ${c.tone || ""} ${c.node ? "prov-clickable" : ""}`;
+    if (c.node) {
+      el.addEventListener("click", () => showProvenance(c.title, c.path, c.node));
+    }
     el.innerHTML = `
-      <div class="state-title">${c.title}</div>
+      <div class="state-title">${c.title}${c.node ? '<span class="prov-badge">source</span>' : ""}</div>
       <div class="state-value">${c.value}</div>
       <div class="state-sub">${c.sub}</div>
       ${c.visual || ""}`;
@@ -351,8 +380,13 @@ function renderSourceData(patient) {
     if (!L) return;
     const cell = document.createElement("div");
     cell.className = "lab-cell flag-" + L.flag;
+    const prov = PROV_PATHS[name];
+    if (prov && currentState) {
+      cell.classList.add("prov-clickable");
+      cell.addEventListener("click", () => showProvenance(name, prov[0], prov[1](currentState)));
+    }
     cell.innerHTML = `
-      <div class="l-name">${name}</div>
+      <div class="l-name">${name}${prov ? '<span class="prov-badge">source</span>' : ""}</div>
       <div class="l-val">${L.value} <span class="l-unit">${unit}</span></div>
       <div class="l-ref">ref ${L.ref[0]}–${L.ref[1]}</div>`;
     grid.appendChild(cell);
@@ -381,6 +415,7 @@ function renderPatient(patient, resetChat = true) {
   renderCareFootprint(currentState);
   renderContext(currentState);
   renderPatientState(currentState);
+  renderOpenLoops(patient);
   renderSourceData(patient);
 
   currentFindings = AGENT.deriveFindings(patient);
@@ -393,6 +428,109 @@ function renderPatient(patient, resetChat = true) {
 
 function selectPatient(patient) {
   renderPatient(patient, true);
+}
+
+
+function renderOpenLoops(patient) {
+  const box = $("#openLoopList");
+  const summary = OPEN_LOOP_ENGINE.summary(patient);
+  $("#loopSummary").textContent = `${summary.pending} pending · ${summary.completed} completed`;
+  box.innerHTML = "";
+
+  const loops = OPEN_LOOP_ENGINE.list(patient);
+  if (!loops.length) {
+    box.innerHTML = '<div class="loop-empty">No tracked open loops for this synthetic patient.</div>';
+    return;
+  }
+
+  loops.forEach((loop) => {
+    const item = document.createElement("div");
+    item.className = `loop-item ${loop.status}`;
+
+    const main = document.createElement("div");
+    main.innerHTML = `
+      <div class="loop-title">${loop.label}</div>
+      <div class="loop-meta">${loop.type} · owner ${loop.owner} · ${loop.status} · ${loop.workspace}</div>`;
+
+    const actions = document.createElement("div");
+    actions.className = "loop-actions";
+
+    const toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.textContent = loop.status === "pending" ? "Complete" : "Reopen";
+    toggle.addEventListener("click", () => {
+      if (loop.status === "pending") OPEN_LOOP_ENGINE.complete(patient, loop.id, "physician-demo");
+      else OPEN_LOOP_ENGINE.reopen(patient, loop.id, "physician-demo");
+      renderPatient(patient, false);
+    });
+
+    const sourceBtn = document.createElement("button");
+    sourceBtn.type = "button";
+    sourceBtn.textContent = "Source";
+    sourceBtn.addEventListener("click", () => {
+      const stateLoop = currentState.openLoops.find((x) => x.id === loop.id);
+      showProvenance(loop.label, `openLoops.${loop.id}`, {
+        value: loop.status,
+        provenance: stateLoop ? stateLoop.source : null,
+        detail: loop,
+      });
+    });
+
+    actions.append(toggle, sourceBtn);
+    item.append(main, actions);
+    box.appendChild(item);
+  });
+}
+
+function addOpenLoop() {
+  if (!currentPatient) return;
+  const label = window.prompt("Synthetic demo: describe the follow-up loop to track:");
+  if (!label || !label.trim()) return;
+  OPEN_LOOP_ENGINE.create(currentPatient, {
+    label: label.trim(),
+    type: "task",
+    workspace: currentSetting,
+    actor: "physician-demo",
+  });
+  renderPatient(currentPatient, false);
+}
+
+function showProvenance(title, path, node) {
+  const prov = node && node.provenance ? node.provenance : null;
+  $("#provTitle").textContent = title;
+  const detail = node && node.detail ? node.detail : null;
+
+  const rows = [
+    ["Patient", currentState ? currentState.patientId : "—"],
+    ["State path", path || "—", "prov-path"],
+    ["Displayed value", nodeValue(node)],
+    ["Source kind", prov ? prov.kind : "not available"],
+    ["Source label", prov ? prov.label : "not available"],
+    ["Source field", prov ? prov.field : "not available"],
+    ["Observed at", prov && prov.observedAt ? prov.observedAt : "not specified"],
+    ["Confidence", prov && prov.confidence !== undefined ? String(prov.confidence) : "not specified"],
+    ["State engine", currentState ? `v${currentState.engineVersion}` : "—"],
+  ];
+
+  if (detail) {
+    rows.push(["Loop owner", detail.owner || "—"]);
+    rows.push(["Loop status", detail.status || "—"]);
+    rows.push(["Created from", detail.createdFrom || "—"]);
+  }
+
+  $("#provBody").innerHTML = rows.map(([label, value, cls]) => `
+    <div class="prov-row">
+      <span class="prov-label">${label}</span>
+      <span class="prov-value ${cls || ""}">${String(value)}</span>
+    </div>`).join("");
+
+  $("#provenanceBackdrop").classList.remove("hidden");
+  $("#provenanceDrawer").classList.remove("hidden");
+}
+
+function closeProvenance() {
+  $("#provenanceBackdrop").classList.add("hidden");
+  $("#provenanceDrawer").classList.add("hidden");
 }
 
 function renderFindings(findings) {
@@ -446,6 +584,9 @@ $("#askForm").addEventListener("submit", (e) => {
 });
 
 $("#search").addEventListener("input", (e) => renderCensus(e.target.value));
+$("#addLoopBtn").addEventListener("click", addOpenLoop);
+$("#closeProvBtn").addEventListener("click", closeProvenance);
+$("#provenanceBackdrop").addEventListener("click", closeProvenance);
 
 $$(".workspace-tab").forEach((btn) => {
   btn.addEventListener("click", () => {
