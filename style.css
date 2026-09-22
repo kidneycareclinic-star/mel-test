@@ -46,7 +46,7 @@ body {
 .chip-agent { color: var(--accent); border-color: #1f5a80; background: #122436; text-transform: capitalize; }
 
 .workspace-tabs {
-  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px; padding: 10px 14px 0;
   background: var(--bg);
 }
@@ -67,6 +67,27 @@ body {
 .workspace-tab strong { display: block; font-size: 13px; }
 .workspace-tab small { display: block; color: var(--muted); margin-top: 2px; font-size: 11px; }
 .tab-icon { font-size: 20px; }
+
+.workspace-subtabs {
+  display:flex;
+  gap:8px;
+  padding:8px 14px 0;
+}
+.workspace-subtab {
+  border:1px solid var(--border);
+  background:var(--panel);
+  color:var(--muted);
+  border-radius:18px;
+  padding:6px 12px;
+  font-size:11px;
+  cursor:pointer;
+}
+.workspace-subtab:hover { color:var(--accent); border-color:var(--accent); }
+.workspace-subtab.active {
+  color:var(--accent);
+  border-color:var(--accent);
+  background:#122436;
+}
 
 .workspace-strip {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
@@ -384,17 +405,31 @@ body {
   margin-top:2px;
 }
 .tile-close {
+  position:sticky;
+  top:0;
+  right:0;
+  z-index:3;
   flex:0 0 auto;
-  border:1px solid var(--border);
-  background:var(--panel-2);
-  color:var(--muted);
-  border-radius:6px;
-  font-size:18px;
+  width:34px;
+  height:34px;
+  display:grid;
+  place-items:center;
+  border:1px solid #7a3342;
+  background:#2a141b;
+  color:#ffd3db;
+  border-radius:8px;
+  font-size:24px;
+  font-weight:700;
   line-height:1;
-  padding:3px 8px;
+  padding:0;
   cursor:pointer;
+  box-shadow:0 3px 10px rgba(0,0,0,.28);
 }
-.tile-close:hover { color:var(--accent); border-color:var(--accent); }
+.tile-close:hover {
+  color:#fff;
+  border-color:var(--critical);
+  background:#3a1721;
+}
 .problem-list { display:flex; flex-direction:column; gap:7px; }
 .problem-row {
   display:grid;
@@ -471,4 +506,11 @@ body {
     max-width:none;
     resize:vertical;
   }
+}
+
+@media (max-width: 1250px) {
+  .workspace-tabs { grid-template-columns:repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 700px) {
+  .workspace-tabs { grid-template-columns:1fr; }
 }
