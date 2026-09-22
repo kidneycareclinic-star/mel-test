@@ -182,6 +182,48 @@ function makeMedications(stage) {
   return base;
 }
 
+
+/* -------------------------------------------------------------------------
+ * Synthetic longitudinal lab history for interactive trend review.
+ * Historical values are deterministic demo data anchored to the current lab.
+ * ----------------------------------------------------------------------- */
+function buildLabHistory(patient, index) {
+  const dates = ["2025-12-15", "2026-03-15", "2026-06-15", "2026-09-15"];
+  const history = {};
+
+  Object.entries(patient.labs || {}).forEach(([name, lab], labIndex) => {
+    const current = Number(lab.value);
+    if (!Number.isFinite(current)) return;
+
+    const decimals = Number.isInteger(current) ? 0 : 1;
+    const scale = Math.max(Math.abs(current) * 0.08, decimals ? 0.2 : 1);
+    const direction = ((index + labIndex) % 3) - 1;
+
+    const values = [
+      current - direction * scale * 2.1,
+      current - direction * scale * 1.35,
+      current - direction * scale * 0.65,
+      current,
+    ].map((value, i) => {
+      if (name === "eGFR") value = Math.max(5, value);
+      if (name === "UPCR") value = Math.max(0.05, value);
+      return {
+        date: dates[i],
+        value: Number(value.toFixed(decimals)),
+      };
+    });
+
+    history[name] = {
+      unit: lab.unit,
+      ref: lab.ref,
+      currentFlag: lab.flag,
+      values,
+    };
+  });
+
+  return history;
+}
+
 function makePatient(i) {
   const diagnosis = pick(Object.keys(DIAGNOSES));
   const info = DIAGNOSES[diagnosis];
@@ -369,6 +411,7 @@ function buildContexts(p, index) {
 patients.forEach((p, idx) => {
   const index = idx + 1;
   p.problemList = buildProblemList(p, index);
+  p.labHistory = buildLabHistory(p, index);
   p.longitudinal = buildLongitudinalState(p, index);
   p.contexts = buildContexts(p, index);
 });
