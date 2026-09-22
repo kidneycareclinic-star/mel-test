@@ -115,7 +115,7 @@ function renderCensus(filter = "") {
     li.dataset.id = p.id;
     if (currentPatient && currentPatient.id === p.id) li.classList.add("active");
 
-    const maxSev = AGENT.deriveFindings(p).reduce((m, f) => {
+    const maxSev = AGENT.deriveFindings(buildState(p)).reduce((m, f) => {
       const rank = { critical: 4, high: 3, medium: 2, info: 1 }[f.sev];
       return rank > m ? rank : m;
     }, 0);
@@ -417,8 +417,9 @@ function renderPatient(patient, resetChat = true) {
   renderPatientState(currentState);
   renderOpenLoops(patient);
   renderSourceData(patient);
+  renderJudgmentSummary(currentState);
 
-  currentFindings = AGENT.deriveFindings(patient);
+  currentFindings = AGENT.deriveFindings(currentState);
   renderFindings(currentFindings);
   renderCensus($("#search").value);
 
@@ -533,6 +534,20 @@ function closeProvenance() {
   $("#provenanceDrawer").classList.add("hidden");
 }
 
+function renderJudgmentSummary(state) {
+  const box = $("#judgmentSummary");
+  const j = JUDGMENT_FABRIC.evaluateState(state, currentSetting);
+  const items = [
+    ["Grounding", j.grounding.pass ? "pass" : "review", j.grounding.pass ? "good" : "warn"],
+    ["Completeness", j.completeness.pass ? "pass" : "review", j.completeness.pass ? "good" : "warn"],
+    ["Context", j.context.active ? "active" : "inactive", j.context.active ? "accent" : ""],
+    ["Open loops", String(j.openLoops.pending), j.openLoops.pending ? "warn" : "good"],
+  ];
+  box.innerHTML = items.map(([label, value, tone]) =>
+    `<div class="judge-chip ${tone}"><span>${label}</span><strong>${value}</strong></div>`
+  ).join("");
+}
+
 function renderFindings(findings) {
   const box = $("#findings");
   box.innerHTML = "";
@@ -567,12 +582,14 @@ function ask(query) {
   $("#agentStatus").textContent = "thinking…";
 
   setTimeout(() => {
-    const res = AGENT.run(currentPatient, q);
+    const res = AGENT.run(currentState, q, currentSetting);
+    const agentJudge = JUDGMENT_FABRIC.evaluateAgentResult(currentState, res);
     const contextPrefix = PATIENT_STATE_ENGINE.activeInWorkspace(currentState, currentSetting)
       ? `${currentSetting} context active`
       : `${currentSetting} context inactive · answering from shared patient state`;
 
-    addMsg("agent", res.body, `${contextPrefix} · ${res.intent}`);
+    const judgeTag = agentJudge.pass ? "judged: pass" : "judged: review";
+    addMsg("agent", res.body, `${contextPrefix} · ${res.intent} · ${judgeTag}`);
     $("#agentStatus").textContent = "ready";
   }, 220);
 }
