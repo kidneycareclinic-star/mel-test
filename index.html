@@ -44,7 +44,7 @@
     </div>
     <div class="workspace-actions">
       <span class="chip chip-agent" id="workspaceMode">office</span>
-      <span class="chip">Harness state: synthetic</span>
+      <span class="chip">Shared patient state</span>
     </div>
   </div>
 
@@ -53,7 +53,7 @@
       <div class="panel-head">
         <div>
           <h2 id="censusTitle">Office census</h2>
-          <div class="micro" id="censusMeta">Synthetic patients assigned to this workspace</div>
+          <div class="micro" id="censusMeta">Patients active in this workspace</div>
         </div>
       </div>
       <input id="search" type="search" placeholder="Filter census…" />
@@ -61,26 +61,53 @@
     </aside>
 
     <main class="chart">
+      <section class="panel identity-panel" id="demographics">
+        <div class="identity-row">
+          <div>
+            <span class="eyebrow">SHARED PATIENT IDENTITY</span>
+            <h2 id="ptName">—</h2>
+            <div class="meta" id="ptMeta"></div>
+          </div>
+          <div id="careFootprint" class="care-footprint"></div>
+        </div>
+      </section>
+
       <section class="panel context-panel">
         <div class="panel-head">
-          <h2 id="contextTitle">Office context</h2>
+          <div>
+            <h2 id="contextTitle">Office context</h2>
+            <div class="micro" id="contextMeta">Workspace-specific episode data layered on the shared patient record</div>
+          </div>
           <span class="chip" id="contextBadge">longitudinal</span>
         </div>
         <div id="contextGrid" class="context-grid"></div>
+        <div id="contextDetail" class="context-detail"></div>
       </section>
 
-      <section class="panel" id="demographics">
-        <h2 id="ptName">—</h2>
-        <div class="meta" id="ptMeta"></div>
+      <section class="panel state-panel">
+        <div class="panel-head">
+          <div>
+            <h2>Longitudinal patient state</h2>
+            <div class="micro">Persistent kidney state shared across Office, Hospital and Dialysis</div>
+          </div>
+          <span class="chip chip-agent">patient state</span>
+        </div>
+        <div id="stateGrid" class="state-grid"></div>
       </section>
 
       <section class="panel">
-        <h2>Latest labs</h2>
+        <div class="panel-head">
+          <h2>Source data · latest labs</h2>
+          <span class="micro">Evidence beneath the patient-state summary</span>
+        </div>
         <div id="labsGrid" class="labs-grid"></div>
       </section>
 
       <section class="panel">
-        <h2>Active medications</h2>
+        <div class="panel-head">
+          <h2>Source data · active medications</h2>
+          <span class="micro">Shared medication list</span>
+        </div>
         <div id="medsList" class="meds-list"></div>
       </section>
     </main>
@@ -89,7 +116,7 @@
       <div class="panel-head">
         <div>
           <h2>🩺 Nephro agent</h2>
-          <div class="micro">Shared reasoning surface across all workspaces</div>
+          <div class="micro">One shared agent framework · workspace-aware presentation</div>
         </div>
         <span class="chip chip-agent" id="agentStatus">idle</span>
       </div>
