@@ -12,7 +12,7 @@
       <span class="logo">🫘</span>
       <div>
         <h1>Nephrology Agentic Harness <span class="badge">synthetic</span></h1>
-        <p class="sub">Physician intelligence + workflow layer above office, hospital and dialysis systems</p>
+        <p class="sub">Physician intelligence + workflow layer above office, hospital, dialysis and transplant systems</p>
       </div>
     </div>
     <div class="top-right">
@@ -32,9 +32,18 @@
     </button>
     <button class="workspace-tab" data-setting="dialysis">
       <span class="tab-icon">🩸</span>
-      <span><strong>Dialysis</strong><small>HD rounds · longitudinal care</small></span>
+      <span><strong>Dialysis</strong><small>HD rounds · PD rounds · longitudinal</small></span>
+    </button>
+    <button class="workspace-tab" data-setting="transplant">
+      <span class="tab-icon">🫛</span>
+      <span><strong>Transplant</strong><small>Evaluation · waitlist · post-transplant</small></span>
     </button>
   </nav>
+
+  <div id="workspaceSubtabs" class="workspace-subtabs hidden" aria-label="Dialysis modality">
+    <button class="workspace-subtab active" data-dialysis-mode="hemodialysis">Hemodialysis round</button>
+    <button class="workspace-subtab" data-dialysis-mode="peritoneal">Peritoneal dialysis round</button>
+  </div>
 
   <div class="workspace-strip">
     <div>
