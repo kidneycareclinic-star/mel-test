@@ -9,6 +9,7 @@ let currentPatient = null;
 let currentState = null;
 let currentFindings = [];
 let expandedPatientId = null;
+let currentDialysisMode = "hemodialysis";
 
 const LAB_META = [
   ["eGFR", "mL/min/1.73m²"], ["Creatinine", "mg/dL"], ["Potassium", "mEq/L"],
@@ -53,10 +54,17 @@ const WORKSPACES = {
   },
   dialysis: {
     title: "Dialysis nephrology",
-    subtitle: "Chairside rounds and longitudinal dialysis workflow",
+    subtitle: "Longitudinal hemodialysis and peritoneal dialysis rounds",
     census: "Dialysis census",
     context: "Dialysis treatment context",
-    badge: "rounding",
+    badge: "longitudinal rounds",
+  },
+  transplant: {
+    title: "Transplant nephrology",
+    subtitle: "Evaluation, waitlist and post-transplant longitudinal care",
+    census: "Transplant census",
+    context: "Transplant context",
+    badge: "transplant",
   },
 };
 
@@ -70,7 +78,13 @@ function activeInSetting(patient, setting = currentSetting) {
 }
 
 function settingPatients() {
-  return window.PATIENTS.filter((p) => activeInSetting(p));
+  return window.PATIENTS.filter((p) => {
+    if (!activeInSetting(p)) return false;
+    if (currentSetting !== "dialysis") return true;
+    const state = buildState(p);
+    const ep = PATIENT_STATE_ENGINE.workspaceContext(state, "dialysis");
+    return Boolean(ep && ep.active && ep.data && ep.data.mode === currentDialysisMode);
+  });
 }
 
 function sevDot(sev) {
@@ -90,8 +104,13 @@ function renderWorkspace() {
   $("#contextTitle").textContent = w.context;
   $("#contextBadge").textContent = w.badge;
   $("#search").placeholder = `Filter ${currentSetting} census…`;
-  $$(".workspace-tab").forEach((b) =>
+  $(".workspace-tab").forEach((b) =>
     b.classList.toggle("active", b.dataset.setting === currentSetting)
+  );
+
+  $("#workspaceSubtabs").classList.toggle("hidden", currentSetting !== "dialysis");
+  $(".workspace-subtab").forEach((b) =>
+    b.classList.toggle("active", b.dataset.dialysisMode === currentDialysisMode)
   );
 
   renderCensus($("#search").value);
@@ -196,6 +215,7 @@ function renderCareFootprint(state) {
     ["office", "Office"],
     ["hospital", "Hospital"],
     ["dialysis", "Dialysis"],
+    ["transplant", "Transplant"],
   ];
 
   box.innerHTML = labels.map(([key, label]) => {
@@ -229,8 +249,26 @@ function contextCards(state) {
     ];
   }
 
+  if (currentSetting === "transplant") {
+    return [
+      ["Phase", c.phase, "accent"],
+      ["Center", c.center, ""],
+      ["Blood type", c.bloodType, ""],
+      ["Status", c.status, c.status.includes("Needs") ? "warn" : "good"],
+    ];
+  }
+
+  if (c.mode === "peritoneal") {
+    return [
+      ["Modality", "Peritoneal dialysis", "accent"],
+      ["Weekly Kt/V", c.weeklyKtV || "—", ""],
+      ["Ultrafiltration", c.ultrafiltration || "—", ""],
+      ["Exit site", c.exitSite || "—", c.exitSite === "needs review" ? "warn" : "good"],
+    ];
+  }
+
   return [
-    ["Unit", c.unit, "accent"],
+    ["Modality", "Hemodialysis", "accent"],
     ["Chair", String(c.chair), ""],
     ["Access", c.access, ""],
     ["Round state", c.roundStatus, c.roundStatus.includes("Needs") ? "warn" : "good"],
@@ -269,11 +307,29 @@ function contextDetail(state) {
       </div>`;
   }
 
+  if (currentSetting === "transplant") {
+    return `
+      <div class="context-story">
+        <span class="story-label">TRANSPLANT LONGITUDINAL STATE</span>
+        <strong>${c.phase}</strong>
+        <span>${c.center} · blood type ${c.bloodType} · ${c.lastMilestone}. Transplant care remains attached to the same shared nephrology patient identity.</span>
+      </div>`;
+  }
+
+  if (c.mode === "peritoneal") {
+    return `
+      <div class="context-story">
+        <span class="story-label">PERITONEAL DIALYSIS ROUND · LONGITUDINAL</span>
+        <strong>${c.modality}</strong>
+        <span>Dry weight ${c.dryWeight} · weekly Kt/V ${c.weeklyKtV} · ultrafiltration ${c.ultrafiltration} · exit site ${c.exitSite} · ${c.attendance}.</span>
+      </div>`;
+  }
+
   return `
     <div class="context-story">
-      <span class="story-label">TODAY'S DIALYSIS ROUND</span>
+      <span class="story-label">HEMODIALYSIS ROUND · LONGITUDINAL</span>
       <strong>${c.modality} · chair ${c.chair}</strong>
-      <span>Dry weight ${c.dryWeight} · IDWG ${c.idwg} · ${c.access} · ${c.attendance}. Dialysis treatment data attach to the shared patient state instead of creating a separate chart.</span>
+      <span>Dry weight ${c.dryWeight} · IDWG ${c.idwg} · Kt/V ${c.ktv} · ${c.access} · ${c.attendance}.</span>
     </div>`;
 }
 
@@ -657,9 +713,18 @@ $("#addLoopBtn").addEventListener("click", addOpenLoop);
 $("#closeProvBtn").addEventListener("click", closeProvenance);
 $("#provenanceBackdrop").addEventListener("click", closeProvenance);
 
-$$(".workspace-tab").forEach((btn) => {
+$(".workspace-tab").forEach((btn) => {
   btn.addEventListener("click", () => {
     currentSetting = btn.dataset.setting;
+    expandedPatientId = null;
+    $("#search").value = "";
+    renderWorkspace();
+  });
+});
+
+$(".workspace-subtab").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    currentDialysisMode = btn.dataset.dialysisMode;
     expandedPatientId = null;
     $("#search").value = "";
     renderWorkspace();
