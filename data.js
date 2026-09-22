@@ -299,6 +299,8 @@ function buildLongitudinalState(p, index) {
 function buildContexts(p, index) {
   const advanced = ["4", "5", "AKI"].includes(p.ckdStage);
   const dialysisEligible = p.ckdStage === "5";
+  const dialysisMode = dialysisEligible && index % 3 === 0 ? "peritoneal" : "hemodialysis";
+  const transplantActive = p.ckdStage === "5" || index % 6 === 0;
   return {
     office: {
       active: true,
@@ -320,14 +322,46 @@ function buildContexts(p, index) {
     },
     dialysis: {
       active: dialysisEligible,
+      mode: dialysisMode,
+      longitudinal: true,
       unit: "Synthetic Dialysis Center",
-      chair: (index % 20) + 1,
-      modality: "In-center HD",
-      access: index % 2 ? "AV fistula" : "AV graft",
-      attendance: index % 4 === 0 ? "1 recent missed treatment" : "no recent missed treatments",
-      idwg: (1.4 + (index % 6) * 0.35).toFixed(1) + " kg",
+      chair: dialysisMode === "hemodialysis" ? (index % 20) + 1 : null,
+      modality: dialysisMode === "hemodialysis" ? "In-center hemodialysis" : "Peritoneal dialysis",
+      access: dialysisMode === "hemodialysis"
+        ? (index % 2 ? "AV fistula" : "AV graft")
+        : "PD catheter",
+      attendance: dialysisMode === "hemodialysis"
+        ? (index % 4 === 0 ? "1 recent missed treatment" : "no recent missed treatments")
+        : "home treatment log available",
+      idwg: dialysisMode === "hemodialysis"
+        ? (1.4 + (index % 6) * 0.35).toFixed(1) + " kg"
+        : null,
       dryWeight: (58 + (index % 18) * 1.7).toFixed(1) + " kg",
+      ktv: dialysisMode === "hemodialysis"
+        ? (1.2 + (index % 5) * 0.08).toFixed(2)
+        : null,
+      weeklyKtV: dialysisMode === "peritoneal"
+        ? (1.6 + (index % 5) * 0.12).toFixed(2)
+        : null,
+      ultrafiltration: dialysisMode === "peritoneal"
+        ? (700 + (index % 6) * 120) + " mL/day"
+        : null,
+      exitSite: dialysisMode === "peritoneal"
+        ? (index % 4 === 0 ? "needs review" : "clean/dry")
+        : null,
       roundStatus: index % 4 === 0 ? "Needs review" : "Ready for round",
+    },
+    transplant: {
+      active: transplantActive,
+      phase: p.ckdStage === "5"
+        ? (index % 2 ? "Evaluation" : "Waitlist follow-up")
+        : "Post-transplant follow-up",
+      center: "Synthetic Transplant Program",
+      bloodType: ["A", "B", "AB", "O"][index % 4],
+      status: index % 5 === 0 ? "Needs review" : "Active follow-up",
+      lastMilestone: p.ckdStage === "5"
+        ? (index % 2 ? "Education completed" : "Waitlist testing reviewed")
+        : "Graft surveillance reviewed",
     },
   };
 }
