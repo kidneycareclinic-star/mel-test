@@ -1500,3 +1500,130 @@ body {
     font-size:14px;
   }
 }
+
+
+/* ---- balanced translucent census status treatment ---- */
+.patient-list li.patient-tile {
+  border:1px solid var(--border) !important;
+  border-left-width:5px !important;
+  box-shadow:none !important;
+  background:transparent !important;
+}
+.patient-tile .patient-tile-compact {
+  background:var(--panel-2) !important;
+  color:var(--text) !important;
+  text-shadow:none !important;
+}
+.patient-tile .p-name,
+.patient-tile .p-sub,
+.patient-tile .p-demographics,
+.patient-tile .expand-hint {
+  color:var(--text) !important;
+  text-shadow:none !important;
+}
+.patient-tile .p-demographics,
+.patient-tile .p-sub,
+.patient-tile .expand-hint {
+  opacity:.9;
+}
+.patient-tile .p-flag {
+  color:var(--text) !important;
+  background:rgba(255,255,255,.08) !important;
+  border-color:rgba(255,255,255,.18) !important;
+  text-shadow:none !important;
+}
+
+/* Dark theme: translucent status wash, stronger colored edge. */
+.patient-list li.patient-status-stable {
+  border-left-color:#2fd27f !important;
+}
+.patient-list li.patient-status-stable .patient-tile-compact {
+  background:rgba(47,210,127,.16) !important;
+}
+.patient-list li.patient-status-stable .p-flag {
+  background:rgba(47,210,127,.20) !important;
+  border-color:rgba(47,210,127,.48) !important;
+}
+
+.patient-list li.patient-status-flag {
+  border-left-color:#f4c430 !important;
+}
+.patient-list li.patient-status-flag .patient-tile-compact {
+  background:rgba(244,196,48,.17) !important;
+}
+.patient-list li.patient-status-flag .p-flag {
+  background:rgba(244,196,48,.22) !important;
+  border-color:rgba(244,196,48,.52) !important;
+}
+
+.patient-list li.patient-status-critical {
+  border-left-color:#ff6262 !important;
+}
+.patient-list li.patient-status-critical .patient-tile-compact {
+  background:rgba(255,98,98,.16) !important;
+}
+.patient-list li.patient-status-critical .p-flag {
+  background:rgba(255,98,98,.21) !important;
+  border-color:rgba(255,98,98,.50) !important;
+}
+
+.patient-list li.patient-tile:hover {
+  border-color:var(--accent) !important;
+}
+.patient-list li.patient-tile.active {
+  border-color:var(--accent) !important;
+  box-shadow:0 0 0 2px rgba(76,194,255,.18) !important;
+}
+
+/* Light theme: softer wash, dark high-contrast type. */
+:root[data-theme="light"] .patient-list li.patient-tile {
+  border-color:#d7dee9 !important;
+}
+:root[data-theme="light"] .patient-tile .patient-tile-compact {
+  color:#172033 !important;
+}
+:root[data-theme="light"] .patient-tile .p-name,
+:root[data-theme="light"] .patient-tile .p-sub,
+:root[data-theme="light"] .patient-tile .p-demographics,
+:root[data-theme="light"] .patient-tile .expand-hint,
+:root[data-theme="light"] .patient-tile .p-flag {
+  color:#172033 !important;
+}
+:root[data-theme="light"] .patient-list li.patient-status-stable {
+  border-left-color:#20a866 !important;
+}
+:root[data-theme="light"] .patient-list li.patient-status-stable .patient-tile-compact {
+  background:rgba(32,168,102,.11) !important;
+}
+:root[data-theme="light"] .patient-list li.patient-status-stable .p-flag {
+  background:rgba(32,168,102,.14) !important;
+  border-color:rgba(32,168,102,.34) !important;
+}
+:root[data-theme="light"] .patient-list li.patient-status-flag {
+  border-left-color:#d9a400 !important;
+}
+:root[data-theme="light"] .patient-list li.patient-status-flag .patient-tile-compact {
+  background:rgba(217,164,0,.13) !important;
+}
+:root[data-theme="light"] .patient-list li.patient-status-flag .p-flag {
+  background:rgba(217,164,0,.16) !important;
+  border-color:rgba(217,164,0,.38) !important;
+}
+:root[data-theme="light"] .patient-list li.patient-status-critical {
+  border-left-color:#dc4747 !important;
+}
+:root[data-theme="light"] .patient-list li.patient-status-critical .patient-tile-compact {
+  background:rgba(220,71,71,.11) !important;
+}
+:root[data-theme="light"] .patient-list li.patient-status-critical .p-flag {
+  background:rgba(220,71,71,.14) !important;
+  border-color:rgba(220,71,71,.35) !important;
+}
+
+/* Expanded card keeps the tinted status header but neutral detail body. */
+.patient-list li.patient-tile.expanded .patient-tile-detail {
+  background:var(--panel) !important;
+}
+:root[data-theme="light"] .patient-list li.patient-tile.expanded .patient-tile-detail {
+  background:#ffffff !important;
+}
