@@ -107,6 +107,72 @@ function buildProblemList(patient, index) {
   }));
 }
 
+
+/* -------------------------------------------------------------------------
+ * eGFR progression interpretation profile.
+ *
+ * IMPORTANT:
+ * - The four labels are a configurable practice taxonomy for the demo.
+ * - Synthetic "verifiedAnnualSlope" values are fixtures, NOT calculated
+ *   from the displayed history in-browser.
+ * - Production should receive a verified eGFR slope from a validated
+ *   calculation service / analytics pipeline, preserving method + provenance.
+ * ----------------------------------------------------------------------- */
+const EGFR_PROGRESSION_PROFILE = {
+  id: "office-egfr-progression-v1",
+  label: "Office CKD eGFR progression profile",
+  units: "mL/min/1.73m2/year",
+  thresholds: {
+    noProgressionMaxLoss: 1,
+    rapidMinLoss: 5,
+    veryRapidMinLoss: 15,
+  },
+  evidenceAnchors: [
+    "KDIGO 2024 CKD: >20% change on a subsequent eGFR exceeds expected variability and warrants evaluation.",
+    "KDIGO 2012 CKD: historical rapid progression definition >5 mL/min/1.73m2/year sustained decline.",
+    "NICE NG203: accelerated progression includes sustained decline >=15 mL/min/1.73m2/year or >=25% plus GFR-category change within 12 months.",
+    "KDIGO 2025 ADPKD: confirmed historical eGFR decline >=3 mL/min/1.73m2/year can indicate rapid ADPKD progression.",
+  ],
+};
+
+function progressionCategoryFromVerifiedLoss(lossRate) {
+  if (lossRate < EGFR_PROGRESSION_PROFILE.thresholds.noProgressionMaxLoss) return "no progression";
+  if (lossRate < EGFR_PROGRESSION_PROFILE.thresholds.rapidMinLoss) return "slow progression";
+  if (lossRate < EGFR_PROGRESSION_PROFILE.thresholds.veryRapidMinLoss) return "rapid progression";
+  return "very rapid progression";
+}
+
+function buildEgfrProgressionFixture(patient, index) {
+  const fixtures = [
+    { verifiedAnnualSlope: -0.4, verifiedAnnualLoss: 0.4 },
+    { verifiedAnnualSlope: -2.4, verifiedAnnualLoss: 2.4 },
+    { verifiedAnnualSlope: -6.5, verifiedAnnualLoss: 6.5 },
+    { verifiedAnnualSlope: -16.0, verifiedAnnualLoss: 16.0 },
+  ];
+  const fixture = fixtures[(index - 1) % fixtures.length];
+  const category = progressionCategoryFromVerifiedLoss(fixture.verifiedAnnualLoss);
+  const adpkdRapidSignal =
+    patient.diagnosis === "Polycystic kidney disease" &&
+    fixture.verifiedAnnualLoss >= 3;
+
+  return {
+    ...fixture,
+    category,
+    profileId: EGFR_PROGRESSION_PROFILE.id,
+    profileLabel: EGFR_PROGRESSION_PROFILE.label,
+    calculationStatus: "synthetic verified-slope fixture; not calculated in browser",
+    slopeSource: "synthetic-verified-slope-fixture",
+    interpretationStatus: "demo-only",
+    adpkdRapidSignal,
+    dataQuality: {
+      displayedHistoryPoints: 4,
+      note: "Production interpretation should use sufficient longitudinal measurements, exclude acute/reversible changes, and retain calculation provenance.",
+    },
+  };
+}
+
+window.EGFR_PROGRESSION_PROFILE = EGFR_PROGRESSION_PROFILE;
+
 /* -------------------------------------------------------------------------
  * Generator
  * ----------------------------------------------------------------------- */
@@ -412,6 +478,7 @@ patients.forEach((p, idx) => {
   const index = idx + 1;
   p.problemList = buildProblemList(p, index);
   p.labHistory = buildLabHistory(p, index);
+  p.eGFRProgression = buildEgfrProgressionFixture(p, index);
   p.longitudinal = buildLongitudinalState(p, index);
   p.contexts = buildContexts(p, index);
 });

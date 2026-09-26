@@ -9,6 +9,105 @@
   var prechartByPatient = new Map();
   var centerPaneWidth = null;
 
+  var progressionDetailByPatient = new Map();
+
+  function getProgressionDetail(patient) {
+    return progressionDetailByPatient.get(patient.id) || "concise";
+  }
+
+  function setProgressionDetail(patient, mode) {
+    progressionDetailByPatient.set(patient.id, mode);
+  }
+
+  function progressionClass(patient) {
+    return patient && patient.eGFRProgression ? patient.eGFRProgression : null;
+  }
+
+  function progressionLabelClass(category) {
+    if (category === "very rapid progression") return "progression-very-rapid";
+    if (category === "rapid progression") return "progression-rapid";
+    if (category === "slow progression") return "progression-slow";
+    return "progression-stable";
+  }
+
+  function progressionInterpretationText(patient, detailMode) {
+    var p = progressionClass(patient);
+    if (!p) return "Progression interpretation unavailable.";
+
+    var slopeText = p.verifiedAnnualSlope.toFixed(1) + " mL/min/1.73 m²/year";
+    var categoryText = p.category;
+
+    if (detailMode === "concise") {
+      return "eGFR trajectory: " + categoryText + " (verified synthetic slope " + slopeText + ").";
+    }
+
+    var parts = [
+      "The verified synthetic eGFR slope is " + slopeText + ", categorized as " + categoryText + " under the configured office CKD progression profile.",
+      "This classification is a practice taxonomy rather than a universal KDIGO category set.",
+      "Interpretation should be confirmed against longitudinal context, including acute kidney injury, medication-related hemodynamic dips, intercurrent illness, and adequacy of serial measurements."
+    ];
+
+    if (p.adpkdRapidSignal) {
+      parts.push("Because this synthetic patient has polycystic kidney disease, the ADPKD-specific rapid-progression threshold is lower than the general CKD rapid-progression threshold.");
+    }
+
+    if (detailMode === "references") {
+      parts.push("Evidence anchors: KDIGO 2024 flags a >20% subsequent eGFR change as exceeding expected variability and warranting evaluation; older KDIGO guidance used >5 mL/min/1.73 m²/year as rapid progression; NICE defines accelerated progression as a sustained decline of ≥15 mL/min/1.73 m²/year or ≥25% decline with GFR-category change within 12 months; KDIGO 2025 ADPKD accepts confirmed historical decline ≥3 mL/min/1.73 m²/year as a rapid-progression signal in ADPKD.");
+    }
+
+    return parts.join(" ");
+  }
+
+  function progressionReferenceBlock(patient) {
+    var p = progressionClass(patient);
+    if (!p) return "";
+
+    var adpkd = p.adpkdRapidSignal
+      ? "<li>KDIGO 2025 ADPKD: confirmed historical eGFR decline ≥3 mL/min/1.73 m²/year can indicate rapid ADPKD progression.</li>"
+      : "";
+
+    return "<div class='egfr-reference-block'>" +
+      "<strong>Evidence anchors</strong>" +
+      "<ul>" +
+        "<li>KDIGO 2024 CKD: >20% subsequent eGFR change exceeds expected variability and warrants evaluation.</li>" +
+        "<li>KDIGO 2012 CKD: rapid progression historically defined as sustained decline >5 mL/min/1.73 m²/year.</li>" +
+        "<li>NICE NG203: accelerated progression includes sustained decline ≥15 mL/min/1.73 m²/year or ≥25% decline plus GFR-category change within 12 months.</li>" +
+        adpkd +
+      "</ul>" +
+      "<div class='micro'>Prototype evidence summary; not a substitute for clinician review of the underlying guideline and patient context.</div>" +
+    "</div>";
+  }
+
+  function progressionSummaryPanel(patient) {
+    var p = progressionClass(patient);
+    if (!p) return "";
+
+    var mode = getProgressionDetail(patient);
+    var refs = mode === "references" ? progressionReferenceBlock(patient) : "";
+
+    return "<div class='egfr-progression-panel'>" +
+      "<div class='egfr-progression-head'>" +
+        "<div>" +
+          "<span class='eyebrow'>eGFR PROGRESSION INTERPRETATION</span>" +
+          "<strong class='egfr-progression-label " + progressionLabelClass(p.category) + "'>" + p.category + "</strong>" +
+        "</div>" +
+        "<div class='egfr-slope-box'>" +
+          "<span>Verified slope</span>" +
+          "<strong>" + p.verifiedAnnualSlope.toFixed(1) + "</strong>" +
+          "<small>mL/min/1.73 m²/year</small>" +
+        "</div>" +
+      "</div>" +
+      "<div class='egfr-detail-toggle' role='group' aria-label='Interpretation detail'>" +
+        "<button type='button' data-progression-detail='concise' class='" + (mode === "concise" ? "active" : "") + "'>Concise</button>" +
+        "<button type='button' data-progression-detail='elaborated' class='" + (mode === "elaborated" ? "active" : "") + "'>Elaborated</button>" +
+        "<button type='button' data-progression-detail='references' class='" + (mode === "references" ? "active" : "") + "'>Elaborated + references</button>" +
+      "</div>" +
+      "<div class='egfr-progression-text'>" + progressionInterpretationText(patient, mode) + "</div>" +
+      "<div class='egfr-profile-note'>Profile: " + p.profileLabel + " · " + p.calculationStatus + "</div>" +
+      refs +
+    "</div>";
+  }
+
   function labTone(patient, name, lab) {
     var history = patient.labHistory && patient.labHistory[name];
     if (lab.flag === "high") return "tone-red";
@@ -112,10 +211,17 @@
       return "<div class='lab-trend-empty'>No historical values available.</div>";
     }
 
-    if (labViewMode === "table") return labTrendTable(history, lab.unit);
-    if (labViewMode === "graph") return labTrendGraph(history, lab.unit);
+    var progression = name === "eGFR" ? progressionSummaryPanel(patient) : "";
 
-    return "<div class='lab-trend-prose'>" +
+    if (labViewMode === "table") return progression + labTrendTable(history, lab.unit);
+    if (labViewMode === "graph") {
+      var graph = labTrendGraph(history, lab.unit);
+      return name === "eGFR"
+        ? "<div class='egfr-graph-layout'>" + graph + progression + "</div>"
+        : graph;
+    }
+
+    return progression + "<div class='lab-trend-prose'>" +
       labTrendSummary(name, history, lab.unit) + "</div>";
   }
 
@@ -240,6 +346,15 @@
         btn.addEventListener("click", function (event) {
           event.stopPropagation();
           labViewMode = btn.dataset.labView;
+          enhancedRenderSourceData(patient);
+        });
+      });
+
+      cell.querySelectorAll("[data-progression-detail]").forEach(function (btn) {
+        btn.addEventListener("click", function (event) {
+          event.stopPropagation();
+          setProgressionDetail(patient, btn.dataset.progressionDetail);
+          upsertPrechartLab(patient, "eGFR");
           enhancedRenderSourceData(patient);
         });
       });
