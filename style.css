@@ -1303,3 +1303,200 @@ body {
     font-size:12px;
   }
 }
+
+
+/* ---- physician glance hierarchy: census / state / agent ---- */
+
+/* Remove the old dark frame around census cards entirely. */
+.patient-list li.patient-tile {
+  padding:0 !important;
+  margin-bottom:7px;
+  background:transparent !important;
+  border-radius:10px;
+  border:2px solid transparent;
+  overflow:hidden;
+}
+.patient-list li.patient-tile:hover {
+  background:transparent !important;
+}
+.patient-list li.patient-tile.active {
+  background:transparent !important;
+}
+
+.patient-tile .patient-tile-compact {
+  min-height:78px;
+  padding:11px 12px 10px;
+  border-radius:8px;
+  display:block;
+}
+.patient-tile.patient-status-stable .patient-tile-compact {
+  background:#168a45 !important;
+}
+.patient-tile.patient-status-flag .patient-tile-compact {
+  background:#d59a00 !important;
+}
+.patient-tile.patient-status-critical .patient-tile-compact {
+  background:#c62828 !important;
+}
+.patient-tile.patient-status-stable:hover .patient-tile-compact {
+  background:#117a3b !important;
+}
+.patient-tile.patient-status-flag:hover .patient-tile-compact {
+  background:#bd8700 !important;
+}
+.patient-tile.patient-status-critical:hover .patient-tile-compact {
+  background:#ad2020 !important;
+}
+
+.patient-tile .p-name {
+  font-size:15px;
+  line-height:1.2;
+  font-weight:900;
+  color:#fff !important;
+}
+.patient-tile .p-demographics {
+  font-size:12px;
+  font-weight:800;
+  color:#fff !important;
+}
+.patient-tile .p-sub {
+  margin-top:4px;
+  font-size:12.5px;
+  line-height:1.3;
+  font-weight:800;
+  color:#fff !important;
+}
+.patient-tile .p-flag {
+  margin-top:7px;
+  float:right;
+  background:rgba(0,0,0,.20) !important;
+  color:#fff !important;
+  border:1px solid rgba(255,255,255,.72);
+  border-radius:12px;
+  padding:2px 7px;
+  font-size:9px;
+  line-height:1.25;
+  font-weight:900;
+  letter-spacing:.6px;
+  text-transform:uppercase;
+}
+.patient-tile .expand-hint {
+  margin-top:7px;
+  font-size:9px;
+  line-height:1.25;
+  font-weight:900;
+  color:#fff !important;
+  opacity:.95;
+}
+.patient-list li.patient-tile.active {
+  border-color:var(--accent);
+  box-shadow:0 0 0 2px rgba(76,194,255,.32);
+}
+
+/* The expanded detail remains neutral; only the patient-status header is colored. */
+.patient-list li.patient-tile.expanded {
+  border:1px solid var(--accent);
+  background:var(--panel) !important;
+}
+.patient-list li.patient-tile.expanded .patient-tile-compact {
+  border-radius:0;
+}
+
+/* Middle pane: make the patient's identity and state values the visual anchor. */
+#ptName {
+  font-size:21px;
+  line-height:1.2;
+  font-weight:800;
+}
+.meta {
+  font-size:13.5px;
+}
+.state-card {
+  min-height:116px;
+  border-left-width:5px !important;
+}
+.state-title {
+  font-size:10.5px;
+  font-weight:800;
+}
+.state-value {
+  font-size:17px;
+  line-height:1.25;
+  font-weight:800;
+}
+.state-sub {
+  font-size:11.5px;
+  line-height:1.4;
+}
+
+/* Right pane: critical/high findings should win the physician's attention. */
+.agent-pane .panel-head h2 {
+  font-size:15px;
+  color:var(--text);
+}
+.finding {
+  padding:10px 12px;
+}
+.finding .f-title {
+  font-size:13px;
+  font-weight:800;
+}
+.finding.critical {
+  border-width:2px;
+  box-shadow:0 0 0 1px rgba(255,77,109,.16);
+}
+.finding.high {
+  border-width:2px;
+}
+.finding.critical .f-title,
+.finding.high .f-title {
+  font-size:13.5px;
+  font-weight:900;
+}
+
+/* Keep full census status colors identical in light mode. */
+:root[data-theme="light"] .patient-list li.patient-tile {
+  background:transparent !important;
+}
+:root[data-theme="light"] .patient-tile.patient-status-stable .patient-tile-compact {
+  background:#168a45 !important;
+}
+:root[data-theme="light"] .patient-tile.patient-status-flag .patient-tile-compact {
+  background:#d59a00 !important;
+}
+:root[data-theme="light"] .patient-tile.patient-status-critical .patient-tile-compact {
+  background:#c62828 !important;
+}
+:root[data-theme="light"] .patient-tile .p-name,
+:root[data-theme="light"] .patient-tile .p-demographics,
+:root[data-theme="light"] .patient-tile .p-sub,
+:root[data-theme="light"] .patient-tile .p-flag,
+:root[data-theme="light"] .patient-tile .expand-hint {
+  color:#fff !important;
+}
+
+/* iPhone: preserve scanability without reducing clinical type too far. */
+@media (max-width:760px) {
+  .patient-list li.patient-tile {
+    margin-bottom:8px;
+  }
+  .patient-tile .patient-tile-compact {
+    min-height:82px;
+    padding:12px;
+  }
+  .patient-tile .p-name {
+    font-size:16px;
+  }
+  .patient-tile .p-sub {
+    font-size:13px;
+  }
+  #ptName {
+    font-size:20px;
+  }
+  .state-value {
+    font-size:18px;
+  }
+  .finding .f-title {
+    font-size:14px;
+  }
+}
