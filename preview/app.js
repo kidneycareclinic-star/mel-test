@@ -148,11 +148,9 @@ function renderCensus(filter = "") {
       return rank > m ? rank : m;
     }, 0);
 
-    const flag = maxSev >= 4
-      ? '<span class="p-flag" style="background:#2a141b;color:#ff4d6d">critical</span>'
-      : maxSev === 3
-      ? '<span class="p-flag" style="background:#2a1d13;color:#ffb454">flag</span>'
-      : '<span class="p-flag" style="background:#132432;color:#3ddc97">stable</span>';
+    const patientStatus = maxSev >= 4 ? "critical" : maxSev === 3 ? "flag" : "stable";
+    li.classList.add("patient-status-" + patientStatus);
+    const flag = '<span class="p-flag">' + patientStatus + '</span>';
 
     const problems = (p.problemList || []).map((problem) => `
       <div class="problem-row ${problem.primary ? "primary" : ""}">
@@ -169,7 +167,7 @@ function renderCensus(filter = "") {
 
     li.innerHTML = `
       <div class="patient-tile-compact">
-        <div class="p-name">${p.name} <span style="color:var(--muted);font-weight:400">· ${p.age}${p.sex}</span></div>
+        <div class="p-name">${p.name} <span class="p-demographics">· ${p.age}${p.sex}</span></div>
         <div class="p-sub">${p.diagnosis} · eGFR ${p.labs.eGFR.value}</div>
         ${flag}
         <span class="expand-hint">${expandedPatientId === p.id ? "expanded" : "click to expand"}</span>
