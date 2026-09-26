@@ -108,7 +108,10 @@
             <h2>Pre-charting note</h2>
             <div class="micro">Lab trends opened for review are added here for the selected synthetic patient</div>
           </div>
-          <button id="clearPrechartBtn" class="small-btn" type="button">Clear</button>
+          <div class="prechart-head-actions">
+            <button id="openPrechartWorkspaceBtn" class="small-btn prechart-open-btn" type="button">Open workspace</button>
+            <button id="clearPrechartBtn" class="small-btn" type="button">Clear</button>
+          </div>
         </div>
         <div id="prechartNote" class="prechart-note"></div>
       </section>
@@ -176,6 +179,128 @@
     </aside>
   </div>
 
+  <div id="prechartWorkspace" class="prechart-workspace hidden" aria-hidden="true">
+    <div class="prechart-workspace-shell">
+      <header class="prechart-workspace-header">
+        <div>
+          <span class="eyebrow">PRE-CHARTING WORKSPACE</span>
+          <h2 id="prechartWorkspaceTitle">Patient pre-charting</h2>
+          <div id="prechartWorkspaceMeta" class="micro">Collect and organize source material before the encounter</div>
+        </div>
+        <div class="prechart-workspace-header-actions">
+          <span class="chip chip-agent">2 organizer agents</span>
+          <button id="closePrechartWorkspaceBtn" class="icon-btn" type="button" aria-label="Close pre-charting workspace">×</button>
+        </div>
+      </header>
+
+      <div class="prechart-workspace-grid">
+        <section class="prechart-source-column">
+          <div class="prechart-source-card">
+            <div class="prechart-section-head">
+              <div>
+                <h3>Ambient transcription</h3>
+                <div class="micro">Synthetic demo capture area; no live microphone processing is enabled here</div>
+              </div>
+              <span id="ambientStatus" class="prechart-source-status">idle</span>
+            </div>
+            <textarea id="ambientTranscriptInput" class="prechart-large-input" placeholder="Ambient transcript text will appear here, or paste a synthetic transcript for testing…"></textarea>
+            <div class="prechart-inline-actions">
+              <button id="startAmbientDemoBtn" class="small-btn" type="button">Start demo capture</button>
+              <button id="addAmbientSourceBtn" class="small-btn" type="button">Add transcript</button>
+            </div>
+          </div>
+
+          <div class="prechart-source-card">
+            <div class="prechart-section-head">
+              <div>
+                <h3>Typed / pasted text</h3>
+                <div class="micro">Add referral text, outside notes, phone notes, or other pre-visit material</div>
+              </div>
+            </div>
+            <textarea id="typedPrechartInput" class="prechart-large-input" placeholder="Type or paste text here…"></textarea>
+            <div class="prechart-inline-actions">
+              <select id="typedSourceType" class="prechart-select" aria-label="Text source type">
+                <option value="typed-note">Typed note</option>
+                <option value="outside-note">Outside note</option>
+                <option value="referral">Referral</option>
+                <option value="patient-message">Patient message</option>
+                <option value="other">Other</option>
+              </select>
+              <button id="addTypedSourceBtn" class="small-btn" type="button">Add text</button>
+            </div>
+          </div>
+
+          <div class="prechart-source-card">
+            <div class="prechart-section-head">
+              <div>
+                <h3>Documents & images</h3>
+                <div class="micro">Attach source files for pre-chart review</div>
+              </div>
+            </div>
+            <label class="prechart-dropzone" for="prechartFileInput">
+              <strong>Attach documents</strong>
+              <span>PDF, images, text, Word, spreadsheets, and common clinical document formats</span>
+              <input id="prechartFileInput" type="file" multiple
+                accept=".pdf,.png,.jpg,.jpeg,.webp,.gif,.txt,.rtf,.doc,.docx,.xls,.xlsx,.csv,.tsv,.xml,.json,.html,.htm" />
+            </label>
+            <div id="prechartAttachmentList" class="prechart-attachment-list"></div>
+          </div>
+        </section>
+
+        <section class="prechart-center-column">
+          <div class="prechart-agent-row">
+            <article class="prechart-agent-card intake-agent">
+              <div class="prechart-agent-title">
+                <span class="agent-orb">1</span>
+                <div>
+                  <strong>Intake Agent</strong>
+                  <span>Classifies source type, records provenance, and flags unprocessed inputs</span>
+                </div>
+              </div>
+              <div id="intakeAgentSummary" class="prechart-agent-summary">No source material added yet.</div>
+            </article>
+
+            <article class="prechart-agent-card organizer-agent">
+              <div class="prechart-agent-title">
+                <span class="agent-orb">2</span>
+                <div>
+                  <strong>Organizer Agent</strong>
+                  <span>Groups material into a physician-facing pre-chart structure</span>
+                </div>
+              </div>
+              <div id="organizerAgentSummary" class="prechart-agent-summary">Waiting for source material.</div>
+            </article>
+          </div>
+
+          <div class="prechart-source-ledger-card">
+            <div class="prechart-section-head">
+              <div>
+                <h3>Source ledger</h3>
+                <div class="micro">Every pre-chart item remains linked to its source</div>
+              </div>
+              <span id="prechartSourceCount" class="chip">0 sources</span>
+            </div>
+            <div id="prechartSourceLedger" class="prechart-source-ledger"></div>
+          </div>
+
+          <div class="prechart-note-editor-card">
+            <div class="prechart-section-head">
+              <div>
+                <h3>Organized pre-charting note</h3>
+                <div class="micro">Editable physician workspace · organizational draft only</div>
+              </div>
+              <div class="prechart-inline-actions">
+                <button id="organizePrechartBtn" class="small-btn" type="button">Organize</button>
+                <button id="copyPrechartBtn" class="small-btn" type="button">Copy</button>
+              </div>
+            </div>
+            <textarea id="prechartWorkspaceNote" class="prechart-note-editor" placeholder="Organized pre-charting content will appear here…"></textarea>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+
   <div id="provenanceBackdrop" class="provenance-backdrop hidden"></div>
   <aside id="provenanceDrawer" class="provenance-drawer hidden" aria-label="Provenance inspector">
     <div class="prov-head">
@@ -196,6 +321,7 @@
   <script src="agent.js"></script>
   <script src="app.js"></script>
   <script src="lab-trends-ui.js"></script>
+  <script src="prechart-workspace.js?v=prechart-workspace-1"></script>
   <script src="mobile-ui.js?v=iphone-nav-20260926"></script>
 </body>
 </html>
