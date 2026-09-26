@@ -1180,3 +1180,126 @@ body {
     box-shadow:0 4px 14px rgba(58,72,95,.10);
   }
 }
+
+
+/* ---- census status tiles ---- */
+.patient-tile {
+  overflow:hidden;
+  border:1px solid transparent;
+}
+.patient-tile .patient-tile-compact {
+  border-radius:8px;
+  padding:10px 12px;
+  color:#ffffff;
+}
+.patient-tile .p-name,
+.patient-tile .p-sub,
+.patient-tile .p-demographics,
+.patient-tile .expand-hint,
+.patient-tile .p-flag {
+  color:#ffffff !important;
+}
+.patient-tile .p-name {
+  font-weight:800;
+  letter-spacing:.05px;
+  text-shadow:0 1px 1px rgba(0,0,0,.16);
+}
+.patient-tile .p-demographics {
+  font-weight:700;
+  opacity:.95;
+}
+.patient-tile .p-sub {
+  font-weight:700;
+  opacity:.98;
+  text-shadow:0 1px 1px rgba(0,0,0,.12);
+}
+.patient-tile .expand-hint {
+  font-weight:800;
+  opacity:.92;
+}
+.patient-tile .p-flag {
+  background:rgba(0,0,0,.18) !important;
+  border:1px solid rgba(255,255,255,.55);
+  font-weight:900;
+  letter-spacing:.35px;
+  text-transform:uppercase;
+}
+.patient-tile.patient-status-stable .patient-tile-compact {
+  background:#16a34a;
+}
+.patient-tile.patient-status-flag .patient-tile-compact {
+  background:#eab308;
+}
+.patient-tile.patient-status-critical .patient-tile-compact {
+  background:#dc2626;
+}
+.patient-tile.patient-status-stable.active,
+.patient-tile.patient-status-flag.active,
+.patient-tile.patient-status-critical.active {
+  border-color:#ffffff;
+  box-shadow:0 0 0 2px rgba(76,194,255,.75);
+}
+.patient-tile.patient-status-stable:hover .patient-tile-compact {
+  background:#15803d;
+}
+.patient-tile.patient-status-flag:hover .patient-tile-compact {
+  background:#ca8a04;
+}
+.patient-tile.patient-status-critical:hover .patient-tile-compact {
+  background:#b91c1c;
+}
+
+/* Expanded card: keep status header, neutral problem-list body */
+.patient-tile.expanded {
+  padding:0;
+  background:var(--panel);
+}
+.patient-tile.expanded .patient-tile-compact {
+  border-radius:0;
+  margin:0;
+  padding:12px;
+  border-bottom:1px solid rgba(255,255,255,.28);
+}
+.patient-tile.expanded .patient-tile-detail {
+  background:var(--panel);
+  color:var(--text);
+  padding:12px;
+}
+.patient-tile.expanded .patient-tile-detail .micro,
+.patient-tile.expanded .patient-tile-detail .problem-coded-label,
+.patient-tile.expanded .patient-tile-detail .problem-system,
+.patient-tile.expanded .patient-tile-detail .tile-resize-note {
+  color:var(--muted) !important;
+}
+.patient-tile.expanded .patient-tile-detail .problem-name,
+.patient-tile.expanded .patient-tile-detail .problem-code,
+.patient-tile.expanded .patient-tile-detail strong {
+  color:var(--text) !important;
+}
+
+/* Light theme keeps same saturated census status colors */
+:root[data-theme="light"] .patient-tile.patient-status-stable .patient-tile-compact {
+  background:#16a34a;
+}
+:root[data-theme="light"] .patient-tile.patient-status-flag .patient-tile-compact {
+  background:#eab308;
+}
+:root[data-theme="light"] .patient-tile.patient-status-critical .patient-tile-compact {
+  background:#dc2626;
+}
+:root[data-theme="light"] .patient-tile.expanded .patient-tile-detail {
+  background:#ffffff;
+}
+
+/* Mobile status tiles */
+@media (max-width:760px) {
+  .patient-tile .patient-tile-compact {
+    padding:13px 12px;
+  }
+  .patient-tile .p-name {
+    font-size:15px;
+  }
+  .patient-tile .p-sub {
+    font-size:12px;
+  }
+}
