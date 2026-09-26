@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Nephrology Agentic Harness — Synthetic Demo</title>
-<link rel="stylesheet" href="style.css?v=light-theme-20260922" />
+<link rel="stylesheet" href="style.css?v=mobile-light-bars-20260926" />
 </head>
 <body>
   <header class="topbar">
@@ -58,7 +58,13 @@
     </div>
   </div>
 
-  <div class="layout" id="mainLayout">
+  <nav id="mobilePaneNav" class="mobile-pane-nav" aria-label="Mobile pane navigation">
+    <button type="button" data-mobile-pane="census">Census</button>
+    <button type="button" data-mobile-pane="patient" class="active">Patient</button>
+    <button type="button" data-mobile-pane="agent">Agent</button>
+  </nav>
+
+  <div class="layout mobile-pane-patient" id="mainLayout">
     <aside class="census">
       <div class="panel-head">
         <div>
@@ -189,5 +195,6 @@
   <script src="agent.js"></script>
   <script src="app.js"></script>
   <script src="lab-trends-ui.js"></script>
+  <script src="mobile-ui.js?v=iphone-nav-20260926"></script>
 </body>
 </html>
