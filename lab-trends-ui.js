@@ -233,12 +233,23 @@
     if (!history || !lab) return;
 
     var entries = prechartByPatient.get(patient.id) || new Map();
+    var progression = name === "eGFR" && patient.eGFRProgression
+      ? {
+          category: patient.eGFRProgression.category,
+          verifiedAnnualSlope: patient.eGFRProgression.verifiedAnnualSlope,
+          profileLabel: patient.eGFRProgression.profileLabel,
+          detailMode: getProgressionDetail(patient),
+          interpretation: progressionInterpretationText(patient, getProgressionDetail(patient))
+        }
+      : null;
+
     entries.set(name, {
       name: name,
       current: lab.value,
       unit: lab.unit,
       ref: lab.ref,
-      summary: labTrendSummary(name, history, lab.unit),
+      summary: progression ? progression.interpretation : labTrendSummary(name, history, lab.unit),
+      progression: progression,
       history: history.values.map(function (x) {
         return { date: x.date, value: x.value };
       })
@@ -380,6 +391,9 @@
       labViewMode = "prose";
     }
     baseRenderPatient(patient, resetChat);
+    if (patient && patient.labs && patient.labs.eGFR) {
+      upsertPrechartLab(patient, "eGFR");
+    }
     renderPrechartNote(patient);
   };
 
