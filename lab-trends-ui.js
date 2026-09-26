@@ -318,6 +318,22 @@
     });
   }
 
+  window.PRECHART_LABS_API = {
+    getEntries: function (patientId) {
+      var entries = prechartByPatient.get(patientId);
+      return entries ? Array.from(entries.values()).map(function (entry) {
+        return JSON.parse(JSON.stringify(entry));
+      }) : [];
+    },
+    clearEntries: function (patientId) {
+      prechartByPatient.delete(patientId);
+      if (currentPatient && currentPatient.id === patientId) renderPrechartNote(currentPatient);
+    },
+    renderInline: function (patient) {
+      renderPrechartNote(patient);
+    }
+  };
+
   if (currentPatient) {
     enhancedRenderSourceData(currentPatient);
     renderPrechartNote(currentPatient);
