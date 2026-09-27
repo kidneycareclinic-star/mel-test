@@ -173,6 +173,129 @@ function buildEgfrProgressionFixture(patient, index) {
 
 window.EGFR_PROGRESSION_PROFILE = EGFR_PROGRESSION_PROFILE;
 
+
+/* -------------------------------------------------------------------------
+ * UACR + combined CKD progression fixtures.
+ *
+ * UACR is explicit synthetic data; it is NOT derived from UPCR.
+ * The combined signal is descriptive concordance, not a validated risk score.
+ * ----------------------------------------------------------------------- */
+const UACR_PROGRESSION_PROFILE = {
+  id: "office-uacr-progression-v1",
+  label: "Office CKD albuminuria progression profile",
+  units: "mg/g",
+  categories: {
+    A1: "normal to mildly increased",
+    A2: "moderately increased",
+    A3: "severely increased",
+  },
+  variabilitySignal: "KDIGO 2024: doubling of ACR on a subsequent test exceeds expected laboratory variability and warrants evaluation.",
+};
+
+function albuminuriaCategoryFromUacr(value) {
+  if (value < 30) return "A1";
+  if (value < 300) return "A2";
+  return "A3";
+}
+
+function gfrCategoryFromEgfr(value) {
+  if (value >= 90) return "G1";
+  if (value >= 60) return "G2";
+  if (value >= 45) return "G3a";
+  if (value >= 30) return "G3b";
+  if (value >= 15) return "G4";
+  return "G5";
+}
+
+function cgaRiskFromCategories(g, a) {
+  const risk = {
+    G1: { A1: "low", A2: "moderate", A3: "high" },
+    G2: { A1: "low", A2: "moderate", A3: "high" },
+    G3a: { A1: "moderate", A2: "high", A3: "very high" },
+    G3b: { A1: "high", A2: "very high", A3: "very high" },
+    G4: { A1: "very high", A2: "very high", A3: "very high" },
+    G5: { A1: "very high", A2: "very high", A3: "very high" },
+  };
+  return risk[g] && risk[g][a] ? risk[g][a] : "unclassified";
+}
+
+function buildUacrProgressionFixture(patient, index) {
+  const fixtures = [
+    {
+      values: [16, 17, 18, 18],
+      trajectorySignal: "stable",
+      variabilitySignal: "no doubling signal",
+      doublingConfirmed: false,
+    },
+    {
+      values: [42, 55, 71, 92],
+      trajectorySignal: "worsening",
+      variabilitySignal: "doubling signal present in synthetic fixture",
+      doublingConfirmed: true,
+    },
+    {
+      values: [180, 230, 310, 420],
+      trajectorySignal: "worsening",
+      variabilitySignal: "doubling signal present in synthetic fixture",
+      doublingConfirmed: true,
+    },
+    {
+      values: [980, 910, 820, 780],
+      trajectorySignal: "improving",
+      variabilitySignal: "no doubling signal",
+      doublingConfirmed: false,
+    },
+  ];
+  const fixture = fixtures[(index - 1) % fixtures.length];
+  const current = fixture.values[fixture.values.length - 1];
+  const category = albuminuriaCategoryFromUacr(current);
+
+  return {
+    current,
+    category,
+    categoryLabel: UACR_PROGRESSION_PROFILE.categories[category],
+    trajectorySignal: fixture.trajectorySignal,
+    variabilitySignal: fixture.variabilitySignal,
+    doublingConfirmed: fixture.doublingConfirmed,
+    history: [
+      { date: "2025-12-15", value: fixture.values[0] },
+      { date: "2026-03-15", value: fixture.values[1] },
+      { date: "2026-06-15", value: fixture.values[2] },
+      { date: "2026-09-15", value: fixture.values[3] },
+    ],
+    calculationStatus: "synthetic verified UACR trajectory fixture; not derived from UPCR",
+    source: "synthetic-verified-uacr-fixture",
+  };
+}
+
+function buildCombinedCkdProgressionFixture(patient) {
+  const egfr = patient.eGFRProgression;
+  const uacr = patient.albuminuriaProgression;
+  const egfrWorsening = egfr && ["rapid progression", "very rapid progression"].includes(egfr.category);
+  const albuminuriaWorsening = uacr && uacr.trajectorySignal === "worsening";
+
+  let signal = "concordant stable/improving";
+  if (egfrWorsening && albuminuriaWorsening) signal = "concordant worsening";
+  else if (!egfrWorsening && albuminuriaWorsening) signal = "albuminuria-led progression signal";
+  else if (egfrWorsening && !albuminuriaWorsening) signal = "eGFR-led progression signal";
+
+  const gCategory = gfrCategoryFromEgfr(patient.labs.eGFR.value);
+  const aCategory = uacr ? uacr.category : "A1";
+
+  return {
+    signal,
+    gCategory,
+    aCategory,
+    cgaLabel: gCategory + aCategory,
+    cgaRisk: cgaRiskFromCategories(gCategory, aCategory),
+    albuminuriaEarlySignal: !egfrWorsening && albuminuriaWorsening,
+    interpretationStatus: "descriptive concordance model; not a validated risk score",
+    profileLabel: "eGFR + UACR progression concordance",
+  };
+}
+
+window.UACR_PROGRESSION_PROFILE = UACR_PROGRESSION_PROFILE;
+
 /* -------------------------------------------------------------------------
  * Generator
  * ----------------------------------------------------------------------- */
@@ -337,6 +460,7 @@ function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 function buildLongitudinalState(p, index) {
   const currentEgfr = p.labs.eGFR.value;
   const currentUpcr = p.labs.UPCR.value;
+  const currentUacr = p.labs.UACR ? p.labs.UACR.value : null;
   const currentHb = p.labs.Hemoglobin.value;
   const currentK = p.labs.Potassium.value;
   const currentPhos = p.labs.Phosphate.value;
@@ -372,6 +496,9 @@ function buildLongitudinalState(p, index) {
         Number(Math.max(0.05, currentUpcr * proteinFactor * 0.92).toFixed(1)),
         Number(currentUpcr.toFixed(1)),
       ],
+      currentUacr,
+      albuminuriaCategory: p.albuminuriaProgression ? p.albuminuriaProgression.category : null,
+      uacrTrajectory: p.albuminuriaProgression ? p.albuminuriaProgression.history.map((point) => ({ ...point })) : [],
     },
     bpVolume: {
       latestBp: bpSys + "/" + bpDia,
@@ -477,8 +604,22 @@ function buildContexts(p, index) {
 patients.forEach((p, idx) => {
   const index = idx + 1;
   p.problemList = buildProblemList(p, index);
-  p.labHistory = buildLabHistory(p, index);
   p.eGFRProgression = buildEgfrProgressionFixture(p, index);
+  p.albuminuriaProgression = buildUacrProgressionFixture(p, index);
+  p.labs.UACR = {
+    value: p.albuminuriaProgression.current,
+    unit: "mg/g",
+    ref: [0, 29],
+    flag: p.albuminuriaProgression.category === "A1" ? "normal" : "high",
+  };
+  p.labHistory = buildLabHistory(p, index);
+  p.labHistory.UACR = {
+    unit: "mg/g",
+    ref: [0, 29],
+    currentFlag: p.labs.UACR.flag,
+    values: p.albuminuriaProgression.history.map((point) => ({ ...point })),
+  };
+  p.combinedCkdProgression = buildCombinedCkdProgressionFixture(p);
   p.longitudinal = buildLongitudinalState(p, index);
   p.contexts = buildContexts(p, index);
 });
