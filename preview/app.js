@@ -14,13 +14,14 @@ let currentDialysisMode = "hemodialysis";
 const LAB_META = [
   ["eGFR", "mL/min/1.73m²"], ["Creatinine", "mg/dL"], ["Potassium", "mEq/L"],
   ["Hemoglobin", "g/dL"], ["Phosphate", "mg/dL"], ["Calcium", "mg/dL"],
-  ["PTH", "pg/mL"], ["Albumin", "g/dL"], ["UPCR", "g/g"],
+  ["PTH", "pg/mL"], ["Albumin", "g/dL"], ["UPCR", "g/g"], ["UACR", "mg/g"],
   ["Sodium", "mEq/L"], ["Bicarbonate", "mEq/L"], ["BUN", "mg/dL"],
 ];
 
 const PROV_PATHS = {
   eGFR: ["kidney.function.currentEgfr", (s) => s.kidney.function.currentEgfr],
   UPCR: ["kidney.proteinuria.current", (s) => s.kidney.proteinuria.current],
+  UACR: ["kidney.proteinuria.currentUacr", (s) => s.kidney.proteinuria.currentUacr],
   Potassium: ["electrolytes.potassium", (s) => s.electrolytes.potassium],
   Bicarbonate: ["electrolytes.bicarbonate", (s) => s.electrolytes.bicarbonate],
   Hemoglobin: ["anemia.hemoglobin", (s) => s.anemia.hemoglobin],
