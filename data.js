@@ -52,6 +52,9 @@ const MEDS = {
   "Ferrous sulfate":  { class: "Iron supplement",      renal: "iron repletion for ESA",                         dose: "325 mg daily" },
   "Sodium bicarbonate": { class: "Alkali therapy",     renal: "metabolic acidosis",                             dose: "650 mg TID" },
   "Darbepoetin":      { class: "ESA",                  renal: "anemia of CKD",                                  dose: "60 mcg SC weekly" },
+  "Dapagliflozin":     { class: "SGLT2 inhibitor",      renal: "synthetic demo · kidney/cardiovascular protection context", dose: "synthetic demo" },
+  "Finerenone":        { class: "Nonsteroidal MRA",     renal: "synthetic demo · albuminuric T2D/CKD context",              dose: "synthetic demo" },
+  "Semaglutide":       { class: "GLP-1 receptor agonist", renal: "synthetic demo · T2D/CKD cardiorenal context",            dose: "synthetic demo" },
 };
 
 const DIAGNOSES = {
@@ -457,6 +460,85 @@ window.PATIENTS = patients;
  * ========================================================================= */
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 
+
+function buildKidneyProtectionTimeline(p, index) {
+  const hasT2D = p.diagnosis === "Type 2 diabetes" ||
+    (p.problemList || []).some((problem) => problem.name === "Type 2 diabetes");
+
+  const rasDrug = p.meds.includes("Lisinopril") ? "Lisinopril"
+    : p.meds.includes("Losartan") ? "Losartan" : null;
+
+  const sglt2Active = index % 3 !== 0 && !["5", "AKI"].includes(p.ckdStage);
+  const nsMraActive = hasT2D && index % 4 === 0 && p.labs.Potassium.value <= 5.0;
+  const steroidalMraActive = !nsMraActive && p.meds.includes("Spironolactone");
+  const glp1Active = hasT2D && index % 5 <= 1;
+
+  if (sglt2Active && !p.meds.includes("Dapagliflozin")) p.meds.push("Dapagliflozin");
+  if (nsMraActive && !p.meds.includes("Finerenone")) p.meds.push("Finerenone");
+  if (glp1Active && !p.meds.includes("Semaglutide")) p.meds.push("Semaglutide");
+
+  const currentBpSys = 118 + (index * 7) % 42;
+  const currentBpDia = 68 + (index * 5) % 24;
+  const bpHistory = [
+    { date: "2025-12-15", systolic: clamp(currentBpSys + 12, 96, 178), diastolic: clamp(currentBpDia + 6, 56, 108), source: "synthetic office BP" },
+    { date: "2026-03-15", systolic: clamp(currentBpSys + 7, 96, 178), diastolic: clamp(currentBpDia + 4, 56, 108), source: "synthetic office BP" },
+    { date: "2026-06-15", systolic: clamp(currentBpSys + 3, 96, 178), diastolic: clamp(currentBpDia + 2, 56, 108), source: "synthetic office BP" },
+    { date: "2026-09-15", systolic: currentBpSys, diastolic: currentBpDia, source: "synthetic office BP" },
+  ];
+
+  return {
+    therapies: [
+      {
+        key: "ras",
+        label: "RAS blockade",
+        medication: rasDrug,
+        active: Boolean(rasDrug),
+        startedAt: rasDrug ? "2025-10-01" : null,
+        detail: rasDrug ? rasDrug + " listed" : "ACEi/ARB not listed",
+      },
+      {
+        key: "sglt2",
+        label: "SGLT2 inhibitor",
+        medication: sglt2Active ? "Dapagliflozin" : null,
+        active: sglt2Active,
+        startedAt: sglt2Active ? "2026-01-20" : null,
+        detail: sglt2Active ? "Dapagliflozin listed" : "SGLT2 inhibitor not listed",
+      },
+      {
+        key: "mra",
+        label: "MRA",
+        medication: nsMraActive ? "Finerenone" : steroidalMraActive ? "Spironolactone" : null,
+        active: nsMraActive || steroidalMraActive,
+        startedAt: nsMraActive ? "2026-04-12" : steroidalMraActive ? "2026-02-28" : null,
+        subtype: nsMraActive ? "nonsteroidal" : steroidalMraActive ? "steroidal" : null,
+        detail: nsMraActive
+          ? "Finerenone (ns-MRA) listed"
+          : steroidalMraActive
+          ? "Spironolactone listed; indication may differ from CKD progression therapy"
+          : "MRA not listed",
+      },
+      {
+        key: "glp1",
+        label: "GLP-1 receptor agonist",
+        medication: glp1Active ? "Semaglutide" : null,
+        active: glp1Active,
+        startedAt: glp1Active ? "2026-07-01" : null,
+        detail: glp1Active ? "Semaglutide listed" : "GLP-1 receptor agonist not listed",
+      },
+    ],
+    bpHistory,
+    evidenceContext: {
+      hasT2D,
+      uacr: p.labs.UACR ? p.labs.UACR.value : null,
+      albuminuriaCategory: p.albuminuriaProgression ? p.albuminuriaProgression.category : null,
+      eGFR: p.labs.eGFR.value,
+      potassium: p.labs.Potassium.value,
+      note: "Eligibility and choice are patient-specific; this synthetic timeline reports listed therapy rather than prescribing missing therapy.",
+    },
+    source: "synthetic kidney-protection timeline fixture",
+  };
+}
+
 function buildLongitudinalState(p, index) {
   const currentEgfr = p.labs.eGFR.value;
   const currentUpcr = p.labs.UPCR.value;
@@ -475,6 +557,7 @@ function buildLongitudinalState(p, index) {
   const proteinFactor = 1 + (((index % 5) - 2) * 0.08);
   const bpSys = 118 + (index * 7) % 42;
   const bpDia = 68 + (index * 5) % 24;
+  const protectionTimeline = p.kidneyProtectionTimeline || buildKidneyProtectionTimeline(p, index);
 
   return {
     kidney: {
@@ -502,6 +585,7 @@ function buildLongitudinalState(p, index) {
     },
     bpVolume: {
       latestBp: bpSys + "/" + bpDia,
+      history: protectionTimeline.bpHistory.map((point) => ({ ...point })),
       edema: index % 6 === 0 ? "1+ peripheral edema" : index % 4 === 0 ? "trace edema" : "no edema documented",
       weightTrend: index % 5 === 0 ? "upward" : index % 5 === 1 ? "downward" : "stable",
     },
@@ -520,8 +604,13 @@ function buildLongitudinalState(p, index) {
       status: currentPhos > 4.5 || currentPth > 65 ? "review" : "stable",
     },
     kidneyProtection: {
-      raas: p.meds.some((m) => ["Lisinopril", "Losartan"].includes(m)),
-      sglt2: false,
+      raas: protectionTimeline.therapies.find((x) => x.key === "ras").active,
+      sglt2: protectionTimeline.therapies.find((x) => x.key === "sglt2").active,
+      mra: protectionTimeline.therapies.find((x) => x.key === "mra").active,
+      glp1ra: protectionTimeline.therapies.find((x) => x.key === "glp1").active,
+      therapies: protectionTimeline.therapies.map((therapy) => ({ ...therapy })),
+      timelineSource: protectionTimeline.source,
+      evidenceContext: { ...protectionTimeline.evidenceContext },
       nsaidExposure: p.meds.includes("Ibuprofen"),
     },
     openLoops: [
@@ -620,6 +709,7 @@ patients.forEach((p, idx) => {
     values: p.albuminuriaProgression.history.map((point) => ({ ...point })),
   };
   p.combinedCkdProgression = buildCombinedCkdProgressionFixture(p);
+  p.kidneyProtectionTimeline = buildKidneyProtectionTimeline(p, index);
   p.longitudinal = buildLongitudinalState(p, index);
   p.contexts = buildContexts(p, index);
 });
