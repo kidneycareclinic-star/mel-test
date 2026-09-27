@@ -1895,3 +1895,33 @@ body {
     min-width:520px;
   }
 }
+
+
+/* ---- combined graph point hover / focus affordance ---- */
+.combined-point-hit {
+  fill:transparent;
+  stroke:transparent;
+  pointer-events:all;
+  cursor:crosshair;
+}
+.combined-hover-point {
+  outline:none;
+  cursor:crosshair;
+}
+.combined-hover-point .combined-egfr-point,
+.combined-hover-point .combined-uacr-point {
+  transition:r .12s ease, stroke-width .12s ease, filter .12s ease;
+  pointer-events:none;
+}
+.combined-hover-egfr:hover .combined-egfr-point,
+.combined-hover-egfr:focus .combined-egfr-point {
+  r:6px;
+  stroke-width:2.5px;
+  filter:drop-shadow(0 0 4px rgba(76,194,255,.75));
+}
+.combined-hover-uacr:hover .combined-uacr-point,
+.combined-hover-uacr:focus .combined-uacr-point {
+  r:6px;
+  stroke-width:2.5px;
+  filter:drop-shadow(0 0 4px rgba(255,180,84,.75));
+}
