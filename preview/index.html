@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Nephrology Agentic Harness — Synthetic Demo</title>
 <link rel="stylesheet" href="style.css?v=ckd-protection-timeline-20260926" />
-<link rel="stylesheet" href="census-status.css?v=translucent-2" />
-<link rel="stylesheet" href="prechart-workspace.css?v=scribe-discrete-v2-20260927" />
+<link rel="stylesheet" href="census-status.css?v=active-focus-20260927" />
+<link rel="stylesheet" href="prechart-workspace.css?v=reviewed-scribe-focus-20260927" />
 </head>
 <body>
   <header class="topbar">
@@ -226,10 +226,26 @@
             <div class="voice-synthetic-warning">
               SYNTHETIC TESTING ONLY · Browser speech recognition may use the browser vendor's speech service. Do not use real patient PHI in this prototype.
             </div>
-            <textarea id="ambientTranscriptInput" class="prechart-large-input" placeholder="Start the microphone and conduct a synthetic visit. Interim and final transcript text will appear here…"></textarea>
+            <div class="ambient-transcript-grid">
+              <div class="ambient-transcript-pane raw">
+                <div class="ambient-transcript-pane-head">
+                  <strong>Raw transcript</strong>
+                  <span>speech-recognition output · preserved for provenance</span>
+                </div>
+                <textarea id="ambientTranscriptInput" class="prechart-large-input" placeholder="Start the microphone and conduct a synthetic visit. Interim and final transcript text will appear here…"></textarea>
+              </div>
+              <div class="ambient-transcript-pane reviewed">
+                <div class="ambient-transcript-pane-head">
+                  <strong>Reviewed transcript</strong>
+                  <span id="ambientReviewStatus">conservative local review · no new clinical facts</span>
+                </div>
+                <textarea id="ambientReviewedInput" class="prechart-large-input reviewed-transcript-input" placeholder="Reviewed transcript will appear here automatically and remains editable before saving…"></textarea>
+              </div>
+            </div>
             <div class="prechart-inline-actions">
               <button id="startAmbientDemoBtn" class="small-btn voice-start-btn" type="button">Start ambient mic</button>
-              <button id="addAmbientSourceBtn" class="small-btn" type="button">Save ambient transcript</button>
+              <button id="reviewAmbientBtn" class="small-btn" type="button">Review transcript</button>
+              <button id="addAmbientSourceBtn" class="small-btn" type="button">Save reviewed transcript</button>
               <span id="ambientMicSupport" class="voice-support-note">checking microphone support…</span>
             </div>
             <div class="scribe-extraction-panel">
@@ -374,7 +390,7 @@
   <script src="app.js?v=scribe-discrete-v2-20260927"></script>
   <script src="lab-trends-ui.js?v=append-dated-points-20260927"></script>
   <script src="kidney-protection-ui.js?v=ckd-protection-timeline-20260926"></script>
-  <script src="prechart-workspace.js?v=append-dated-points-20260927"></script>
+  <script src="prechart-workspace.js?v=reviewed-scribe-focus-20260927"></script>
   <script src="mobile-ui.js?v=iphone-nav-20260926"></script>
 </body>
 </html>
