@@ -108,6 +108,176 @@
     "</div>";
   }
 
+
+  function albuminuriaInterpretation(patient, detailMode) {
+    var a = patient && patient.albuminuriaProgression;
+    if (!a) return "Albuminuria trajectory unavailable.";
+
+    var base = "UACR " + a.current + " mg/g (" + a.category + ", " + a.categoryLabel + "); trajectory " + a.trajectorySignal + ".";
+    if (detailMode === "concise") {
+      return base + (a.doublingConfirmed ? " Synthetic doubling signal present." : "");
+    }
+
+    var text = base + " UACR is interpreted as a longitudinal kidney-damage signal alongside eGFR rather than as a substitute for kidney-function assessment.";
+    if (a.doublingConfirmed) {
+      text += " The synthetic trajectory includes a doubling signal, which exceeds expected laboratory variability under KDIGO 2024 and warrants evaluation in real clinical use.";
+    } else {
+      text += " No doubling signal is present in this synthetic trajectory.";
+    }
+    if (detailMode === "references") {
+      text += " Evidence anchors: KDIGO classifies albuminuria as A1 <30 mg/g, A2 30–299 mg/g, and A3 ≥300 mg/g; KDIGO 2024 states that doubling of ACR on a subsequent test exceeds laboratory variability and warrants evaluation.";
+    }
+    return text;
+  }
+
+  function combinedProgressionInterpretation(patient, detailMode) {
+    var c = patient && patient.combinedCkdProgression;
+    var e = patient && patient.eGFRProgression;
+    var a = patient && patient.albuminuriaProgression;
+    if (!c || !e || !a) return "Combined CKD progression interpretation unavailable.";
+
+    var text = "Combined kidney progression signal: " + c.signal +
+      ". Current CGA position " + c.cgaLabel + " (" + c.cgaRisk + " KDIGO risk category), with eGFR slope " +
+      e.verifiedAnnualSlope.toFixed(1) + " mL/min/1.73 m²/year and UACR " +
+      a.current + " mg/g (" + a.category + ").";
+
+    if (detailMode !== "concise") {
+      text += " This is a descriptive concordance model, not a validated patient-level risk score. " +
+        "It is intended to surface whether kidney function and albuminuria are worsening together or whether one marker is leading the other.";
+      if (c.albuminuriaEarlySignal) {
+        text += " In this synthetic case, albuminuria is the earlier worsening signal while the eGFR progression category has not reached the configured rapid threshold.";
+      }
+    }
+
+    if (detailMode === "references") {
+      text += " Evidence anchors: KDIGO CGA staging combines GFR and albuminuria; a doubling of ACR exceeds expected laboratory variability; observational data show combined worsening of UACR and eGFR is more strongly associated with advanced CKD than either change alone; trial meta-analysis supports combined UACR change plus GFR slope as complementary surrogate information.";
+    }
+
+    return text;
+  }
+
+  function combinedProgressionPanel(patient) {
+    var c = patient && patient.combinedCkdProgression;
+    var e = patient && patient.eGFRProgression;
+    var a = patient && patient.albuminuriaProgression;
+    if (!c || !e || !a) return "";
+
+    var mode = getProgressionDetail(patient);
+    var className = c.signal === "concordant worsening"
+      ? "combined-worsening"
+      : c.signal.indexOf("progression signal") >= 0
+      ? "combined-discordant"
+      : "combined-stable";
+
+    return "<div class='combined-progression-panel " + className + "'>" +
+      "<div class='combined-progression-head'>" +
+        "<div>" +
+          "<span class='eyebrow'>eGFR + ALBUMINURIA</span>" +
+          "<strong>" + c.signal + "</strong>" +
+          "<span class='combined-cga'>CGA " + c.cgaLabel + " · " + c.cgaRisk + " risk</span>" +
+        "</div>" +
+        "<div class='combined-metrics'>" +
+          "<span><b>eGFR slope</b>" + e.verifiedAnnualSlope.toFixed(1) + "/yr</span>" +
+          "<span><b>UACR</b>" + a.current + " mg/g · " + a.category + "</span>" +
+        "</div>" +
+      "</div>" +
+      "<div class='egfr-detail-toggle'>" +
+        "<button type='button' data-progression-detail='concise' class='" + (mode === "concise" ? "active" : "") + "'>Concise</button>" +
+        "<button type='button' data-progression-detail='elaborated' class='" + (mode === "elaborated" ? "active" : "") + "'>Elaborated</button>" +
+        "<button type='button' data-progression-detail='references' class='" + (mode === "references" ? "active" : "") + "'>Elaborated + references</button>" +
+      "</div>" +
+      "<div class='egfr-progression-text'>" + combinedProgressionInterpretation(patient, mode) + "</div>" +
+      "<div class='egfr-profile-note'>" + c.interpretationStatus + "</div>" +
+    "</div>";
+  }
+
+  function combinedEgfrUacrGraph(patient) {
+    var egfrHistory = patient.labHistory && patient.labHistory.eGFR;
+    var uacrHistory = patient.labHistory && patient.labHistory.UACR;
+    if (!egfrHistory || !uacrHistory || egfrHistory.values.length < 2 || uacrHistory.values.length < 2) {
+      return "<div class='lab-trend-empty'>Not enough paired eGFR/UACR history to graph.</div>";
+    }
+
+    var width = 620, height = 240, padX = 54, padY = 34;
+    var innerW = width - padX * 2, innerH = height - padY * 2;
+    var egfrVals = egfrHistory.values.map(function(p){ return Number(p.value); });
+    var uacrVals = uacrHistory.values.map(function(p){ return Number(p.value); });
+    var egfrMin = Math.min.apply(null, egfrVals), egfrMax = Math.max.apply(null, egfrVals);
+    var uacrMin = Math.min.apply(null, uacrVals), uacrMax = Math.max.apply(null, uacrVals);
+    var egfrSpread = Math.max(1, egfrMax - egfrMin);
+    var uacrSpread = Math.max(1, uacrMax - uacrMin);
+
+    function points(history, min, spread) {
+      return history.values.map(function(p, i) {
+        return {
+          date:p.date,
+          value:Number(p.value),
+          x:padX + (innerW * i / Math.max(1, history.values.length - 1)),
+          y:padY + innerH - ((Number(p.value) - min) / spread) * innerH
+        };
+      });
+    }
+
+    function path(pts) {
+      return pts.map(function(p,i){ return (i ? "L " : "M ") + p.x.toFixed(1) + " " + p.y.toFixed(1); }).join(" ");
+    }
+
+    var ePts = points(egfrHistory, egfrMin, egfrSpread);
+    var aPts = points(uacrHistory, uacrMin, uacrSpread);
+    var marks = ePts.map(function(p,i) {
+      var a = aPts[i];
+      return "<circle cx='" + p.x + "' cy='" + p.y + "' r='4' class='combined-egfr-point'></circle>" +
+        "<circle cx='" + a.x + "' cy='" + a.y + "' r='4' class='combined-uacr-point'></circle>" +
+        "<text x='" + p.x + "' y='" + (height - 8) + "' text-anchor='middle' class='graph-label'>" + p.date.slice(5) + "</text>";
+    }).join("");
+
+    return "<div class='combined-graph-wrap'>" +
+      "<div class='combined-graph-legend'><span class='legend-egfr'>eGFR</span><span class='legend-uacr'>UACR</span></div>" +
+      "<svg class='combined-graph' viewBox='0 0 " + width + " " + height + "' role='img' aria-label='Combined eGFR and UACR trajectory'>" +
+        "<line x1='" + padX + "' y1='" + (height-padY) + "' x2='" + (width-padX) + "' y2='" + (height-padY) + "' class='graph-axis'></line>" +
+        "<line x1='" + padX + "' y1='" + padY + "' x2='" + padX + "' y2='" + (height-padY) + "' class='graph-axis'></line>" +
+        "<line x1='" + (width-padX) + "' y1='" + padY + "' x2='" + (width-padX) + "' y2='" + (height-padY) + "' class='graph-axis'></line>" +
+        "<path d='" + path(ePts) + "' class='combined-egfr-line'></path>" +
+        "<path d='" + path(aPts) + "' class='combined-uacr-line'></path>" +
+        marks +
+        "<text x='8' y='18' class='graph-label'>eGFR</text>" +
+        "<text x='" + (width-40) + "' y='18' class='graph-label'>UACR</text>" +
+        "<text x='8' y='" + (padY+4) + "' class='graph-value'>" + egfrMax + "</text>" +
+        "<text x='8' y='" + (height-padY) + "' class='graph-value'>" + egfrMin + "</text>" +
+        "<text x='" + (width-47) + "' y='" + (padY+4) + "' class='graph-value'>" + uacrMax + "</text>" +
+        "<text x='" + (width-47) + "' y='" + (height-padY) + "' class='graph-value'>" + uacrMin + "</text>" +
+      "</svg>" +
+      "<div class='micro'>Dual-axis display: eGFR (left) and UACR mg/g (right). Synthetic trajectories shown on a shared time axis; vertical positions use separate scales.</div>" +
+    "</div>";
+  }
+
+  function combinedProgressionEntry(patient) {
+    var mode = getProgressionDetail(patient);
+    var c = patient.combinedCkdProgression;
+    var a = patient.albuminuriaProgression;
+    var e = patient.eGFRProgression;
+    if (!c || !a || !e) return null;
+
+    return {
+      name: "CKD progression · eGFR + UACR",
+      current: c.cgaLabel,
+      unit: c.cgaRisk + " risk",
+      ref: null,
+      summary: combinedProgressionInterpretation(patient, mode),
+      progression: {
+        category: c.signal,
+        verifiedAnnualSlope: e.verifiedAnnualSlope,
+        uacr: a.current,
+        albuminuriaCategory: a.category,
+        detailMode: mode
+      },
+      history: a.history.map(function(point, i) {
+        var ePoint = patient.labHistory.eGFR.values[i];
+        return { date:point.date, value:"eGFR " + ePoint.value + " / UACR " + point.value };
+      })
+    };
+  }
+
   function labTone(patient, name, lab) {
     var history = patient.labHistory && patient.labHistory[name];
     if (lab.flag === "high") return "tone-red";
@@ -211,18 +381,27 @@
       return "<div class='lab-trend-empty'>No historical values available.</div>";
     }
 
-    var progression = name === "eGFR" ? progressionSummaryPanel(patient) : "";
+    var progression = name === "eGFR"
+      ? progressionSummaryPanel(patient) + combinedProgressionPanel(patient)
+      : name === "UACR"
+      ? combinedProgressionPanel(patient)
+      : "";
 
-    if (labViewMode === "table") return progression + labTrendTable(history, lab.unit);
+    if (labViewMode === "table") {
+      return progression + labTrendTable(history, lab.unit);
+    }
     if (labViewMode === "graph") {
-      var graph = labTrendGraph(history, lab.unit);
-      return name === "eGFR"
-        ? "<div class='egfr-graph-layout'>" + graph + progression + "</div>"
-        : graph;
+      if (name === "eGFR" || name === "UACR") {
+        return combinedProgressionPanel(patient) + combinedEgfrUacrGraph(patient);
+      }
+      return labTrendGraph(history, lab.unit);
     }
 
-    return progression + "<div class='lab-trend-prose'>" +
-      labTrendSummary(name, history, lab.unit) + "</div>";
+    var prose = name === "UACR"
+      ? "<div class='lab-trend-prose'>" + albuminuriaInterpretation(patient, getProgressionDetail(patient)) + "</div>"
+      : "<div class='lab-trend-prose'>" + labTrendSummary(name, history, lab.unit) + "</div>";
+
+    return progression + prose;
   }
 
   function upsertPrechartLab(patient, name) {
@@ -254,6 +433,18 @@
         return { date: x.date, value: x.value };
       })
     });
+    prechartByPatient.set(patient.id, entries);
+    renderPrechartNote(patient);
+  }
+
+
+  function upsertCombinedProgression(patient) {
+    if (!patient) return;
+    var entry = combinedProgressionEntry(patient);
+    if (!entry) return;
+
+    var entries = prechartByPatient.get(patient.id) || new Map();
+    entries.set("CKD progression · eGFR + UACR", entry);
     prechartByPatient.set(patient.id, entries);
     renderPrechartNote(patient);
   }
@@ -366,6 +557,8 @@
           event.stopPropagation();
           setProgressionDetail(patient, btn.dataset.progressionDetail);
           upsertPrechartLab(patient, "eGFR");
+          upsertPrechartLab(patient, "UACR");
+          upsertCombinedProgression(patient);
           enhancedRenderSourceData(patient);
         });
       });
@@ -394,6 +587,10 @@
     if (patient && patient.labs && patient.labs.eGFR) {
       upsertPrechartLab(patient, "eGFR");
     }
+    if (patient && patient.labs && patient.labs.UACR) {
+      upsertPrechartLab(patient, "UACR");
+    }
+    upsertCombinedProgression(patient);
     renderPrechartNote(patient);
   };
 
