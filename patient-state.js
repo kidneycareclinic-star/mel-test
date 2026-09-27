@@ -10,7 +10,7 @@
  * ========================================================================= */
 
 const PATIENT_STATE_ENGINE = (() => {
-  const VERSION = "0.4.0";
+  const VERSION = "0.5.0";
 
   function source(kind, label, field, observedAt, confidence = 1) {
     return {
@@ -97,6 +97,7 @@ const PATIENT_STATE_ENGINE = (() => {
 
     const egfrLab = patient.labs && patient.labs.eGFR;
     const upcrLab = patient.labs && patient.labs.UPCR;
+    const uacrLab = patient.labs && patient.labs.UACR;
     const potassiumLab = patient.labs && patient.labs.Potassium;
     const bicarbonateLab = patient.labs && patient.labs.Bicarbonate;
     const hemoglobinLab = patient.labs && patient.labs.Hemoglobin;
@@ -188,6 +189,28 @@ const PATIENT_STATE_ENGINE = (() => {
             { flag: upcrLab ? upcrLab.flag : "unknown" }
           ),
           trajectory: proteinTrajectory,
+          currentUacr: node(
+            proteinuria.currentUacr ?? (uacrLab ? uacrLab.value : null),
+            source("synthetic-lab", "Latest synthetic lab panel", "UACR", patient.lastVisit, 1),
+            { flag: uacrLab ? uacrLab.flag : "unknown" }
+          ),
+          albuminuriaCategory: node(
+            proteinuria.albuminuriaCategory || null,
+            source("synthetic-derived-state", "Synthetic UACR progression fixture", "albuminuriaCategory", patient.lastVisit, 1)
+          ),
+          uacrTrajectory: Array.isArray(proteinuria.uacrTrajectory)
+            ? proteinuria.uacrTrajectory.map((point) => ({
+                date: point.date,
+                value: point.value,
+                provenance: source(
+                  "synthetic-longitudinal-lab",
+                  "Synthetic UACR history",
+                  "UACR",
+                  point.date,
+                  1
+                ),
+              }))
+            : [],
         },
       },
 
