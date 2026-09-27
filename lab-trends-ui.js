@@ -672,6 +672,13 @@
     },
     renderInline: function (patient) {
       renderPrechartNote(patient);
+    },
+    upsertExternalEntry: function (patientId, key, entry) {
+      if (!patientId || !key || !entry) return;
+      var entries = prechartByPatient.get(patientId) || new Map();
+      entries.set(key, JSON.parse(JSON.stringify(entry)));
+      prechartByPatient.set(patientId, entries);
+      if (currentPatient && currentPatient.id === patientId) renderPrechartNote(currentPatient);
     }
   };
 
