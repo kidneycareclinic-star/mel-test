@@ -226,8 +226,19 @@
     var aPts = points(uacrHistory, uacrMin, uacrSpread);
     var marks = ePts.map(function(p,i) {
       var a = aPts[i];
-      return "<circle cx='" + p.x + "' cy='" + p.y + "' r='4' class='combined-egfr-point'></circle>" +
-        "<circle cx='" + a.x + "' cy='" + a.y + "' r='4' class='combined-uacr-point'></circle>" +
+      var egfrLabel = p.date + " · eGFR " + p.value + " mL/min/1.73 m²";
+      var uacrLabel = a.date + " · UACR " + a.value + " mg/g";
+
+      return "<g class='combined-hover-point combined-hover-egfr' tabindex='0' aria-label='" + egfrLabel + "'>" +
+          "<circle cx='" + p.x + "' cy='" + p.y + "' r='11' class='combined-point-hit'></circle>" +
+          "<circle cx='" + p.x + "' cy='" + p.y + "' r='4.5' class='combined-egfr-point'></circle>" +
+          "<title>" + egfrLabel + "</title>" +
+        "</g>" +
+        "<g class='combined-hover-point combined-hover-uacr' tabindex='0' aria-label='" + uacrLabel + "'>" +
+          "<circle cx='" + a.x + "' cy='" + a.y + "' r='11' class='combined-point-hit'></circle>" +
+          "<circle cx='" + a.x + "' cy='" + a.y + "' r='4.5' class='combined-uacr-point'></circle>" +
+          "<title>" + uacrLabel + "</title>" +
+        "</g>" +
         "<text x='" + p.x + "' y='" + (height - 8) + "' text-anchor='middle' class='graph-label'>" + p.date.slice(5) + "</text>";
     }).join("");
 
@@ -247,7 +258,7 @@
         "<text x='" + (width-47) + "' y='" + (padY+4) + "' class='graph-value'>" + uacrMax + "</text>" +
         "<text x='" + (width-47) + "' y='" + (height-padY) + "' class='graph-value'>" + uacrMin + "</text>" +
       "</svg>" +
-      "<div class='micro'>Dual-axis display: eGFR (left) and UACR mg/g (right). Synthetic trajectories shown on a shared time axis; vertical positions use separate scales.</div>" +
+      "<div class='micro'>Dual-axis display: eGFR (left) and UACR mg/g (right). Hover or focus any dot to see the exact date and value. Synthetic trajectories shown on a shared time axis; vertical positions use separate scales.</div>" +
     "</div>";
   }
 
