@@ -24,6 +24,11 @@
   var addDictationSourceBtn = document.getElementById("addDictationSourceBtn");
   var clearDictationBtn = document.getElementById("clearDictationBtn");
   var ambientMicSupport = document.getElementById("ambientMicSupport");
+  var ambientModeBtn = document.getElementById("ambientModeBtn");
+  var dictationModeBtn = document.getElementById("dictationModeBtn");
+  var voiceRuntimeStatus = document.getElementById("voiceRuntimeStatus");
+  var ambientCaptureCard = document.getElementById("ambientCaptureCard");
+  var dictationCaptureCard = document.getElementById("dictationCaptureCard");
   var typedInput = document.getElementById("typedPrechartInput");
   var typedSourceType = document.getElementById("typedSourceType");
   var addTypedSourceBtn = document.getElementById("addTypedSourceBtn");
@@ -431,6 +436,39 @@
     }
   });
 
+  function setRuntimeStatus(text, tone) {
+    if (!voiceRuntimeStatus) return;
+    voiceRuntimeStatus.textContent = text;
+    voiceRuntimeStatus.classList.remove("ok", "warn", "error", "live");
+    if (tone) voiceRuntimeStatus.classList.add(tone);
+  }
+
+  function focusVoiceMode(mode) {
+    var card = mode === "dictation" ? dictationCaptureCard : ambientCaptureCard;
+    if (card) {
+      card.scrollIntoView({ behavior: "smooth", block: "start" });
+      card.classList.add("voice-focus-pulse");
+      window.setTimeout(function () {
+        card.classList.remove("voice-focus-pulse");
+      }, 1100);
+    }
+  }
+
+  function requestMicrophonePermission() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      return Promise.resolve({ ok: false, reason: "Microphone permission API unavailable in this browser." });
+    }
+    return navigator.mediaDevices.getUserMedia({ audio: true }).then(function (stream) {
+      stream.getTracks().forEach(function (track) { track.stop(); });
+      return { ok: true };
+    }).catch(function (error) {
+      return {
+        ok: false,
+        reason: error && error.name ? "Microphone access failed: " + error.name : "Microphone access denied."
+      };
+    });
+  }
+
   var SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition || null;
   var activeRecognition = null;
   var activeVoiceMode = null;
@@ -479,6 +517,7 @@
   function startVoiceCapture(mode) {
     if (!SpeechRecognitionCtor) {
       setVoiceStatus(mode, "unsupported", false);
+      setRuntimeStatus("Speech recognition is not supported in this browser. Try current Chrome or Edge desktop.", "error");
       return;
     }
 
@@ -490,65 +529,100 @@
       stopVoiceCapture();
     }
 
-    var cfg = voiceConfig(mode);
-    finalTextByMode[mode] = cfg.input.value.trim();
-    var recognition = new SpeechRecognitionCtor();
-    activeRecognition = recognition;
-    activeVoiceMode = mode;
+    setRuntimeStatus("Requesting microphone permission…", "warn");
 
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    recognition.lang = document.documentElement.lang || navigator.language || "en-US";
-
-    recognition.onstart = function () {
-      setVoiceStatus(mode, "listening", true);
-      cfg.input.focus();
-    };
-
-    recognition.onresult = function (event) {
-      var finalChunk = "";
-      var interimChunk = "";
-      for (var i = event.resultIndex; i < event.results.length; i += 1) {
-        var transcript = event.results[i][0] ? event.results[i][0].transcript : "";
-        if (event.results[i].isFinal) finalChunk += transcript + " ";
-        else interimChunk += transcript + " ";
+    requestMicrophonePermission().then(function (permission) {
+      if (!permission.ok) {
+        setVoiceStatus(mode, "permission denied", false);
+        setRuntimeStatus(permission.reason, "error");
+        return;
       }
 
-      if (finalChunk.trim()) {
-        finalTextByMode[mode] = [finalTextByMode[mode], finalChunk.trim()]
-          .filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
-      }
-      appendTranscriptText(mode, "", interimChunk.trim());
-    };
+      var cfg = voiceConfig(mode);
+      finalTextByMode[mode] = cfg.input.value.trim();
+      var recognition = new SpeechRecognitionCtor();
+      activeRecognition = recognition;
+      activeVoiceMode = mode;
 
-    recognition.onerror = function (event) {
-      var label = event && event.error ? event.error : "microphone error";
-      setVoiceStatus(mode, label, false);
-    };
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = navigator.language || "en-US";
 
-    recognition.onend = function () {
-      if (activeRecognition === recognition) {
+      recognition.onstart = function () {
+        setVoiceStatus(mode, "listening", true);
+        setRuntimeStatus((mode === "dictation" ? "Dictation" : "Ambient") + " microphone is live. Speak now.", "live");
+        cfg.input.focus();
+      };
+
+      recognition.onspeechstart = function () {
+        setRuntimeStatus("Speech detected. Transcribing…", "live");
+      };
+
+      recognition.onresult = function (event) {
+        var finalChunk = "";
+        var interimChunk = "";
+        for (var i = event.resultIndex; i < event.results.length; i += 1) {
+          var transcript = event.results[i][0] ? event.results[i][0].transcript : "";
+          if (event.results[i].isFinal) finalChunk += transcript + " ";
+          else interimChunk += transcript + " ";
+        }
+
+        if (finalChunk.trim()) {
+          finalTextByMode[mode] = [finalTextByMode[mode], finalChunk.trim()]
+            .filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
+        }
+        appendTranscriptText(mode, "", interimChunk.trim());
+        setRuntimeStatus("Receiving transcript…", "ok");
+      };
+
+      recognition.onerror = function (event) {
+        var label = event && event.error ? event.error : "microphone error";
+        setVoiceStatus(mode, label, false);
+        setRuntimeStatus("Speech recognition error: " + label, "error");
+      };
+
+      recognition.onend = function () {
+        if (activeRecognition === recognition) {
+          activeRecognition = null;
+          activeVoiceMode = null;
+        }
+        setVoiceStatus(mode, "stopped", false);
+        setRuntimeStatus("Voice capture stopped. Review and save the transcript.", "ok");
+      };
+
+      try {
+        recognition.start();
+      } catch (_) {
+        setVoiceStatus(mode, "unable to start", false);
+        setRuntimeStatus("Unable to start speech recognition in this browser session.", "error");
         activeRecognition = null;
         activeVoiceMode = null;
       }
-      setVoiceStatus(mode, "stopped", false);
-    };
-
-    try {
-      recognition.start();
-    } catch (_) {
-      setVoiceStatus(mode, "unable to start", false);
-      activeRecognition = null;
-      activeVoiceMode = null;
-    }
+    });
   }
 
   if (SpeechRecognitionCtor) {
     if (ambientMicSupport) ambientMicSupport.textContent = "browser speech recognition available";
+    setRuntimeStatus("Voice transcription supported. Choose Ambient or Dictation.", "ok");
   } else {
     if (ambientMicSupport) ambientMicSupport.textContent = "speech recognition unavailable in this browser";
+    setRuntimeStatus("Speech recognition unavailable in this browser. Try current Chrome or Edge desktop.", "error");
     startAmbientDemoBtn.disabled = true;
     if (startDictationBtn) startDictationBtn.disabled = true;
+  }
+
+  if (ambientModeBtn) {
+    ambientModeBtn.addEventListener("click", function () {
+      focusVoiceMode("ambient");
+      startVoiceCapture("ambient");
+    });
+  }
+
+  if (dictationModeBtn) {
+    dictationModeBtn.addEventListener("click", function () {
+      focusVoiceMode("dictation");
+      startVoiceCapture("dictation");
+    });
   }
 
   startAmbientDemoBtn.addEventListener("click", function () {
