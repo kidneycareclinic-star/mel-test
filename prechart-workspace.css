@@ -466,3 +466,131 @@
     flex-basis:100%;
   }
 }
+
+
+/* ---- prominent voice mode launcher / diagnostics ---- */
+.voice-mode-launcher {
+  display:grid;
+  grid-template-columns:minmax(220px, .8fr) minmax(360px, 1.2fr) minmax(220px, .8fr);
+  gap:12px;
+  align-items:center;
+  padding:12px 14px;
+  border-bottom:1px solid var(--border);
+  background:var(--panel);
+}
+.voice-mode-copy strong,
+.voice-mode-copy span {
+  display:block;
+}
+.voice-mode-copy strong {
+  margin-top:2px;
+  color:var(--text);
+  font-size:13px;
+}
+.voice-mode-copy span:last-child {
+  margin-top:3px;
+  color:var(--muted);
+  font-size:9px;
+}
+.voice-mode-buttons {
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:8px;
+}
+.voice-mode-btn {
+  min-height:58px;
+  display:flex;
+  align-items:center;
+  gap:9px;
+  border:1px solid var(--border);
+  border-radius:10px;
+  background:var(--panel-2);
+  color:var(--text);
+  padding:9px 11px;
+  cursor:pointer;
+  text-align:left;
+}
+.voice-mode-btn:hover {
+  border-color:var(--accent);
+  transform:translateY(-1px);
+}
+.voice-mode-btn .voice-mode-icon {
+  width:28px;
+  height:28px;
+  display:grid;
+  place-items:center;
+  border-radius:50%;
+  flex:0 0 auto;
+  background:rgba(76,194,255,.10);
+  color:var(--accent);
+  font-size:14px;
+}
+.voice-mode-btn strong,
+.voice-mode-btn small {
+  display:block;
+}
+.voice-mode-btn strong {
+  font-size:12px;
+}
+.voice-mode-btn small {
+  margin-top:2px;
+  color:var(--muted);
+  font-size:8.5px;
+}
+.voice-runtime-status {
+  border:1px solid var(--border);
+  border-radius:8px;
+  padding:8px 10px;
+  background:var(--panel-2);
+  color:var(--muted);
+  font-size:9.5px;
+  line-height:1.4;
+}
+.voice-runtime-status.ok {
+  color:var(--good);
+  border-color:rgba(61,220,151,.35);
+  background:rgba(61,220,151,.07);
+}
+.voice-runtime-status.warn {
+  color:var(--warn);
+  border-color:rgba(255,180,84,.35);
+  background:rgba(255,180,84,.08);
+}
+.voice-runtime-status.error {
+  color:var(--critical);
+  border-color:rgba(255,77,109,.38);
+  background:rgba(255,77,109,.08);
+}
+.voice-runtime-status.live {
+  color:#fff;
+  border-color:var(--critical);
+  background:rgba(255,77,109,.78);
+}
+.voice-focus-pulse {
+  animation:voiceFocusPulse 1.05s ease;
+}
+@keyframes voiceFocusPulse {
+  0% { box-shadow:0 0 0 0 rgba(76,194,255,.0); }
+  45% { box-shadow:0 0 0 4px rgba(76,194,255,.25); }
+  100% { box-shadow:0 0 0 0 rgba(76,194,255,.0); }
+}
+:root[data-theme="light"] .voice-mode-launcher {
+  background:#ffffff;
+}
+:root[data-theme="light"] .voice-mode-btn,
+:root[data-theme="light"] .voice-runtime-status {
+  background:#f7f9fc;
+}
+@media (max-width:900px) {
+  .voice-mode-launcher {
+    grid-template-columns:1fr;
+  }
+}
+@media (max-width:760px) {
+  .voice-mode-buttons {
+    grid-template-columns:1fr;
+  }
+  .voice-mode-btn {
+    min-height:64px;
+  }
+}
