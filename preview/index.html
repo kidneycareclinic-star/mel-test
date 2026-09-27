@@ -6,7 +6,7 @@
 <title>Nephrology Agentic Harness — Synthetic Demo</title>
 <link rel="stylesheet" href="style.css?v=ckd-protection-timeline-20260926" />
 <link rel="stylesheet" href="census-status.css?v=translucent-2" />
-<link rel="stylesheet" href="prechart-workspace.css?v=prechart-workspace-3" />
+<link rel="stylesheet" href="prechart-workspace.css?v=live-voice-20260926" />
 </head>
 <body>
   <header class="topbar">
@@ -196,18 +196,38 @@
 
       <div class="prechart-workspace-grid">
         <section class="prechart-source-column">
-          <div class="prechart-source-card">
+          <div class="prechart-source-card voice-capture-card">
             <div class="prechart-section-head">
               <div>
                 <h3>Ambient transcription</h3>
-                <div class="micro">Synthetic demo capture area; no live microphone processing is enabled here</div>
+                <div class="micro">Live microphone transcription for synthetic-patient testing only</div>
               </div>
               <span id="ambientStatus" class="prechart-source-status">idle</span>
             </div>
-            <textarea id="ambientTranscriptInput" class="prechart-large-input" placeholder="Ambient transcript text will appear here, or paste a synthetic transcript for testing…"></textarea>
+            <div class="voice-synthetic-warning">
+              SYNTHETIC TESTING ONLY · Browser speech recognition may use the browser vendor's speech service. Do not use real patient PHI in this prototype.
+            </div>
+            <textarea id="ambientTranscriptInput" class="prechart-large-input" placeholder="Start the microphone and conduct a synthetic visit. Interim and final transcript text will appear here…"></textarea>
             <div class="prechart-inline-actions">
-              <button id="startAmbientDemoBtn" class="small-btn" type="button">Start demo capture</button>
-              <button id="addAmbientSourceBtn" class="small-btn" type="button">Add transcript</button>
+              <button id="startAmbientDemoBtn" class="small-btn voice-start-btn" type="button">Start ambient mic</button>
+              <button id="addAmbientSourceBtn" class="small-btn" type="button">Save ambient transcript</button>
+              <span id="ambientMicSupport" class="voice-support-note">checking microphone support…</span>
+            </div>
+          </div>
+
+          <div class="prechart-source-card voice-capture-card">
+            <div class="prechart-section-head">
+              <div>
+                <h3>Physician dictation</h3>
+                <div class="micro">Separate post-encounter voice dictation for assessment, exam, and plan wording</div>
+              </div>
+              <span id="dictationStatus" class="prechart-source-status">idle</span>
+            </div>
+            <textarea id="physicianDictationInput" class="prechart-large-input" placeholder="Start dictation and speak your synthetic physician note. The transcript remains editable before saving…"></textarea>
+            <div class="prechart-inline-actions">
+              <button id="startDictationBtn" class="small-btn voice-start-btn" type="button">Start dictation mic</button>
+              <button id="addDictationSourceBtn" class="small-btn" type="button">Save dictation</button>
+              <button id="clearDictationBtn" class="small-btn" type="button">Clear</button>
             </div>
           </div>
 
@@ -323,7 +343,7 @@
   <script src="app.js"></script>
   <script src="lab-trends-ui.js?v=ckd-protection-timeline-20260926"></script>
   <script src="kidney-protection-ui.js?v=ckd-protection-timeline-20260926"></script>
-  <script src="prechart-workspace.js?v=prechart-workspace-3"></script>
+  <script src="prechart-workspace.js?v=live-voice-20260926"></script>
   <script src="mobile-ui.js?v=iphone-nav-20260926"></script>
 </body>
 </html>
