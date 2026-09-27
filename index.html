@@ -6,7 +6,7 @@
 <title>Nephrology Agentic Harness — Synthetic Demo</title>
 <link rel="stylesheet" href="style.css?v=ckd-protection-timeline-20260926" />
 <link rel="stylesheet" href="census-status.css?v=translucent-2" />
-<link rel="stylesheet" href="prechart-workspace.css?v=voice-runtime-20260926" />
+<link rel="stylesheet" href="prechart-workspace.css?v=scribe-structured-20260927" />
 </head>
 <body>
   <header class="topbar">
@@ -232,6 +232,18 @@
               <button id="addAmbientSourceBtn" class="small-btn" type="button">Save ambient transcript</button>
               <span id="ambientMicSupport" class="voice-support-note">checking microphone support…</span>
             </div>
+            <div class="scribe-extraction-panel">
+              <div class="prechart-section-head">
+                <div>
+                  <h3>Structured scribe extraction</h3>
+                  <div class="micro">Synthetic mode auto-applies recognized discrete values to Patient State with ambient-scribe provenance</div>
+                </div>
+                <span id="scribeExtractionCount" class="chip">0 extracted</span>
+              </div>
+              <div id="scribeExtractionList" class="scribe-extraction-list">
+                <div class="prechart-ledger-empty">No discrete observations extracted yet.</div>
+              </div>
+            </div>
           </div>
 
           <div class="prechart-source-card voice-capture-card" id="dictationCaptureCard">
@@ -362,7 +374,7 @@
   <script src="app.js"></script>
   <script src="lab-trends-ui.js?v=ckd-protection-timeline-20260926"></script>
   <script src="kidney-protection-ui.js?v=ckd-protection-timeline-20260926"></script>
-  <script src="prechart-workspace.js?v=voice-runtime-20260926"></script>
+  <script src="prechart-workspace.js?v=scribe-structured-20260927"></script>
   <script src="mobile-ui.js?v=iphone-nav-20260926"></script>
 </body>
 </html>
