@@ -561,6 +561,7 @@ function renderPatient(patient, resetChat = true) {
 
 function selectPatient(patient) {
   renderPatient(patient, true);
+  renderCensus($("#search").value);
 }
 
 
