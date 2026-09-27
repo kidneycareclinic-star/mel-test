@@ -427,7 +427,11 @@
       current: lab.value,
       unit: lab.unit,
       ref: lab.ref,
-      summary: progression ? progression.interpretation : labTrendSummary(name, history, lab.unit),
+      summary: progression
+        ? progression.interpretation
+        : name === "UACR"
+        ? albuminuriaInterpretation(patient, getProgressionDetail(patient))
+        : labTrendSummary(name, history, lab.unit),
       progression: progression,
       history: history.values.map(function (x) {
         return { date: x.date, value: x.value };
