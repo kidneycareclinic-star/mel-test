@@ -42,6 +42,8 @@
   var noteEditor = document.getElementById("prechartWorkspaceNote");
   var organizeBtn = document.getElementById("organizePrechartBtn");
   var copyBtn = document.getElementById("copyPrechartBtn");
+  var scribeExtractionList = document.getElementById("scribeExtractionList");
+  var scribeExtractionCount = document.getElementById("scribeExtractionCount");
 
   function activePatient() {
     return window.currentPatient || currentPatient || null;
@@ -396,6 +398,7 @@
     renderAttachments(state);
     renderLedger(state);
     renderAgentSummaries(state);
+    renderScribeExtractions(patient);
 
     if (!state.note && state.sources.some(function (source) { return source.status === "ready"; })) {
       state.note = buildOrganizedNote(patient, state);
@@ -435,6 +438,269 @@
       closeWorkspace();
     }
   });
+
+
+  function todayIsoDate() {
+    return new Date().toISOString().slice(0, 10);
+  }
+
+  function ensureScribeStores(patient) {
+    if (!patient.scribeObservations) patient.scribeObservations = {};
+    if (!patient.scribeExtractionLog) patient.scribeExtractionLog = [];
+    if (!patient.scribeVitals) patient.scribeVitals = {};
+  }
+
+  function labFlag(lab, value) {
+    if (!lab || !Array.isArray(lab.ref) || lab.ref.length < 2) return lab && lab.flag ? lab.flag : "normal";
+    var lo = Number(lab.ref[0]);
+    var hi = Number(lab.ref[1]);
+    if (Number.isFinite(lo) && value < lo) return "low";
+    if (Number.isFinite(hi) && value > hi) return "high";
+    return "normal";
+  }
+
+  function albuminuriaCategory(value) {
+    if (value < 30) return { code:"A1", label:"normal to mildly increased" };
+    if (value < 300) return { code:"A2", label:"moderately increased" };
+    return { code:"A3", label:"severely increased" };
+  }
+
+  function gfrCategory(value) {
+    if (value >= 90) return "G1";
+    if (value >= 60) return "G2";
+    if (value >= 45) return "G3a";
+    if (value >= 30) return "G3b";
+    if (value >= 15) return "G4";
+    return "G5";
+  }
+
+  function setLatestHistoryPoint(history, value, date) {
+    if (!Array.isArray(history)) return;
+    if (!history.length) {
+      history.push({ date:date, value:value });
+      return;
+    }
+    var last = history[history.length - 1];
+    if (typeof last === "object" && last !== null) {
+      last.date = date;
+      last.value = value;
+    } else {
+      history[history.length - 1] = value;
+    }
+  }
+
+  function applyLabExtraction(patient, labName, value, record) {
+    if (!patient.labs || !patient.labs[labName]) return;
+    patient.labs[labName].value = value;
+    patient.labs[labName].flag = labFlag(patient.labs[labName], value);
+
+    if (patient.labHistory && patient.labHistory[labName]) {
+      setLatestHistoryPoint(patient.labHistory[labName].values, value, record.observedDate);
+      patient.labHistory[labName].currentFlag = patient.labs[labName].flag;
+    }
+
+    if (!patient.longitudinal) return;
+
+    if (labName === "eGFR" && patient.longitudinal.kidney) {
+      patient.longitudinal.kidney.currentEgfr = value;
+      setLatestHistoryPoint(patient.longitudinal.kidney.trajectory, value, record.observedDate);
+      if (patient.combinedCkdProgression) {
+        patient.combinedCkdProgression.gCategory = gfrCategory(value);
+        patient.combinedCkdProgression.cgaLabel =
+          patient.combinedCkdProgression.gCategory + (patient.combinedCkdProgression.aCategory || "");
+      }
+    }
+
+    if (labName === "UPCR" && patient.longitudinal.proteinuria) {
+      patient.longitudinal.proteinuria.current = value;
+      setLatestHistoryPoint(patient.longitudinal.proteinuria.trajectory, value, record.observedDate);
+    }
+
+    if (labName === "UACR" && patient.longitudinal.proteinuria) {
+      var a = albuminuriaCategory(value);
+      patient.longitudinal.proteinuria.currentUacr = value;
+      patient.longitudinal.proteinuria.albuminuriaCategory = a.code;
+      setLatestHistoryPoint(patient.longitudinal.proteinuria.uacrTrajectory, value, record.observedDate);
+
+      if (patient.albuminuriaProgression) {
+        patient.albuminuriaProgression.current = value;
+        patient.albuminuriaProgression.category = a.code;
+        patient.albuminuriaProgression.categoryLabel = a.label;
+        setLatestHistoryPoint(patient.albuminuriaProgression.history, value, record.observedDate);
+      }
+      if (patient.combinedCkdProgression) {
+        patient.combinedCkdProgression.aCategory = a.code;
+        patient.combinedCkdProgression.cgaLabel =
+          (patient.combinedCkdProgression.gCategory || gfrCategory(patient.labs.eGFR.value)) + a.code;
+      }
+    }
+
+    if (labName === "Potassium" && patient.longitudinal.electrolytes) {
+      patient.longitudinal.electrolytes.potassium = value;
+    }
+    if (labName === "Bicarbonate" && patient.longitudinal.electrolytes) {
+      patient.longitudinal.electrolytes.bicarbonate = value;
+    }
+    if (labName === "Hemoglobin" && patient.longitudinal.anemia) {
+      patient.longitudinal.anemia.hemoglobin = value;
+    }
+    if (labName === "Phosphate" && patient.longitudinal.ckdMbd) {
+      patient.longitudinal.ckdMbd.phosphate = value;
+    }
+  }
+
+  function applyVitalExtraction(patient, key, value, record) {
+    patient.scribeVitals[key] = {
+      value:value,
+      unit:record.unit,
+      observedAt:record.observedAt,
+      observedDate:record.observedDate,
+      sourceText:record.sourceText,
+      source:"ambient-scribe-extraction"
+    };
+
+    if (!patient.longitudinal) return;
+    if (key === "bloodPressure" && patient.longitudinal.bpVolume) {
+      patient.longitudinal.bpVolume.latestBp = value.systolic + "/" + value.diastolic;
+      if (Array.isArray(patient.longitudinal.bpVolume.history)) {
+        var bpPoint = patient.longitudinal.bpVolume.history[patient.longitudinal.bpVolume.history.length - 1];
+        if (bpPoint) {
+          bpPoint.date = record.observedDate;
+          bpPoint.systolic = value.systolic;
+          bpPoint.diastolic = value.diastolic;
+          bpPoint.source = "ambient scribe extraction";
+        }
+      }
+      if (patient.kidneyProtectionTimeline && Array.isArray(patient.kidneyProtectionTimeline.bpHistory)) {
+        var ktPoint = patient.kidneyProtectionTimeline.bpHistory[patient.kidneyProtectionTimeline.bpHistory.length - 1];
+        if (ktPoint) {
+          ktPoint.date = record.observedDate;
+          ktPoint.systolic = value.systolic;
+          ktPoint.diastolic = value.diastolic;
+          ktPoint.source = "ambient scribe extraction";
+        }
+      }
+    }
+  }
+
+  function recordExtraction(patient, field, displayLabel, value, unit, sourceText, type) {
+    ensureScribeStores(patient);
+    var observedAt = new Date().toISOString();
+    var record = {
+      id:newId("scribe"),
+      field:field,
+      displayLabel:displayLabel,
+      value:value,
+      unit:unit || "",
+      sourceText:sourceText,
+      observedAt:observedAt,
+      observedDate:observedAt.slice(0, 10),
+      source:"ambient-scribe-extraction",
+      sourceLabel:"Ambient scribe · extracted from spoken transcript",
+      confidence:"pattern-match-demo",
+      status:"applied-synthetic",
+      type:type
+    };
+    patient.scribeObservations[field] = record;
+    patient.scribeExtractionLog.unshift(record);
+    patient.scribeExtractionLog = patient.scribeExtractionLog.slice(0, 40);
+
+    if (type === "lab") applyLabExtraction(patient, field, Number(value), record);
+    if (type === "vital") applyVitalExtraction(patient, field, value, record);
+    return record;
+  }
+
+  function firstMatch(text, regex) {
+    var match = regex.exec(text);
+    return match || null;
+  }
+
+  function parseAmbientStructuredData(text) {
+    var patient = activePatient();
+    if (!patient || !text || !text.trim()) return [];
+
+    var normalized = text.replace(/,/g, "").replace(/\s+/g, " ").trim();
+    var extracted = [];
+
+    function addLab(field, label, regex, unit) {
+      var m = firstMatch(normalized, regex);
+      if (!m) return;
+      var value = Number(m[1]);
+      if (!Number.isFinite(value)) return;
+      extracted.push(recordExtraction(patient, field, label, value, unit, m[0], "lab"));
+    }
+
+    function addVital(field, label, regex, unit, transform) {
+      var m = firstMatch(normalized, regex);
+      if (!m) return;
+      var value = transform ? transform(m) : Number(m[1]);
+      if (value == null || (typeof value === "number" && !Number.isFinite(value))) return;
+      extracted.push(recordExtraction(patient, field, label, value, unit, m[0], "vital"));
+    }
+
+    addVital(
+      "bloodPressure", "Blood pressure",
+      /(?:blood\s+pressure|\bbp\b)\s*(?:(?:is|was|of|today(?:\s+is)?)\s*)?(\d{2,3})\s*(?:over|\/)\s*(\d{2,3})/i,
+      "mm Hg",
+      function(m){ return { systolic:Number(m[1]), diastolic:Number(m[2]) }; }
+    );
+    addVital("heartRate", "Heart rate", /(?:heart\s+rate|pulse)\s*(?:(?:is|was|of)\s*)?(\d{2,3})/i, "bpm");
+    addVital("weight", "Weight", /(?:weight|weighs)\s*(?:(?:is|was|of)\s*)?(\d+(?:\.\d+)?)\s*(pounds?|lbs?|kg|kilograms?)?/i, "reported", function(m){
+      return { amount:Number(m[1]), reportedUnit:(m[2] || "").toLowerCase() || "unspecified" };
+    });
+    addVital("temperature", "Temperature", /(?:temperature|temp)\s*(?:(?:is|was|of)\s*)?(\d{2,3}(?:\.\d+)?)/i, "reported");
+    addVital("oxygenSaturation", "Oxygen saturation", /(?:oxygen\s+saturation|o2\s*sat(?:uration)?|spo2)\s*(?:(?:is|was|of)\s*)?(\d{2,3})(?:\s*percent|\s*%)?/i, "%");
+
+    addLab("eGFR", "eGFR", /(?:\be\s*[- ]?gfr\b|estimated\s+(?:glomerular\s+filtration\s+rate|gfr)|\bgfr\b)\s*(?:(?:is|was|of|equals?)\s*)?(\d+(?:\.\d+)?)/i, "mL/min/1.73m²");
+    addLab("UACR", "UACR", /(?:\buacr\b|urine\s+albumin(?:\s*[-/]?to)?\s+creatinine\s+ratio|albumin\s+creatinine\s+ratio)\s*(?:(?:is|was|of|equals?)\s*)?(\d+(?:\.\d+)?)/i, "mg/g");
+    addLab("UPCR", "UPCR", /(?:\bupcr\b|urine\s+protein(?:\s*[-/]?to)?\s+creatinine\s+ratio|protein\s+creatinine\s+ratio)\s*(?:(?:is|was|of|equals?)\s*)?(\d+(?:\.\d+)?)/i, "g/g");
+    addLab("Potassium", "Potassium", /\bpotassium\b\s*(?:(?:is|was|of|equals?)\s*)?(\d+(?:\.\d+)?)/i, "mEq/L");
+    addLab("Phosphate", "Phosphate", /\b(?:phosphorus|phosphate)\b\s*(?:(?:is|was|of|equals?)\s*)?(\d+(?:\.\d+)?)/i, "mg/dL");
+    addLab("Bicarbonate", "Bicarbonate", /\b(?:bicarbonate|hco3)\b\s*(?:(?:is|was|of|equals?)\s*)?(\d+(?:\.\d+)?)/i, "mEq/L");
+    addLab("Hemoglobin", "Hemoglobin", /\b(?:hemoglobin|haemoglobin)\b\s*(?:(?:is|was|of|equals?)\s*)?(\d+(?:\.\d+)?)/i, "g/dL");
+    addLab("Creatinine", "Creatinine", /\bcreatinine\b\s*(?:(?:is|was|of|equals?)\s*)?(\d+(?:\.\d+)?)/i, "mg/dL");
+
+    if (extracted.length) {
+      renderScribeExtractions(patient);
+      if (typeof renderPatient === "function") renderPatient(patient, false);
+      if (window.PRECHART_WORKSPACE_API && PRECHART_WORKSPACE_API.refresh) {
+        window.setTimeout(function(){ PRECHART_WORKSPACE_API.refresh(); }, 0);
+      }
+    }
+    return extracted;
+  }
+
+  function extractionValueText(record) {
+    if (record.field === "bloodPressure" && record.value) {
+      return record.value.systolic + "/" + record.value.diastolic + " " + record.unit;
+    }
+    if (record.field === "weight" && record.value) {
+      return record.value.amount + " " + record.value.reportedUnit;
+    }
+    return record.value + (record.unit ? " " + record.unit : "");
+  }
+
+  function renderScribeExtractions(patient) {
+    if (!scribeExtractionList || !scribeExtractionCount) return;
+    ensureScribeStores(patient);
+    var records = patient.scribeExtractionLog || [];
+    scribeExtractionCount.textContent = records.length + " extracted";
+    if (!records.length) {
+      scribeExtractionList.innerHTML = "<div class='prechart-ledger-empty'>No discrete observations extracted yet.</div>";
+      return;
+    }
+
+    scribeExtractionList.innerHTML = records.slice(0, 12).map(function(record){
+      return "<div class='scribe-extraction-item'>" +
+        "<div class='scribe-extraction-main'>" +
+          "<span class='scribe-extraction-label'>" + safeText(record.displayLabel) + "</span>" +
+          "<strong>" + safeText(extractionValueText(record)) + "</strong>" +
+          "<small>Applied to synthetic Patient State · ambient-scribe provenance</small>" +
+        "</div>" +
+        "<div class='scribe-extraction-source'>“" + safeText(record.sourceText) + "”</div>" +
+      "</div>";
+    }).join("");
+  }
 
   function setRuntimeStatus(text, tone) {
     if (!voiceRuntimeStatus) return;
@@ -570,6 +836,7 @@
         if (finalChunk.trim()) {
           finalTextByMode[mode] = [finalTextByMode[mode], finalChunk.trim()]
             .filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
+          if (mode === "ambient") parseAmbientStructuredData(finalChunk.trim());
         }
         appendTranscriptText(mode, "", interimChunk.trim());
         setRuntimeStatus("Receiving transcript…", "ok");
@@ -634,6 +901,7 @@
   });
 
   addAmbientSourceBtn.addEventListener("click", function () {
+    parseAmbientStructuredData(ambientInput.value);
     if (addTextSource(
       "ambient-transcript",
       "Ambient transcript",
