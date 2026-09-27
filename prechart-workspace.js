@@ -16,6 +16,9 @@
 
   var ambientInput = document.getElementById("ambientTranscriptInput");
   var ambientStatus = document.getElementById("ambientStatus");
+  var ambientReviewedInput = document.getElementById("ambientReviewedInput");
+  var ambientReviewStatus = document.getElementById("ambientReviewStatus");
+  var reviewAmbientBtn = document.getElementById("reviewAmbientBtn");
   var startAmbientDemoBtn = document.getElementById("startAmbientDemoBtn");
   var addAmbientSourceBtn = document.getElementById("addAmbientSourceBtn");
   var dictationInput = document.getElementById("physicianDictationInput");
@@ -762,6 +765,51 @@
     }).join("");
   }
 
+
+  function conservativeTranscriptReview(raw) {
+    var text = String(raw || "").trim();
+    if (!text) return "";
+
+    text = text
+      .replace(/\b(?:um+|uh+|erm+|hmm+)\b/gi, " ")
+      .replace(/\b(?:you know|I mean|sort of|kind of)\b/gi, " ")
+      .replace(/\b(\w+)(?:\s+\1\b)+/gi, "$1")
+      .replace(/\s+([,.;:?])/g, "$1")
+      .replace(/([,.;:?])(?=[A-Za-z0-9])/g, "$1 ")
+      .replace(/\s{2,}/g, " ")
+      .trim();
+
+    text = text
+      .replace(/\be\s*gfr\b/gi, "eGFR")
+      .replace(/\bu\s*a\s*c\s*r\b/gi, "UACR")
+      .replace(/\bu\s*p\s*c\s*r\b/gi, "UPCR")
+      .replace(/\bhco\s*3\b/gi, "HCO3");
+
+    var sentences = text
+      .split(/(?<=[.!?])\s+/)
+      .map(function (sentence) { return sentence.trim(); })
+      .filter(Boolean)
+      .map(function (sentence) {
+        if (!sentence) return sentence;
+        var first = sentence.charAt(0).toUpperCase() + sentence.slice(1);
+        return /[.!?]$/.test(first) ? first : first + ".";
+      });
+
+    return sentences.join(" ");
+  }
+
+  function reviewAmbientTranscript() {
+    if (!ambientReviewedInput) return "";
+    var reviewed = conservativeTranscriptReview(ambientInput.value);
+    ambientReviewedInput.value = reviewed;
+    if (ambientReviewStatus) {
+      ambientReviewStatus.textContent = reviewed
+        ? "reviewed locally · fillers/repetition/punctuation normalized · facts unchanged"
+        : "nothing to review";
+    }
+    return reviewed;
+  }
+
   function setRuntimeStatus(text, tone) {
     if (!voiceRuntimeStatus) return;
     voiceRuntimeStatus.textContent = text;
@@ -899,6 +947,7 @@
           if (mode === "ambient") parseAmbientStructuredData(finalChunk.trim());
         }
         appendTranscriptText(mode, "", interimChunk.trim());
+        if (mode === "ambient") reviewAmbientTranscript();
         setRuntimeStatus("Receiving transcript…", "ok");
       };
 
@@ -956,21 +1005,43 @@
     startVoiceCapture("ambient");
   });
 
+  if (reviewAmbientBtn) {
+    reviewAmbientBtn.addEventListener("click", function () {
+      reviewAmbientTranscript();
+    });
+  }
+
   startDictationBtn.addEventListener("click", function () {
     startVoiceCapture("dictation");
   });
 
   addAmbientSourceBtn.addEventListener("click", function () {
     parseAmbientStructuredData(ambientInput.value);
-    if (addTextSource(
+    var rawTranscript = ambientInput.value.trim();
+    var reviewedTranscript = ambientReviewedInput && ambientReviewedInput.value.trim()
+      ? ambientReviewedInput.value.trim()
+      : reviewAmbientTranscript();
+
+    if (reviewedTranscript && addTextSource(
       "ambient-transcript",
-      "Ambient transcript",
-      ambientInput.value,
-      "Pre-chart workspace · live browser ambient transcription · synthetic test"
+      "Ambient transcript · reviewed",
+      reviewedTranscript,
+      "Pre-chart workspace · reviewed from raw browser ambient transcript · synthetic test"
     )) {
+      var patientId = activePatientId();
+      if (patientId) {
+        var state = getState(patientId);
+        var latest = state.sources[state.sources.length - 1];
+        if (latest && latest.kind === "ambient-transcript") {
+          latest.rawText = rawTranscript;
+          latest.reviewMethod = "conservative-local-review";
+        }
+      }
       ambientInput.value = "";
+      if (ambientReviewedInput) ambientReviewedInput.value = "";
       finalTextByMode.ambient = "";
       setVoiceStatus("ambient", "saved", false);
+      if (ambientReviewStatus) ambientReviewStatus.textContent = "saved reviewed transcript";
     }
   });
 
@@ -1075,6 +1146,8 @@
             kind: source.kind,
             title: source.title,
             text: source.text,
+            rawText: source.rawText || null,
+            reviewMethod: source.reviewMethod || null,
             status: source.status,
             provenance: source.provenance,
             createdAt: source.createdAt,
