@@ -416,3 +416,53 @@
     min-height:40px;
   }
 }
+
+
+/* ---- live synthetic voice capture ---- */
+.voice-capture-card {
+  position:relative;
+}
+.voice-synthetic-warning {
+  margin:8px 0 9px;
+  padding:7px 9px;
+  border:1px solid rgba(255,180,84,.38);
+  border-radius:7px;
+  background:rgba(255,180,84,.08);
+  color:var(--warn);
+  font-size:8.5px;
+  line-height:1.4;
+  font-weight:800;
+  letter-spacing:.2px;
+}
+.voice-start-btn.recording {
+  border-color:var(--critical);
+  color:#fff;
+  background:rgba(255,77,109,.78);
+  box-shadow:0 0 0 3px rgba(255,77,109,.11);
+}
+.voice-support-note {
+  color:var(--muted);
+  font-size:8.5px;
+  line-height:1.35;
+}
+.prechart-source-status.active {
+  color:#fff;
+  border-color:var(--critical);
+  background:rgba(255,77,109,.76);
+}
+:root[data-theme="light"] .voice-synthetic-warning {
+  background:#fff7e7;
+  color:#845500;
+}
+@media (max-width:760px) {
+  .voice-start-btn,
+  #addAmbientSourceBtn,
+  #startDictationBtn,
+  #addDictationSourceBtn,
+  #clearDictationBtn {
+    min-height:42px;
+  }
+  .voice-support-note {
+    flex-basis:100%;
+  }
+}
