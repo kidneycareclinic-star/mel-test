@@ -385,6 +385,15 @@ function renderPatientState(state) {
   const bp = nodeValue(state.bpVolume.latestBp);
   const edema = nodeValue(state.bpVolume.edema);
   const weightTrend = nodeValue(state.bpVolume.weightTrend);
+  const heartRate = nodeValue(state.bpVolume.heartRate, null);
+  const temperature = nodeValue(state.bpVolume.temperature, null);
+  const oxygenSaturation = nodeValue(state.bpVolume.oxygenSaturation, null);
+  const spokenWeight = nodeValue(state.bpVolume.weight, null);
+  const vitalBits = [];
+  if (heartRate != null) vitalBits.push("HR " + heartRate);
+  if (oxygenSaturation != null) vitalBits.push("SpO₂ " + oxygenSaturation + "%");
+  if (temperature != null) vitalBits.push("T " + temperature);
+  if (spokenWeight && spokenWeight.amount != null) vitalBits.push("Wt " + spokenWeight.amount + " " + spokenWeight.reportedUnit);
   const k = nodeValue(state.electrolytes.potassium);
   const bicarb = nodeValue(state.electrolytes.bicarbonate);
   const electrolyteStatus = nodeValue(state.electrolytes.status);
@@ -434,7 +443,7 @@ function renderPatientState(state) {
     {
       title: "BP / volume",
       value: bp,
-      sub: `${edema} · weight ${weightTrend}`,
+      sub: `${edema} · weight ${weightTrend}${vitalBits.length ? " · " + vitalBits.join(" · ") : ""}`,
       tone: String(edema).includes("1+") ? "warn" : "good",
       path: "bpVolume.latestBp",
       node: state.bpVolume.latestBp,

@@ -10,7 +10,7 @@
  * ========================================================================= */
 
 const PATIENT_STATE_ENGINE = (() => {
-  const VERSION = "0.6.0";
+  const VERSION = "0.7.0";
 
   function source(kind, label, field, observedAt, confidence = 1) {
     return {
@@ -29,6 +29,22 @@ const PATIENT_STATE_ENGINE = (() => {
       ...extra,
     };
   }
+  function observationSource(patient, key, fallbackKind, fallbackLabel, field, observedAt) {
+    const obs = patient && patient.scribeObservations ? patient.scribeObservations[key] : null;
+    if (obs) {
+      return {
+        kind: "ambient-scribe-extraction",
+        label: obs.sourceLabel || "Ambient scribe · extracted from spoken transcript",
+        field: key,
+        observedAt: obs.observedAt || observedAt || null,
+        confidence: obs.confidence || "pattern-match-demo",
+        sourceText: obs.sourceText || null,
+        extractionStatus: obs.status || "applied-synthetic",
+      };
+    }
+    return source(fallbackKind, fallbackLabel, field, observedAt, 1);
+  }
+
 
   function latestTrajectoryDate(trajectory) {
     if (!Array.isArray(trajectory) || !trajectory.length) return null;
@@ -173,7 +189,7 @@ const PATIENT_STATE_ENGINE = (() => {
         function: {
           currentEgfr: node(
             kidney.currentEgfr ?? (egfrLab ? egfrLab.value : null),
-            source("synthetic-lab", "Latest synthetic lab panel", "eGFR", latestTrajectoryDate(trajectory), 1),
+            observationSource(patient, "eGFR", "synthetic-lab", "Latest synthetic lab panel", "eGFR", latestTrajectoryDate(trajectory)),
             { flag: egfrLab ? egfrLab.flag : "unknown" }
           ),
           trajectory,
@@ -185,13 +201,13 @@ const PATIENT_STATE_ENGINE = (() => {
         proteinuria: {
           current: node(
             proteinuria.current ?? (upcrLab ? upcrLab.value : null),
-            source("synthetic-lab", "Latest synthetic lab panel", "UPCR", patient.lastVisit, 1),
+            observationSource(patient, "UPCR", "synthetic-lab", "Latest synthetic lab panel", "UPCR", patient.lastVisit),
             { flag: upcrLab ? upcrLab.flag : "unknown" }
           ),
           trajectory: proteinTrajectory,
           currentUacr: node(
             proteinuria.currentUacr ?? (uacrLab ? uacrLab.value : null),
-            source("synthetic-lab", "Latest synthetic lab panel", "UACR", patient.lastVisit, 1),
+            observationSource(patient, "UACR", "synthetic-lab", "Latest synthetic lab panel", "UACR", patient.lastVisit),
             { flag: uacrLab ? uacrLab.flag : "unknown" }
           ),
           albuminuriaCategory: node(
@@ -217,7 +233,7 @@ const PATIENT_STATE_ENGINE = (() => {
       bpVolume: {
         latestBp: node(
           bpVolume.latestBp || null,
-          source("synthetic-office-observation", "Synthetic office observation", "bloodPressure", patient.lastVisit, 1)
+          observationSource(patient, "bloodPressure", "synthetic-office-observation", "Synthetic office observation", "bloodPressure", patient.lastVisit)
         ),
         edema: node(
           bpVolume.edema || "not documented",
@@ -239,17 +255,33 @@ const PATIENT_STATE_ENGINE = (() => {
               ),
             }))
           : [],
+        heartRate: node(
+          patient.scribeVitals && patient.scribeVitals.heartRate ? patient.scribeVitals.heartRate.value : null,
+          observationSource(patient, "heartRate", "synthetic-office-observation", "Synthetic office observation", "heartRate", patient.lastVisit)
+        ),
+        temperature: node(
+          patient.scribeVitals && patient.scribeVitals.temperature ? patient.scribeVitals.temperature.value : null,
+          observationSource(patient, "temperature", "synthetic-office-observation", "Synthetic office observation", "temperature", patient.lastVisit)
+        ),
+        oxygenSaturation: node(
+          patient.scribeVitals && patient.scribeVitals.oxygenSaturation ? patient.scribeVitals.oxygenSaturation.value : null,
+          observationSource(patient, "oxygenSaturation", "synthetic-office-observation", "Synthetic office observation", "oxygenSaturation", patient.lastVisit)
+        ),
+        weight: node(
+          patient.scribeVitals && patient.scribeVitals.weight ? patient.scribeVitals.weight.value : null,
+          observationSource(patient, "weight", "synthetic-office-observation", "Synthetic office observation", "weight", patient.lastVisit)
+        ),
       },
 
       electrolytes: {
         potassium: node(
           electrolytes.potassium ?? (potassiumLab ? potassiumLab.value : null),
-          source("synthetic-lab", "Latest synthetic lab panel", "Potassium", patient.lastVisit, 1),
+          observationSource(patient, "Potassium", "synthetic-lab", "Latest synthetic lab panel", "Potassium", patient.lastVisit),
           { flag: potassiumLab ? potassiumLab.flag : "unknown" }
         ),
         bicarbonate: node(
           electrolytes.bicarbonate ?? (bicarbonateLab ? bicarbonateLab.value : null),
-          source("synthetic-lab", "Latest synthetic lab panel", "Bicarbonate", patient.lastVisit, 1),
+          observationSource(patient, "Bicarbonate", "synthetic-lab", "Latest synthetic lab panel", "Bicarbonate", patient.lastVisit),
           { flag: bicarbonateLab ? bicarbonateLab.flag : "unknown" }
         ),
         status: node(
@@ -261,7 +293,7 @@ const PATIENT_STATE_ENGINE = (() => {
       anemia: {
         hemoglobin: node(
           anemia.hemoglobin ?? (hemoglobinLab ? hemoglobinLab.value : null),
-          source("synthetic-lab", "Latest synthetic lab panel", "Hemoglobin", patient.lastVisit, 1),
+          observationSource(patient, "Hemoglobin", "synthetic-lab", "Latest synthetic lab panel", "Hemoglobin", patient.lastVisit),
           { flag: hemoglobinLab ? hemoglobinLab.flag : "unknown" }
         ),
         status: node(
@@ -273,7 +305,7 @@ const PATIENT_STATE_ENGINE = (() => {
       ckdMbd: {
         phosphate: node(
           ckdMbd.phosphate ?? (phosphateLab ? phosphateLab.value : null),
-          source("synthetic-lab", "Latest synthetic lab panel", "Phosphate", patient.lastVisit, 1),
+          observationSource(patient, "Phosphate", "synthetic-lab", "Latest synthetic lab panel", "Phosphate", patient.lastVisit),
           { flag: phosphateLab ? phosphateLab.flag : "unknown" }
         ),
         pth: node(
