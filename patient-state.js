@@ -10,7 +10,7 @@
  * ========================================================================= */
 
 const PATIENT_STATE_ENGINE = (() => {
-  const VERSION = "0.5.0";
+  const VERSION = "0.6.0";
 
   function source(kind, label, field, observedAt, confidence = 1) {
     return {
@@ -227,6 +227,18 @@ const PATIENT_STATE_ENGINE = (() => {
           bpVolume.weightTrend || "unknown",
           source("synthetic-derived-state", "Synthetic longitudinal state generator", "weightTrend", patient.lastVisit, 1)
         ),
+        history: Array.isArray(bpVolume.history)
+          ? bpVolume.history.map((point) => ({
+              ...point,
+              provenance: source(
+                "synthetic-office-observation",
+                "Synthetic longitudinal BP history",
+                "bloodPressure",
+                point.date,
+                1
+              ),
+            }))
+          : [],
       },
 
       electrolytes: {
@@ -284,6 +296,27 @@ const PATIENT_STATE_ENGINE = (() => {
           Boolean(kidneyProtection.sglt2),
           source("synthetic-medication-list", "Synthetic active medication list", "SGLT2i", patient.lastVisit, 1)
         ),
+        mra: node(
+          Boolean(kidneyProtection.mra),
+          source("synthetic-medication-list", "Synthetic active medication list", "MRA", patient.lastVisit, 1)
+        ),
+        glp1ra: node(
+          Boolean(kidneyProtection.glp1ra),
+          source("synthetic-medication-list", "Synthetic active medication list", "GLP-1 RA", patient.lastVisit, 1)
+        ),
+        therapies: Array.isArray(kidneyProtection.therapies)
+          ? kidneyProtection.therapies.map((therapy) => ({
+              ...therapy,
+              provenance: source(
+                "synthetic-medication-history",
+                "Synthetic CKD protection therapy timeline",
+                therapy.key,
+                therapy.startedAt || patient.lastVisit,
+                1
+              ),
+            }))
+          : [],
+        evidenceContext: kidneyProtection.evidenceContext ? { ...kidneyProtection.evidenceContext } : {},
         nsaidExposure: node(
           Boolean(kidneyProtection.nsaidExposure),
           source("synthetic-medication-list", "Synthetic active medication list", "NSAID", patient.lastVisit, 1)
