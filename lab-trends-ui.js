@@ -194,25 +194,36 @@
   function combinedEgfrUacrGraph(patient) {
     var egfrHistory = patient.labHistory && patient.labHistory.eGFR;
     var uacrHistory = patient.labHistory && patient.labHistory.UACR;
-    if (!egfrHistory || !uacrHistory || egfrHistory.values.length < 2 || uacrHistory.values.length < 2) {
-      return "<div class='lab-trend-empty'>Not enough paired eGFR/UACR history to graph.</div>";
+    if (!egfrHistory || !uacrHistory || !egfrHistory.values.length || !uacrHistory.values.length) {
+      return "<div class='lab-trend-empty'>Not enough eGFR/UACR history to graph.</div>";
     }
 
     var width = 620, height = 240, padX = 54, padY = 34;
     var innerW = width - padX * 2, innerH = height - padY * 2;
-    var egfrVals = egfrHistory.values.map(function(p){ return Number(p.value); });
-    var uacrVals = uacrHistory.values.map(function(p){ return Number(p.value); });
+    var eValues = egfrHistory.values.slice();
+    var aValues = uacrHistory.values.slice();
+    var allDates = eValues.concat(aValues).map(function(p){ return new Date(p.date).getTime(); }).filter(Number.isFinite);
+    var minT = Math.min.apply(null, allDates);
+    var maxT = Math.max.apply(null, allDates);
+    var tSpread = Math.max(1, maxT - minT);
+
+    var egfrVals = eValues.map(function(p){ return Number(p.value); });
+    var uacrVals = aValues.map(function(p){ return Number(p.value); });
     var egfrMin = Math.min.apply(null, egfrVals), egfrMax = Math.max.apply(null, egfrVals);
     var uacrMin = Math.min.apply(null, uacrVals), uacrMax = Math.max.apply(null, uacrVals);
     var egfrSpread = Math.max(1, egfrMax - egfrMin);
     var uacrSpread = Math.max(1, uacrMax - uacrMin);
 
-    function points(history, min, spread) {
-      return history.values.map(function(p, i) {
+    function xFor(date) {
+      return padX + ((new Date(date).getTime() - minT) / tSpread) * innerW;
+    }
+
+    function points(values, min, spread) {
+      return values.map(function(p) {
         return {
           date:p.date,
           value:Number(p.value),
-          x:padX + (innerW * i / Math.max(1, history.values.length - 1)),
+          x:xFor(p.date),
           y:padY + innerH - ((Number(p.value) - min) / spread) * innerH
         };
       });
@@ -222,24 +233,24 @@
       return pts.map(function(p,i){ return (i ? "L " : "M ") + p.x.toFixed(1) + " " + p.y.toFixed(1); }).join(" ");
     }
 
-    var ePts = points(egfrHistory, egfrMin, egfrSpread);
-    var aPts = points(uacrHistory, uacrMin, uacrSpread);
-    var marks = ePts.map(function(p,i) {
-      var a = aPts[i];
-      var egfrLabel = p.date + " · eGFR " + p.value + " mL/min/1.73 m²";
-      var uacrLabel = a.date + " · UACR " + a.value + " mg/g";
-
-      return "<g class='combined-hover-point combined-hover-egfr' tabindex='0' aria-label='" + egfrLabel + "'>" +
+    function pointMarks(pts, kind) {
+      return pts.map(function(p) {
+        var isEgfr = kind === "egfr";
+        var label = p.date + " · " + (isEgfr ? "eGFR " + p.value + " mL/min/1.73 m²" : "UACR " + p.value + " mg/g");
+        return "<g class='combined-hover-point combined-hover-" + kind + "' tabindex='0' aria-label='" + label + "'>" +
           "<circle cx='" + p.x + "' cy='" + p.y + "' r='11' class='combined-point-hit'></circle>" +
-          "<circle cx='" + p.x + "' cy='" + p.y + "' r='4.5' class='combined-egfr-point'></circle>" +
-          "<title>" + egfrLabel + "</title>" +
-        "</g>" +
-        "<g class='combined-hover-point combined-hover-uacr' tabindex='0' aria-label='" + uacrLabel + "'>" +
-          "<circle cx='" + a.x + "' cy='" + a.y + "' r='11' class='combined-point-hit'></circle>" +
-          "<circle cx='" + a.x + "' cy='" + a.y + "' r='4.5' class='combined-uacr-point'></circle>" +
-          "<title>" + uacrLabel + "</title>" +
-        "</g>" +
-        "<text x='" + p.x + "' y='" + (height - 8) + "' text-anchor='middle' class='graph-label'>" + p.date.slice(5) + "</text>";
+          "<circle cx='" + p.x + "' cy='" + p.y + "' r='4.5' class='" + (isEgfr ? "combined-egfr-point" : "combined-uacr-point") + "'></circle>" +
+          "<title>" + label + "</title></g>";
+      }).join("");
+    }
+
+    var ePts = points(eValues, egfrMin, egfrSpread);
+    var aPts = points(aValues, uacrMin, uacrSpread);
+
+    var uniqueDates = Array.from(new Set(eValues.concat(aValues).map(function(p){ return p.date; }))).sort();
+    var dateLabels = uniqueDates.map(function(date) {
+      var x = xFor(date);
+      return "<text x='" + x + "' y='" + (height - 8) + "' text-anchor='middle' class='graph-label'>" + date.slice(5) + "</text>";
     }).join("");
 
     return "<div class='combined-graph-wrap'>" +
@@ -250,7 +261,9 @@
         "<line x1='" + (width-padX) + "' y1='" + padY + "' x2='" + (width-padX) + "' y2='" + (height-padY) + "' class='graph-axis'></line>" +
         "<path d='" + path(ePts) + "' class='combined-egfr-line'></path>" +
         "<path d='" + path(aPts) + "' class='combined-uacr-line'></path>" +
-        marks +
+        pointMarks(ePts, "egfr") +
+        pointMarks(aPts, "uacr") +
+        dateLabels +
         "<text x='8' y='18' class='graph-label'>eGFR</text>" +
         "<text x='" + (width-40) + "' y='18' class='graph-label'>UACR</text>" +
         "<text x='8' y='" + (padY+4) + "' class='graph-value'>" + egfrMax + "</text>" +
@@ -258,10 +271,9 @@
         "<text x='" + (width-47) + "' y='" + (padY+4) + "' class='graph-value'>" + uacrMax + "</text>" +
         "<text x='" + (width-47) + "' y='" + (height-padY) + "' class='graph-value'>" + uacrMin + "</text>" +
       "</svg>" +
-      "<div class='micro'>Dual-axis display: eGFR (left) and UACR mg/g (right). Hover or focus any dot to see the exact date and value. Synthetic trajectories shown on a shared time axis; vertical positions use separate scales.</div>" +
+      "<div class='micro'>Dual-axis display on a true shared calendar-time axis. New ambient-scribe observations are appended as dated points; same-day repeats update that day’s point. Hover or focus any dot for the exact date and value.</div>" +
     "</div>";
   }
-
   function combinedProgressionEntry(patient) {
     var mode = getProgressionDetail(patient);
     var c = patient.combinedCkdProgression;
@@ -282,10 +294,24 @@
         albuminuriaCategory: a.category,
         detailMode: mode
       },
-      history: a.history.map(function(point, i) {
-        var ePoint = patient.labHistory.eGFR.values[i];
-        return { date:point.date, value:"eGFR " + ePoint.value + " / UACR " + point.value };
-      })
+      history: (function() {
+        var byDate = {};
+        (patient.labHistory.eGFR.values || []).forEach(function(point) {
+          byDate[point.date] = byDate[point.date] || { date:point.date };
+          byDate[point.date].egfr = point.value;
+        });
+        (patient.labHistory.UACR.values || []).forEach(function(point) {
+          byDate[point.date] = byDate[point.date] || { date:point.date };
+          byDate[point.date].uacr = point.value;
+        });
+        return Object.keys(byDate).sort().map(function(date) {
+          var row = byDate[date];
+          var parts = [];
+          if (row.egfr != null) parts.push("eGFR " + row.egfr);
+          if (row.uacr != null) parts.push("UACR " + row.uacr);
+          return { date:date, value:parts.join(" / ") };
+        });
+      })()
     };
   }
 
