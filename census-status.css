@@ -121,3 +121,57 @@
 :root[data-theme="light"] .patient-list li.patient-tile.expanded .patient-tile-detail {
   background: #ffffff !important;
 }
+
+
+/* ---- active patient focus mode ---- */
+.patient-list:has(li.patient-tile.active) li.patient-tile:not(.active) {
+  opacity:.46;
+  filter:saturate(.55);
+  transition:opacity .14s ease, filter .14s ease, transform .14s ease;
+}
+.patient-list:has(li.patient-tile.active) li.patient-tile:not(.active):hover {
+  opacity:.78;
+  filter:saturate(.8);
+}
+.patient-list li.patient-tile.active {
+  opacity:1 !important;
+  filter:none !important;
+  border-width:2px !important;
+  border-left-width:6px !important;
+  box-shadow:0 0 0 2px rgba(76,194,255,.28), 0 5px 18px rgba(0,0,0,.18) !important;
+  transform:translateX(2px);
+}
+.patient-list li.patient-status-stable.active .patient-tile-compact {
+  background:#168a45 !important;
+}
+.patient-list li.patient-status-flag.active .patient-tile-compact {
+  background:#d59a00 !important;
+}
+.patient-list li.patient-status-critical.active .patient-tile-compact {
+  background:#c62828 !important;
+}
+.patient-list li.patient-tile.active .p-name,
+.patient-list li.patient-tile.active .p-sub,
+.patient-list li.patient-tile.active .p-demographics,
+.patient-list li.patient-tile.active .expand-hint,
+.patient-list li.patient-tile.active .p-flag {
+  color:#fff !important;
+  text-shadow:0 1px 1px rgba(0,0,0,.18) !important;
+}
+.patient-list li.patient-tile.active .p-flag {
+  background:rgba(0,0,0,.16) !important;
+  border-color:rgba(255,255,255,.56) !important;
+}
+:root[data-theme="light"] .patient-list:has(li.patient-tile.active) li.patient-tile:not(.active) {
+  opacity:.42;
+  filter:saturate(.45);
+}
+:root[data-theme="light"] .patient-list li.patient-status-stable.active .patient-tile-compact {
+  background:#168a45 !important;
+}
+:root[data-theme="light"] .patient-list li.patient-status-flag.active .patient-tile-compact {
+  background:#d59a00 !important;
+}
+:root[data-theme="light"] .patient-list li.patient-status-critical.active .patient-tile-compact {
+  background:#c62828 !important;
+}
