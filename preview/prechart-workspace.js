@@ -353,6 +353,20 @@
     }
 
     lines.push("");
+    lines.push("STRUCTURED AMBIENT OBSERVATIONS");
+    var structured = patient.scribeObservations ? Object.keys(patient.scribeObservations).map(function(key) {
+      return patient.scribeObservations[key];
+    }) : [];
+    if (!structured.length) {
+      lines.push("- None extracted.");
+    } else {
+      structured.forEach(function(record) {
+        lines.push("- " + record.displayLabel + ": " + extractionValueText(record) +
+          " [ambient scribe · synthetic auto-applied]");
+      });
+    }
+
+    lines.push("");
     lines.push("ATTACHMENTS");
     if (!attachments.length) {
       lines.push("- None.");
@@ -601,6 +615,10 @@
       status:"applied-synthetic",
       type:type
     };
+    var prior = patient.scribeObservations[field];
+    if (prior && JSON.stringify(prior.value) === JSON.stringify(value) && prior.sourceText === sourceText) {
+      return prior;
+    }
     patient.scribeObservations[field] = record;
     patient.scribeExtractionLog.unshift(record);
     patient.scribeExtractionLog = patient.scribeExtractionLog.slice(0, 40);
@@ -652,8 +670,8 @@
     addVital("oxygenSaturation", "Oxygen saturation", /(?:oxygen\s+saturation|o2\s*sat(?:uration)?|spo2)\s*(?:(?:is|was|of)\s*)?(\d{2,3})(?:\s*percent|\s*%)?/i, "%");
 
     addLab("eGFR", "eGFR", /(?:\be\s*[- ]?gfr\b|estimated\s+(?:glomerular\s+filtration\s+rate|gfr)|\bgfr\b)\s*(?:(?:is|was|of|equals?)\s*)?(\d+(?:\.\d+)?)/i, "mL/min/1.73m²");
-    addLab("UACR", "UACR", /(?:\buacr\b|urine\s+albumin(?:\s*[-/]?to)?\s+creatinine\s+ratio|albumin\s+creatinine\s+ratio)\s*(?:(?:is|was|of|equals?)\s*)?(\d+(?:\.\d+)?)/i, "mg/g");
-    addLab("UPCR", "UPCR", /(?:\bupcr\b|urine\s+protein(?:\s*[-/]?to)?\s+creatinine\s+ratio|protein\s+creatinine\s+ratio)\s*(?:(?:is|was|of|equals?)\s*)?(\d+(?:\.\d+)?)/i, "g/g");
+    addLab("UACR", "UACR", /(?:\bu\s*a\s*c\s*r\b|\buacr\b|urine\s+albumin(?:\s*[-/]?to)?\s+creatinine\s+ratio|albumin\s+creatinine\s+ratio)\s*(?:(?:is|was|of|equals?)\s*)?(\d+(?:\.\d+)?)/i, "mg/g");
+    addLab("UPCR", "UPCR", /(?:\bu\s*p\s*c\s*r\b|\bupcr\b|urine\s+protein(?:\s*[-/]?to)?\s+creatinine\s+ratio|protein\s+creatinine\s+ratio)\s*(?:(?:is|was|of|equals?)\s*)?(\d+(?:\.\d+)?)/i, "g/g");
     addLab("Potassium", "Potassium", /\bpotassium\b\s*(?:(?:is|was|of|equals?)\s*)?(\d+(?:\.\d+)?)/i, "mEq/L");
     addLab("Phosphate", "Phosphate", /\b(?:phosphorus|phosphate)\b\s*(?:(?:is|was|of|equals?)\s*)?(\d+(?:\.\d+)?)/i, "mg/dL");
     addLab("Bicarbonate", "Bicarbonate", /\b(?:bicarbonate|hco3)\b\s*(?:(?:is|was|of|equals?)\s*)?(\d+(?:\.\d+)?)/i, "mEq/L");
@@ -688,6 +706,29 @@
     if (!records.length) {
       scribeExtractionList.innerHTML = "<div class='prechart-ledger-empty'>No discrete observations extracted yet.</div>";
       return;
+    }
+
+    if (window.PRECHART_LABS_API && PRECHART_LABS_API.upsertExternalEntry) {
+      var latest = Object.keys(patient.scribeObservations || {}).map(function(key) {
+        return patient.scribeObservations[key];
+      });
+      PRECHART_LABS_API.upsertExternalEntry(
+        patient.id,
+        "Ambient scribe · structured observations",
+        {
+          name:"Ambient scribe · structured observations",
+          current:latest.length,
+          unit:"discrete fields",
+          ref:null,
+          summary:latest.map(function(record) {
+            return record.displayLabel + " " + extractionValueText(record);
+          }).join(" · "),
+          progression:{ source:"ambient-scribe-extraction", status:"applied-synthetic" },
+          history:latest.map(function(record) {
+            return { date:record.observedDate, value:record.displayLabel + " " + extractionValueText(record) };
+          })
+        }
+      );
     }
 
     scribeExtractionList.innerHTML = records.slice(0, 12).map(function(record){
