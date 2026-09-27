@@ -6,7 +6,7 @@
 <title>Nephrology Agentic Harness — Synthetic Demo</title>
 <link rel="stylesheet" href="style.css?v=ckd-protection-timeline-20260926" />
 <link rel="stylesheet" href="census-status.css?v=translucent-2" />
-<link rel="stylesheet" href="prechart-workspace.css?v=live-voice-20260926" />
+<link rel="stylesheet" href="prechart-workspace.css?v=voice-runtime-20260926" />
 </head>
 <body>
   <header class="topbar">
@@ -194,9 +194,28 @@
         </div>
       </header>
 
+      <div class="voice-mode-launcher" id="voiceModeLauncher">
+        <div class="voice-mode-copy">
+          <span class="eyebrow">VOICE CAPTURE</span>
+          <strong>Choose transcription mode</strong>
+          <span>Use synthetic patient information only in this prototype.</span>
+        </div>
+        <div class="voice-mode-buttons">
+          <button id="ambientModeBtn" class="voice-mode-btn ambient-mode" type="button">
+            <span class="voice-mode-icon">●</span>
+            <span><strong>Ambient</strong><small>Encounter conversation</small></span>
+          </button>
+          <button id="dictationModeBtn" class="voice-mode-btn dictation-mode" type="button">
+            <span class="voice-mode-icon">✎</span>
+            <span><strong>Dictation</strong><small>Physician note dictation</small></span>
+          </button>
+        </div>
+        <div id="voiceRuntimeStatus" class="voice-runtime-status">Checking browser voice support…</div>
+      </div>
+
       <div class="prechart-workspace-grid">
         <section class="prechart-source-column">
-          <div class="prechart-source-card voice-capture-card">
+          <div class="prechart-source-card voice-capture-card" id="ambientCaptureCard">
             <div class="prechart-section-head">
               <div>
                 <h3>Ambient transcription</h3>
@@ -215,7 +234,7 @@
             </div>
           </div>
 
-          <div class="prechart-source-card voice-capture-card">
+          <div class="prechart-source-card voice-capture-card" id="dictationCaptureCard">
             <div class="prechart-section-head">
               <div>
                 <h3>Physician dictation</h3>
@@ -343,7 +362,7 @@
   <script src="app.js"></script>
   <script src="lab-trends-ui.js?v=ckd-protection-timeline-20260926"></script>
   <script src="kidney-protection-ui.js?v=ckd-protection-timeline-20260926"></script>
-  <script src="prechart-workspace.js?v=live-voice-20260926"></script>
+  <script src="prechart-workspace.js?v=voice-runtime-20260926"></script>
   <script src="mobile-ui.js?v=iphone-nav-20260926"></script>
 </body>
 </html>
