@@ -455,7 +455,11 @@
 
 
   function todayIsoDate() {
-    return new Date().toISOString().slice(0, 10);
+    var d = new Date();
+    var y = d.getFullYear();
+    var m = String(d.getMonth() + 1).padStart(2, "0");
+    var day = String(d.getDate()).padStart(2, "0");
+    return y + "-" + m + "-" + day;
   }
 
   function ensureScribeStores(patient) {
@@ -488,19 +492,39 @@
     return "G5";
   }
 
-  function setLatestHistoryPoint(history, value, date) {
+  function appendOrUpdateDatedValue(history, value, date, extra) {
     if (!Array.isArray(history)) return;
+    var payload = Object.assign({ date:date, value:value }, extra || {});
     if (!history.length) {
-      history.push({ date:date, value:value });
+      history.push(payload);
       return;
     }
     var last = history[history.length - 1];
-    if (typeof last === "object" && last !== null) {
-      last.date = date;
-      last.value = value;
-    } else {
-      history[history.length - 1] = value;
+    if (typeof last === "object" && last !== null && last.date === date) {
+      history[history.length - 1] = Object.assign({}, last, payload);
+      return;
     }
+    history.push(payload);
+  }
+
+  function appendOrUpdateBloodPressure(history, value, date, source) {
+    if (!Array.isArray(history)) return;
+    var payload = {
+      date:date,
+      systolic:value.systolic,
+      diastolic:value.diastolic,
+      source:source || "ambient scribe extraction"
+    };
+    if (!history.length) {
+      history.push(payload);
+      return;
+    }
+    var last = history[history.length - 1];
+    if (last && last.date === date) {
+      history[history.length - 1] = Object.assign({}, last, payload);
+      return;
+    }
+    history.push(payload);
   }
 
   function applyLabExtraction(patient, labName, value, record) {
@@ -509,7 +533,7 @@
     patient.labs[labName].flag = labFlag(patient.labs[labName], value);
 
     if (patient.labHistory && patient.labHistory[labName]) {
-      setLatestHistoryPoint(patient.labHistory[labName].values, value, record.observedDate);
+      appendOrUpdateDatedValue(patient.labHistory[labName].values, value, record.observedDate, { source:"ambient-scribe-extraction" });
       patient.labHistory[labName].currentFlag = patient.labs[labName].flag;
     }
 
@@ -517,7 +541,7 @@
 
     if (labName === "eGFR" && patient.longitudinal.kidney) {
       patient.longitudinal.kidney.currentEgfr = value;
-      setLatestHistoryPoint(patient.longitudinal.kidney.trajectory, value, record.observedDate);
+      appendOrUpdateDatedValue(patient.longitudinal.kidney.trajectory, value, record.observedDate, { source:"ambient-scribe-extraction" });
       if (patient.combinedCkdProgression) {
         patient.combinedCkdProgression.gCategory = gfrCategory(value);
         patient.combinedCkdProgression.cgaLabel =
@@ -527,20 +551,19 @@
 
     if (labName === "UPCR" && patient.longitudinal.proteinuria) {
       patient.longitudinal.proteinuria.current = value;
-      setLatestHistoryPoint(patient.longitudinal.proteinuria.trajectory, value, record.observedDate);
     }
 
     if (labName === "UACR" && patient.longitudinal.proteinuria) {
       var a = albuminuriaCategory(value);
       patient.longitudinal.proteinuria.currentUacr = value;
       patient.longitudinal.proteinuria.albuminuriaCategory = a.code;
-      setLatestHistoryPoint(patient.longitudinal.proteinuria.uacrTrajectory, value, record.observedDate);
+      appendOrUpdateDatedValue(patient.longitudinal.proteinuria.uacrTrajectory, value, record.observedDate, { source:"ambient-scribe-extraction" });
 
       if (patient.albuminuriaProgression) {
         patient.albuminuriaProgression.current = value;
         patient.albuminuriaProgression.category = a.code;
         patient.albuminuriaProgression.categoryLabel = a.label;
-        setLatestHistoryPoint(patient.albuminuriaProgression.history, value, record.observedDate);
+        appendOrUpdateDatedValue(patient.albuminuriaProgression.history, value, record.observedDate, { source:"ambient-scribe-extraction" });
       }
       if (patient.combinedCkdProgression) {
         patient.combinedCkdProgression.aCategory = a.code;
@@ -576,23 +599,19 @@
     if (!patient.longitudinal) return;
     if (key === "bloodPressure" && patient.longitudinal.bpVolume) {
       patient.longitudinal.bpVolume.latestBp = value.systolic + "/" + value.diastolic;
-      if (Array.isArray(patient.longitudinal.bpVolume.history)) {
-        var bpPoint = patient.longitudinal.bpVolume.history[patient.longitudinal.bpVolume.history.length - 1];
-        if (bpPoint) {
-          bpPoint.date = record.observedDate;
-          bpPoint.systolic = value.systolic;
-          bpPoint.diastolic = value.diastolic;
-          bpPoint.source = "ambient scribe extraction";
-        }
-      }
-      if (patient.kidneyProtectionTimeline && Array.isArray(patient.kidneyProtectionTimeline.bpHistory)) {
-        var ktPoint = patient.kidneyProtectionTimeline.bpHistory[patient.kidneyProtectionTimeline.bpHistory.length - 1];
-        if (ktPoint) {
-          ktPoint.date = record.observedDate;
-          ktPoint.systolic = value.systolic;
-          ktPoint.diastolic = value.diastolic;
-          ktPoint.source = "ambient scribe extraction";
-        }
+      appendOrUpdateBloodPressure(
+        patient.longitudinal.bpVolume.history,
+        value,
+        record.observedDate,
+        "ambient scribe extraction"
+      );
+      if (patient.kidneyProtectionTimeline) {
+        appendOrUpdateBloodPressure(
+          patient.kidneyProtectionTimeline.bpHistory,
+          value,
+          record.observedDate,
+          "ambient scribe extraction"
+        );
       }
     }
   }
@@ -608,7 +627,7 @@
       unit:unit || "",
       sourceText:sourceText,
       observedAt:observedAt,
-      observedDate:observedAt.slice(0, 10),
+      observedDate:todayIsoDate(),
       source:"ambient-scribe-extraction",
       sourceLabel:"Ambient scribe · extracted from spoken transcript",
       confidence:"pattern-match-demo",
