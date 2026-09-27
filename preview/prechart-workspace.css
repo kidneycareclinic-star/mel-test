@@ -655,3 +655,51 @@
     grid-template-columns:1fr;
   }
 }
+
+
+/* ---- raw vs reviewed ambient transcript ---- */
+.ambient-transcript-grid {
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:10px;
+}
+.ambient-transcript-pane {
+  border:1px solid var(--border);
+  border-radius:9px;
+  padding:9px;
+  background:var(--panel-2);
+}
+.ambient-transcript-pane.raw {
+  border-left:4px solid var(--muted);
+}
+.ambient-transcript-pane.reviewed {
+  border-left:4px solid var(--good);
+}
+.ambient-transcript-pane-head {
+  margin-bottom:7px;
+}
+.ambient-transcript-pane-head strong,
+.ambient-transcript-pane-head span {
+  display:block;
+}
+.ambient-transcript-pane-head strong {
+  color:var(--text);
+  font-size:11px;
+}
+.ambient-transcript-pane-head span {
+  margin-top:2px;
+  color:var(--muted);
+  font-size:8.5px;
+  line-height:1.35;
+}
+.reviewed-transcript-input {
+  min-height:150px;
+}
+:root[data-theme="light"] .ambient-transcript-pane {
+  background:#fff;
+}
+@media (max-width:900px) {
+  .ambient-transcript-grid {
+    grid-template-columns:1fr;
+  }
+}
