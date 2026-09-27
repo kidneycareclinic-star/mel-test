@@ -394,7 +394,25 @@ function renderPatientState(state) {
   const pth = nodeValue(state.ckdMbd.pth);
   const mbdStatus = nodeValue(state.ckdMbd.status);
 
+  const protectionTherapies = Array.isArray(state.kidneyProtection.therapies)
+    ? state.kidneyProtection.therapies
+    : [];
+  const activeProtectionCount = protectionTherapies.filter((therapy) => therapy.active).length;
+  const protectionChips = protectionTherapies.map((therapy) =>
+    `<span class="protection-mini-chip ${therapy.active ? "active" : "inactive"}">${therapy.label}</span>`
+  ).join("");
+
   const cards = [
+    {
+      title: "CKD progression therapy",
+      value: `${activeProtectionCount}/4 classes listed · BP ${bp}`,
+      sub: "Longitudinal therapy starts + blood pressure",
+      tone: "accent",
+      visual: `<div class="protection-mini-row">${protectionChips}</div><span class="state-open-hint">Open therapy timeline</span>`,
+      special: "kidney-protection",
+      path: "kidneyProtection",
+      node: null,
+    },
     {
       title: "Kidney function",
       value: `eGFR ${egfr}`,
@@ -446,14 +464,6 @@ function renderPatientState(state) {
       node: state.ckdMbd.phosphate,
     },
     {
-      title: "Kidney protection",
-      value: nodeValue(state.kidneyProtection.raas, false) ? "RAAS active" : "Therapy review",
-      sub: protectionText(state),
-      tone: nodeValue(state.kidneyProtection.nsaidExposure, false) ? "warn" : "accent",
-      path: "kidneyProtection.raas",
-      node: state.kidneyProtection.raas,
-    },
-    {
       title: "Open loops",
       value: state.openLoops.length ? `${state.openLoops.length} unresolved` : "None",
       sub: state.openLoops.length ? state.openLoops.map((x) => x.label).join(" · ") : "No tracked unresolved tasks",
@@ -465,8 +475,14 @@ function renderPatientState(state) {
 
   cards.forEach((c) => {
     const el = document.createElement("div");
-    el.className = `state-card ${c.tone || ""} ${c.node ? "prov-clickable" : ""}`;
-    if (c.node) {
+    el.className = `state-card ${c.tone || ""} ${c.node ? "prov-clickable" : ""} ${c.special ? "state-special-" + c.special : ""}`;
+    if (c.special === "kidney-protection") {
+      el.addEventListener("click", () => {
+        if (window.CKD_PROTECTION_UI && currentPatient) {
+          window.CKD_PROTECTION_UI.toggle(currentPatient, currentState);
+        }
+      });
+    } else if (c.node) {
       el.addEventListener("click", () => showProvenance(c.title, c.path, c.node));
     }
     el.innerHTML = `
