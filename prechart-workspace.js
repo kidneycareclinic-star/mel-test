@@ -18,6 +18,12 @@
   var ambientStatus = document.getElementById("ambientStatus");
   var startAmbientDemoBtn = document.getElementById("startAmbientDemoBtn");
   var addAmbientSourceBtn = document.getElementById("addAmbientSourceBtn");
+  var dictationInput = document.getElementById("physicianDictationInput");
+  var dictationStatus = document.getElementById("dictationStatus");
+  var startDictationBtn = document.getElementById("startDictationBtn");
+  var addDictationSourceBtn = document.getElementById("addDictationSourceBtn");
+  var clearDictationBtn = document.getElementById("clearDictationBtn");
+  var ambientMicSupport = document.getElementById("ambientMicSupport");
   var typedInput = document.getElementById("typedPrechartInput");
   var typedSourceType = document.getElementById("typedSourceType");
   var addTypedSourceBtn = document.getElementById("addTypedSourceBtn");
@@ -86,6 +92,7 @@
   function sourceLabel(kind) {
     var labels = {
       "ambient-transcript": "Ambient transcript",
+      "physician-dictation": "Physician dictation",
       "typed-note": "Typed note",
       "outside-note": "Outside note",
       "referral": "Referral",
@@ -401,6 +408,7 @@
   }
 
   function closeWorkspace() {
+    if (activeRecognition) stopVoiceCapture();
     var patientId = activePatientId();
     if (patientId) {
       getState(patientId).note = noteEditor.value;
@@ -423,13 +431,132 @@
     }
   });
 
-  startAmbientDemoBtn.addEventListener("click", function () {
-    var active = ambientStatus.classList.toggle("active");
-    ambientStatus.textContent = active ? "ready to receive" : "idle";
-    startAmbientDemoBtn.textContent = active ? "Stop demo capture" : "Start demo capture";
-    if (active) {
-      ambientInput.focus();
+  var SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition || null;
+  var activeRecognition = null;
+  var activeVoiceMode = null;
+  var finalTextByMode = { ambient: "", dictation: "" };
+
+  function voiceConfig(mode) {
+    if (mode === "dictation") {
+      return {
+        input: dictationInput,
+        status: dictationStatus,
+        button: startDictationBtn,
+        activeText: "Stop dictation",
+        idleText: "Start dictation mic"
+      };
     }
+    return {
+      input: ambientInput,
+      status: ambientStatus,
+      button: startAmbientDemoBtn,
+      activeText: "Stop ambient mic",
+      idleText: "Start ambient mic"
+    };
+  }
+
+  function setVoiceStatus(mode, text, active) {
+    var cfg = voiceConfig(mode);
+    cfg.status.textContent = text;
+    cfg.status.classList.toggle("active", Boolean(active));
+    cfg.button.textContent = active ? cfg.activeText : cfg.idleText;
+    cfg.button.classList.toggle("recording", Boolean(active));
+  }
+
+  function appendTranscriptText(mode, finalText, interimText) {
+    var cfg = voiceConfig(mode);
+    var base = finalTextByMode[mode] || "";
+    var combined = [base, finalText, interimText].filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
+    cfg.input.value = combined;
+  }
+
+  function stopVoiceCapture() {
+    if (activeRecognition) {
+      try { activeRecognition.stop(); } catch (_) {}
+    }
+  }
+
+  function startVoiceCapture(mode) {
+    if (!SpeechRecognitionCtor) {
+      setVoiceStatus(mode, "unsupported", false);
+      return;
+    }
+
+    if (activeRecognition) {
+      if (activeVoiceMode === mode) {
+        stopVoiceCapture();
+        return;
+      }
+      stopVoiceCapture();
+    }
+
+    var cfg = voiceConfig(mode);
+    finalTextByMode[mode] = cfg.input.value.trim();
+    var recognition = new SpeechRecognitionCtor();
+    activeRecognition = recognition;
+    activeVoiceMode = mode;
+
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = document.documentElement.lang || navigator.language || "en-US";
+
+    recognition.onstart = function () {
+      setVoiceStatus(mode, "listening", true);
+      cfg.input.focus();
+    };
+
+    recognition.onresult = function (event) {
+      var finalChunk = "";
+      var interimChunk = "";
+      for (var i = event.resultIndex; i < event.results.length; i += 1) {
+        var transcript = event.results[i][0] ? event.results[i][0].transcript : "";
+        if (event.results[i].isFinal) finalChunk += transcript + " ";
+        else interimChunk += transcript + " ";
+      }
+
+      if (finalChunk.trim()) {
+        finalTextByMode[mode] = [finalTextByMode[mode], finalChunk.trim()]
+          .filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
+      }
+      appendTranscriptText(mode, "", interimChunk.trim());
+    };
+
+    recognition.onerror = function (event) {
+      var label = event && event.error ? event.error : "microphone error";
+      setVoiceStatus(mode, label, false);
+    };
+
+    recognition.onend = function () {
+      if (activeRecognition === recognition) {
+        activeRecognition = null;
+        activeVoiceMode = null;
+      }
+      setVoiceStatus(mode, "stopped", false);
+    };
+
+    try {
+      recognition.start();
+    } catch (_) {
+      setVoiceStatus(mode, "unable to start", false);
+      activeRecognition = null;
+      activeVoiceMode = null;
+    }
+  }
+
+  if (SpeechRecognitionCtor) {
+    if (ambientMicSupport) ambientMicSupport.textContent = "browser speech recognition available";
+  } else {
+    if (ambientMicSupport) ambientMicSupport.textContent = "speech recognition unavailable in this browser";
+    startAmbientDemoBtn.disabled = true;
+    if (startDictationBtn) startDictationBtn.disabled = true;
+  }
+
+  startAmbientDemoBtn.addEventListener("click", function () {
+    startVoiceCapture("ambient");
+  });
+
+  startDictationBtn.addEventListener("click", function () {
+    startVoiceCapture("dictation");
   });
 
   addAmbientSourceBtn.addEventListener("click", function () {
@@ -437,13 +564,31 @@
       "ambient-transcript",
       "Ambient transcript",
       ambientInput.value,
-      "Pre-chart workspace · ambient transcript input"
+      "Pre-chart workspace · live browser ambient transcription · synthetic test"
     )) {
       ambientInput.value = "";
-      ambientStatus.classList.remove("active");
-      ambientStatus.textContent = "added";
-      startAmbientDemoBtn.textContent = "Start demo capture";
+      finalTextByMode.ambient = "";
+      setVoiceStatus("ambient", "saved", false);
     }
+  });
+
+  addDictationSourceBtn.addEventListener("click", function () {
+    if (addTextSource(
+      "physician-dictation",
+      "Physician dictation",
+      dictationInput.value,
+      "Pre-chart workspace · live browser physician dictation · synthetic test"
+    )) {
+      dictationInput.value = "";
+      finalTextByMode.dictation = "";
+      setVoiceStatus("dictation", "saved", false);
+    }
+  });
+
+  clearDictationBtn.addEventListener("click", function () {
+    dictationInput.value = "";
+    finalTextByMode.dictation = "";
+    setVoiceStatus("dictation", "idle", false);
   });
 
   addTypedSourceBtn.addEventListener("click", function () {
