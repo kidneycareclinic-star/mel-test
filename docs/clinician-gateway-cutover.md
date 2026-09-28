@@ -13,8 +13,9 @@ entire development API as access-controlled until those routes are secured or re
 - `synthetic-patient` is retired and returns HTTP 410 with JWT verification enabled.
 - The `preview/` browser assets were published to the `main` branch separately from
   the draft gateway PR; invitation setup and sign-in are present there.
-- No real patient data is permitted. No Auth users or linked clinicians existed when this
-  work was prepared.
+- No real patient data is permitted. One confirmed development Auth account is now
+  linked to `SYN-CLINICIAN-001`, which has 24 active synthetic patient assignments.
+  A real signed-in browser smoke test still requires the clinician's private password.
 
 ## Sign-in and authorization
 
@@ -39,18 +40,16 @@ external order placement and scheduling remain disabled.
    `https://kidneycareclinic-star.github.io/mel-test/preview/`. The published preview
    calls only protected `*-gated` functions. Keep the legacy routes in place until
    existing callers are migrated.
-2. Identify the one approved development clinician email. In the Supabase Dashboard use
-   Authentication > Users > Add user > Send invitation. The invitation opens the preview's
-   password setup form. The invitee sets their password there; never send it in chat or
-   commit it to the repository. For default Supabase email delivery, the invited address
-   must be an authorized project team address; otherwise configure SMTP.
-3. Confirm the exact `auth.users.id` of the verified account. Link it to the intended active
-   synthetic `iam.principal` row (`SYN-CLINICIAN-001`) after checking identity. Do not
-   automatically link the first person to register.
-4. Test signed-in census, an assigned patient read, denied unassigned-patient access,
+2. The approved clinician has already accepted an invitation that redirected away
+   from the preview. After fixing the Site URL, open the preview directly, enter the
+   approved email, and choose Set or reset password. Open the newest recovery email,
+   set a private password on the preview, then sign in. Never send a password in chat
+   or commit it to the repository. The verified account is already linked to the
+   synthetic clinician principal; do not invite or link another account automatically.
+3. Test signed-in census, an assigned patient read, denied unassigned-patient access,
    a proposed observation followed by physician acceptance/rejection, an agent tool
    proposal and approval, and the corresponding audit entries.
-5. Replace the legacy five deployed endpoints with their verified gated implementations
+4. Replace the legacy five deployed endpoints with their verified gated implementations
    (or retire them after callers migrate). Test that the old anon JWT returns 401/403 for
    both reads and writes. Then mark the cutover complete.
 
