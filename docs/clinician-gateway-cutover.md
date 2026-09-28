@@ -1,8 +1,9 @@
 # Synthetic clinician gateway: staged rollout
 
-The synthetic browser preview currently uses public, legacy Edge Functions. A signed-in
-preview and protected replacements are prepared. Do not describe the preview as fully
-access-controlled until the legacy URLs are secured or retired.
+The browser preview at `https://kidneycareclinic-star.github.io/mel-test/preview/` has
+been published with the clinician sign-in and protected `*-gated` function URLs.
+The five legacy function URLs remain callable by older clients; do not describe the
+entire development API as access-controlled until those routes are secured or retired.
 
 ## Current deployment
 
@@ -10,6 +11,8 @@ access-controlled until the legacy URLs are secured or retired.
 - Protected staging endpoints: `synthetic-census-gated`, `ambient-scribe-write-gated`,
   `scribe-review-gated`, `workspace-review-gated`, `patient-activity-audit-gated`.
 - `synthetic-patient` is retired and returns HTTP 410 with JWT verification enabled.
+- The `preview/` browser assets were published to the `main` branch separately from
+  the draft gateway PR; invitation setup and sign-in are present there.
 - No real patient data is permitted. No Auth users or linked clinicians existed when this
   work was prepared.
 
@@ -32,9 +35,10 @@ external order placement and scheduling remain disabled.
 
 ## Activation sequence
 
-1. Publish the signed-in preview and configure the Supabase Auth Site URL (or an allowed
-   invite redirect) to that exact preview URL. The preview calls only protected `*-gated`
-   functions. Keep the legacy routes in place until existing callers are migrated.
+1. Configure the Supabase Auth Site URL (or an allowed invite redirect) to
+   `https://kidneycareclinic-star.github.io/mel-test/preview/`. The published preview
+   calls only protected `*-gated` functions. Keep the legacy routes in place until
+   existing callers are migrated.
 2. Identify the one approved development clinician email. In the Supabase Dashboard use
    Authentication > Users > Add user > Send invitation. The invitation opens the preview's
    password setup form. The invitee sets their password there; never send it in chat or
