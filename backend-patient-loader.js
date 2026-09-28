@@ -10,6 +10,12 @@
   var ANON_JWT =
     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV4Y3F2anBzbWR4emh1anNia216Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA1NjE1NDAsImV4cCI6MjEwNjEzNzU0MH0.qjhZBxmU2odQ2U2eEISxZNrHQp4EUkqCsfcD5ZceE5U";
 
+  window.SUPABASE_DEMO_BACKEND = {
+    baseUrl: "https://excqvjpsmdxzhujsbkmz.supabase.co",
+    anonJwt: ANON_JWT,
+    syntheticOnly: true
+  };
+
   function setStatus(text, tone) {
     var el = document.getElementById("backendStatus");
     if (!el) return;
