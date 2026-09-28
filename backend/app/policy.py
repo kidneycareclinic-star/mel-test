@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from uuid import UUID
 
 from .auth import Principal
 from .db import db_cursor
@@ -10,6 +11,39 @@ class AuthorizationDecision:
     reason: str
     role: str | None = None
     access_level: str | None = None
+    patient_id: str | None = None
+
+
+def _record_access_decision(
+    principal: Principal,
+    patient_id: str | None,
+    *,
+    workspace: str,
+    action: str,
+    decision: AuthorizationDecision,
+) -> None:
+    with db_cursor() as cur:
+        cur.execute(
+            """
+            insert into iam.access_audit(
+              principal_id,
+              patient_id,
+              action,
+              workspace,
+              allowed,
+              reason
+            )
+            values (%s::uuid, %s::uuid, %s, %s, %s, %s)
+            """,
+            (
+                principal.id,
+                patient_id,
+                action,
+                workspace,
+                decision.allowed,
+                decision.reason,
+            ),
+        )
 
 
 def authorize_patient_action(
@@ -23,6 +57,7 @@ def authorize_patient_action(
         cur.execute(
             """
             select
+              p.id::text as patient_id,
               pm.role,
               pm.workspaces as membership_workspaces,
               pm.permissions,
@@ -48,36 +83,85 @@ def authorize_patient_action(
         row = cur.fetchone()
 
     if not row:
-        return AuthorizationDecision(False, "No active care-team assignment.")
+        decision = AuthorizationDecision(
+            False,
+            "No active care-team assignment.",
+        )
+        _record_access_decision(
+            principal,
+            None,
+            workspace=workspace,
+            action=action,
+            decision=decision,
+        )
+        return decision
+
+    patient_id = row["patient_id"]
 
     if workspace not in (row["membership_workspaces"] or []):
-        return AuthorizationDecision(
+        decision = AuthorizationDecision(
             False,
             "Workspace is outside clinician membership.",
             row["role"],
             row["access_level"],
+            patient_id,
         )
+        _record_access_decision(
+            principal,
+            patient_id,
+            workspace=workspace,
+            action=action,
+            decision=decision,
+        )
+        return decision
 
     if workspace not in (row["assignment_workspaces"] or []):
-        return AuthorizationDecision(
+        decision = AuthorizationDecision(
             False,
             "Workspace is outside patient assignment.",
             row["role"],
             row["access_level"],
+            patient_id,
         )
+        _record_access_decision(
+            principal,
+            patient_id,
+            workspace=workspace,
+            action=action,
+            decision=decision,
+        )
+        return decision
 
     permissions = row["permissions"] or {}
     if not bool(permissions.get(action, False)):
-        return AuthorizationDecision(
+        decision = AuthorizationDecision(
             False,
             f"Permission '{action}' is not granted.",
             row["role"],
             row["access_level"],
+            patient_id,
         )
+        _record_access_decision(
+            principal,
+            patient_id,
+            workspace=workspace,
+            action=action,
+            decision=decision,
+        )
+        return decision
 
-    return AuthorizationDecision(
+    decision = AuthorizationDecision(
         True,
         "Authorized by active practice membership and patient assignment.",
         row["role"],
         row["access_level"],
+        patient_id,
     )
+    _record_access_decision(
+        principal,
+        patient_id,
+        workspace=workspace,
+        action=action,
+        decision=decision,
+    )
+    return decision
