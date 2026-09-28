@@ -9,7 +9,7 @@ async function runScenario(authStatus, censusStatus, fragment = "") {
   const requests = [];
   const button = { disabled: false };
   const form = {
-    elements: { email: { value: "clinician@example.test" }, password: { value: "example-password" } },
+    elements: { email: { value: "clinician@example.test", checkValidity: () => true }, password: { value: "example-password" } },
     querySelector: () => button,
     addEventListener: (_, callback) => { callbacks.submit = callback; }
   };
@@ -24,6 +24,7 @@ async function runScenario(authStatus, censusStatus, fragment = "") {
     clinicianPasswordSetupForm: setupForm,
     clinicianSignInStatus: { textContent: "" },
     clinicianSignIn: { hidden: false },
+    requestPasswordResetBtn: { disabled: false, addEventListener: (_, callback) => { callbacks.recover = callback; } },
     clinicianSignOut: { addEventListener: (_, callback) => { callbacks.signOut = callback; } }
   };
   const replaced = [];
@@ -40,6 +41,7 @@ async function runScenario(authStatus, censusStatus, fragment = "") {
     if (url.includes("/auth/v1/token")) {
       return new Response(JSON.stringify(authStatus === 200 ? { access_token: "user-token" } : {}), { status: authStatus });
     }
+    if (url.includes("/auth/v1/recover")) return new Response("{}", { status: 200 });
     if (url.endsWith("/auth/v1/user")) return new Response("{}", { status: 200 });
     return new Response(JSON.stringify(censusStatus === 200 ? { patients: [{ id: "PT-001" }] } : { error: "denied" }), { status: censusStatus });
   };
@@ -72,4 +74,11 @@ assert.equal(invited.requests[0].url.endsWith("/auth/v1/user"), true);
 assert.equal(invited.requests[0].options.headers.Authorization, "Bearer temporary-invite-token");
 assert.equal(invited.nodes.clinicianSignInForm.hidden, false);
 assert.equal(invited.window.CLINICIAN_AUTH.isSignedIn(), false);
+const recovered = await runScenario(200, 200, "#type=recovery&access_token=temporary-recovery-token");
+assert.equal(recovered.nodes.clinicianPasswordSetupForm.hidden, false);
+assert.deepEqual(recovered.replaced, ["/preview"]);
+const passwordEmail = await runScenario(401, 200, "#error=expired");
+await passwordEmail.callbacks.recover.call(passwordEmail.nodes.requestPasswordResetBtn);
+assert.equal(passwordEmail.requests[0].url.includes("/auth/v1/recover?redirect_to="), true);
+assert.equal(passwordEmail.requests[0].url.includes(encodeURIComponent("https://kidneycareclinic-star.github.io/mel-test/preview/")), true);
 console.log("Clinician sign-in UI tests passed");
