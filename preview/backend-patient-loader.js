@@ -1,22 +1,14 @@
 /* =========================================================================
- * Synthetic backend census loader
- * Remaining browser fixtures are bootstrap material only. Missing synthetic
- * patients are imported to Supabase in small batches, then the active census
- * is replaced with PostgreSQL-backed Patient State snapshots.
+ * PostgreSQL-backed synthetic census loader
+ * All 24 synthetic patient states are read from Supabase through a read-only
+ * Edge Function. Browser fixtures remain only as local demo scaffolding and
+ * are replaced before the first render when the backend is available.
  * ========================================================================= */
 (function () {
   var ENDPOINT =
     "https://excqvjpsmdxzhujsbkmz.supabase.co/functions/v1/synthetic-census";
   var ANON_JWT =
     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV4Y3F2anBzbWR4emh1anNia216Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA1NjE1NDAsImV4cCI6MjEwNjEzNzU0MH0.qjhZBxmU2odQ2U2eEISxZNrHQp4EUkqCsfcD5ZceE5U";
-  var BATCH_SIZE = 3;
-
-  function headers(extra) {
-    return Object.assign({
-      "Accept": "application/json",
-      "Authorization": "Bearer " + ANON_JWT
-    }, extra || {});
-  }
 
   function setStatus(text, tone) {
     var el = document.getElementById("backendStatus");
@@ -26,57 +18,23 @@
     if (tone) el.classList.add(tone);
   }
 
-  async function importBatch(batch) {
-    var response = await fetch(ENDPOINT, {
-      method: "POST",
-      headers: headers({
-        "Content-Type": "application/json",
-        "x-synthetic-seed": "nephrology-harness-v1"
-      }),
-      body: JSON.stringify({ patients: batch }),
-      cache: "no-store"
-    });
-    if (!response.ok) {
-      throw new Error("Synthetic import HTTP " + response.status + ": " + await response.text());
-    }
-    return response.json();
-  }
+  async function loadBackendCensus() {
+    setStatus("PostgreSQL · loading", "chip-agent");
 
-  async function loadCensus() {
     var response = await fetch(ENDPOINT, {
       method: "GET",
-      headers: headers(),
+      headers: {
+        "Accept": "application/json",
+        "Authorization": "Bearer " + ANON_JWT
+      },
       cache: "no-store"
     });
+
     if (!response.ok) {
       throw new Error("Census load HTTP " + response.status + ": " + await response.text());
     }
-    return response.json();
-  }
 
-  async function syncBackendCensus() {
-    var bootstrapPatients = Array.isArray(window.PATIENTS)
-      ? window.PATIENTS.slice()
-      : [];
-
-    setStatus("PostgreSQL · syncing", "chip-agent");
-
-    var initialPayload = await loadCensus();
-    var existingIds = new Set(
-      (initialPayload.patients || []).map(function (entry) {
-        return entry && entry.patient ? entry.patient.id : null;
-      }).filter(Boolean)
-    );
-    var missingPatients = bootstrapPatients.filter(function (patient) {
-      return patient && !existingIds.has(patient.id);
-    });
-
-    for (var offset = 0; offset < missingPatients.length; offset += BATCH_SIZE) {
-      var batch = missingPatients.slice(offset, offset + BATCH_SIZE);
-      await importBatch(batch);
-    }
-
-    var payload = missingPatients.length ? await loadCensus() : initialPayload;
+    var payload = await response.json();
     if (!payload || !Array.isArray(payload.patients) || !payload.patients.length) {
       throw new Error("Backend census returned no patients");
     }
@@ -105,8 +63,8 @@
     return backendPatients;
   }
 
-  window.BACKEND_PATIENT_READY = syncBackendCensus().catch(function (error) {
-    console.warn("Backend census sync failed; remaining browser fixtures stay available.", error);
+  window.BACKEND_PATIENT_READY = loadBackendCensus().catch(function (error) {
+    console.warn("Backend census load failed; browser fixtures remain available.", error);
     window.BACKEND_PATIENT_ERROR = String(error && error.message ? error.message : error);
     setStatus("backend fallback", "chip-warn");
     return null;
