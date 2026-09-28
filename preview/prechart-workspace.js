@@ -47,6 +47,105 @@
   var copyBtn = document.getElementById("copyPrechartBtn");
   var scribeExtractionList = document.getElementById("scribeExtractionList");
   var scribeExtractionCount = document.getElementById("scribeExtractionCount");
+  var scribeWriteQueue = Promise.resolve();
+
+  function scribeBackendConfig() {
+    return window.SUPABASE_DEMO_BACKEND || null;
+  }
+
+  function stableHash(text) {
+    var hash = 2166136261;
+    for (var i = 0; i < text.length; i += 1) {
+      hash ^= text.charCodeAt(i);
+      hash = Math.imul(hash, 16777619);
+    }
+    return (hash >>> 0).toString(16).padStart(8, "0");
+  }
+
+  function scribeRecordId(patient, field, value, sourceText, observedDate) {
+    return [
+      "scribe",
+      patient.id,
+      observedDate,
+      field,
+      stableHash(JSON.stringify(value) + "|" + String(sourceText || "").toLowerCase())
+    ].join("-");
+  }
+
+  function replacePatientFromBackend(patientId, payload) {
+    if (!payload || !payload.patient) return null;
+    var patient = payload.patient;
+    patient.backendSource = {
+      type:"supabase-postgresql",
+      stateVersion:payload.stateVersion,
+      generatedAt:new Date().toISOString(),
+      engineVersion:"ambient-scribe-state-v1"
+    };
+
+    var index = window.PATIENTS.findIndex(function(item) {
+      return item.id === patientId;
+    });
+    if (index >= 0) window.PATIENTS[index] = patient;
+
+    if (currentPatient && currentPatient.id === patientId) {
+      renderPatient(patient, false);
+      renderScribeExtractions(patient);
+      if (window.PRECHART_WORKSPACE_API && PRECHART_WORKSPACE_API.refresh) {
+        window.setTimeout(function(){ PRECHART_WORKSPACE_API.refresh(); }, 0);
+      }
+    }
+    return patient;
+  }
+
+  function persistAmbientExtractions(patient, records, rawTranscript, reviewedTranscript) {
+    if (!patient || !records || !records.length) return Promise.resolve(null);
+    var cfg = scribeBackendConfig();
+    if (!cfg || !cfg.baseUrl || !cfg.anonJwt) {
+      setRuntimeStatus("Structured observations are pending: backend configuration unavailable.", "warn");
+      return Promise.resolve(null);
+    }
+
+    var patientId = patient.id;
+    var endpoint = cfg.baseUrl + "/functions/v1/ambient-scribe-write";
+    setRuntimeStatus("Saving structured observations to PostgreSQL…", "warn");
+
+    scribeWriteQueue = scribeWriteQueue.then(function() {
+      return fetch(endpoint, {
+        method:"POST",
+        headers:{
+          "Accept":"application/json",
+          "Content-Type":"application/json",
+          "Authorization":"Bearer " + cfg.anonJwt
+        },
+        cache:"no-store",
+        body:JSON.stringify({
+          patientId:patientId,
+          records:records,
+          rawTranscript:rawTranscript || "",
+          reviewedTranscript:reviewedTranscript || ""
+        })
+      }).then(async function(response) {
+        var payload = await response.json().catch(function(){ return {}; });
+        if (!response.ok) {
+          throw new Error(payload.error || ("Ambient scribe write HTTP " + response.status));
+        }
+        replacePatientFromBackend(patientId, payload);
+        setRuntimeStatus(
+          payload.inserted
+            ? "PostgreSQL saved " + payload.inserted + " structured observation" + (payload.inserted === 1 ? "" : "s") + " · state v" + payload.stateVersion
+            : "Structured observations already persisted · state v" + payload.stateVersion,
+          "ok"
+        );
+        return payload;
+      });
+    }).catch(function(error) {
+      console.error("Ambient scribe PostgreSQL write failed.", error);
+      setRuntimeStatus("Structured observation save failed: " + (error && error.message ? error.message : error), "error");
+      return null;
+    });
+
+    return scribeWriteQueue;
+  }
 
   function activePatient() {
     return window.currentPatient || currentPatient || null;
@@ -622,31 +721,22 @@
   function recordExtraction(patient, field, displayLabel, value, unit, sourceText, type) {
     ensureScribeStores(patient);
     var observedAt = new Date().toISOString();
+    var observedDate = todayIsoDate();
     var record = {
-      id:newId("scribe"),
+      id:scribeRecordId(patient, field, value, sourceText, observedDate),
       field:field,
       displayLabel:displayLabel,
       value:value,
       unit:unit || "",
       sourceText:sourceText,
       observedAt:observedAt,
-      observedDate:todayIsoDate(),
+      observedDate:observedDate,
       source:"ambient-scribe-extraction",
       sourceLabel:"Ambient scribe · extracted from spoken transcript",
       confidence:"pattern-match-demo",
-      status:"applied-synthetic",
+      status:"pending-backend",
       type:type
     };
-    var prior = patient.scribeObservations[field];
-    if (prior && JSON.stringify(prior.value) === JSON.stringify(value) && prior.sourceText === sourceText) {
-      return prior;
-    }
-    patient.scribeObservations[field] = record;
-    patient.scribeExtractionLog.unshift(record);
-    patient.scribeExtractionLog = patient.scribeExtractionLog.slice(0, 40);
-
-    if (type === "lab") applyLabExtraction(patient, field, Number(value), record);
-    if (type === "vital") applyVitalExtraction(patient, field, value, record);
     return record;
   }
 
@@ -655,7 +745,7 @@
     return match || null;
   }
 
-  function parseAmbientStructuredData(text) {
+  function parseAmbientStructuredData(text, reviewedText) {
     var patient = activePatient();
     if (!patient || !text || !text.trim()) return [];
 
@@ -701,11 +791,7 @@
     addLab("Creatinine", "Creatinine", /\bcreatinine\b\s*(?:(?:is|was|of|equals?)\s*)?(\d+(?:\.\d+)?)/i, "mg/dL");
 
     if (extracted.length) {
-      renderScribeExtractions(patient);
-      if (typeof renderPatient === "function") renderPatient(patient, false);
-      if (window.PRECHART_WORKSPACE_API && PRECHART_WORKSPACE_API.refresh) {
-        window.setTimeout(function(){ PRECHART_WORKSPACE_API.refresh(); }, 0);
-      }
+      persistAmbientExtractions(patient, extracted, text, reviewedText || "");
     }
     return extracted;
   }
@@ -944,7 +1030,7 @@
         if (finalChunk.trim()) {
           finalTextByMode[mode] = [finalTextByMode[mode], finalChunk.trim()]
             .filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
-          if (mode === "ambient") parseAmbientStructuredData(finalChunk.trim());
+          if (mode === "ambient") parseAmbientStructuredData(finalChunk.trim(), "");
         }
         appendTranscriptText(mode, "", interimChunk.trim());
         if (mode === "ambient") reviewAmbientTranscript();
@@ -1016,11 +1102,11 @@
   });
 
   addAmbientSourceBtn.addEventListener("click", function () {
-    parseAmbientStructuredData(ambientInput.value);
     var rawTranscript = ambientInput.value.trim();
     var reviewedTranscript = ambientReviewedInput && ambientReviewedInput.value.trim()
       ? ambientReviewedInput.value.trim()
       : reviewAmbientTranscript();
+    parseAmbientStructuredData(rawTranscript, reviewedTranscript);
 
     if (reviewedTranscript && addTextSource(
       "ambient-transcript",
