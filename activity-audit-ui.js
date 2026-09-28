@@ -5,6 +5,39 @@
  * ========================================================================= */
 (function () {
   var openBtn = document.getElementById("openActivityAuditBtn");
+  if (!openBtn) return;
+
+  if (!document.getElementById("activityAuditDrawer")) {
+    var backdropNode = document.createElement("div");
+    backdropNode.id = "activityAuditBackdrop";
+    backdropNode.className = "activity-audit-backdrop hidden";
+
+    var drawerNode = document.createElement("aside");
+    drawerNode.id = "activityAuditDrawer";
+    drawerNode.className = "activity-audit-drawer hidden";
+    drawerNode.setAttribute("aria-hidden", "true");
+    drawerNode.setAttribute("aria-label", "Patient activity and audit trail");
+    drawerNode.innerHTML =
+      "<div class='audit-drawer-head'>" +
+        "<div><span class='eyebrow'>PHYSICIAN ACTIVITY / AUDIT</span>" +
+          "<h2 id='activityAuditTitle'>Activity / Audit</h2>" +
+          "<div id='activityAuditMeta' class='micro'>PostgreSQL event/provenance trail</div></div>" +
+        "<div class='audit-drawer-head-actions'>" +
+          "<span id='activityAuditStateBadge' class='chip chip-agent'>state —</span>" +
+          "<button id='refreshActivityAuditBtn' class='small-btn' type='button'>Refresh</button>" +
+          "<button id='closeActivityAuditBtn' class='icon-btn' type='button' aria-label='Close activity audit'>×</button>" +
+        "</div>" +
+      "</div>" +
+      "<div class='audit-drawer-summary'>" +
+        "<div class='audit-summary-copy'>Shows what the agent heard, extracted, persisted, and what Patient State version resulted.</div>" +
+        "<span id='activityAuditCount' class='chip'>0 events</span>" +
+      "</div>" +
+      "<div id='activityAuditList' class='activity-audit-list'></div>";
+
+    document.body.appendChild(backdropNode);
+    document.body.appendChild(drawerNode);
+  }
+
   var closeBtn = document.getElementById("closeActivityAuditBtn");
   var refreshBtn = document.getElementById("refreshActivityAuditBtn");
   var backdrop = document.getElementById("activityAuditBackdrop");
@@ -14,7 +47,6 @@
   var list = document.getElementById("activityAuditList");
   var count = document.getElementById("activityAuditCount");
   var stateBadge = document.getElementById("activityAuditStateBadge");
-  if (!openBtn || !closeBtn || !backdrop || !drawer || !list) return;
 
   var requestSeq = 0;
 
