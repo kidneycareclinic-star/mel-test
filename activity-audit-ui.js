@@ -290,11 +290,12 @@
     if (!drawer.classList.contains("hidden")) loadAudit();
   });
 
-  window.addEventListener("patient-rendered", function(event) {
-    if (drawer.classList.contains("hidden")) return;
-    var detail = event && event.detail;
-    if (detail && detail.patientId) loadAudit();
-  });
+  var patientNameNode = document.getElementById("ptName");
+  if (patientNameNode && window.MutationObserver) {
+    new MutationObserver(function() {
+      if (!drawer.classList.contains("hidden")) loadAudit();
+    }).observe(patientNameNode, { childList:true, subtree:true, characterData:true });
+  }
 
   window.PATIENT_AUDIT_UI = { open:openAudit, close:closeAudit, refresh:loadAudit };
 })();
