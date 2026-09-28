@@ -107,7 +107,7 @@
 
     var patientId = patient.id;
     var endpoint = cfg.baseUrl + "/functions/v1/ambient-scribe-write";
-    setRuntimeStatus("Saving structured observations to PostgreSQL…", "warn");
+    setRuntimeStatus("Sending structured observations for physician review…", "warn");
 
     scribeWriteQueue = scribeWriteQueue.then(function() {
       return fetch(endpoint, {
@@ -130,14 +130,16 @@
           var writerSuffix = payload.writerVersion ? " [writer v" + payload.writerVersion + "]" : "";
           throw new Error((payload.error || ("Ambient scribe write HTTP " + response.status)) + writerSuffix);
         }
-        replacePatientFromBackend(patientId, payload);
-        var writerLabel = payload.writerVersion ? " · writer v" + payload.writerVersion : "";
+        var writerLabel = payload.writerVersion ? " · writer " + payload.writerVersion : "";
         setRuntimeStatus(
-          payload.inserted
-            ? "PostgreSQL saved " + payload.inserted + " structured observation" + (payload.inserted === 1 ? "" : "s") + " · state v" + payload.stateVersion + writerLabel
-            : "Structured observations already persisted · state v" + payload.stateVersion + writerLabel,
+          "Proposed " + (payload.proposed || (payload.proposals ? payload.proposals.length : 0)) +
+          " structured observation" + ((payload.proposed || 0) === 1 ? "" : "s") +
+          " for physician review" + writerLabel,
           "ok"
         );
+        if (window.SCRIBE_REVIEW_UI && SCRIBE_REVIEW_UI.refresh) {
+          SCRIBE_REVIEW_UI.refresh();
+        }
         return payload;
       });
     }).catch(function(error) {
