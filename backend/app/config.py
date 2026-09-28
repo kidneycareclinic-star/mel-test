@@ -7,7 +7,8 @@ class Settings(BaseSettings):
     environment: str = "development"
     database_url: str = ""
     allowed_origins: str = "http://localhost:8000,http://127.0.0.1:8000,https://kidneycareclinic-star.github.io"
-    dev_principal_external_id: str = "SYN-CLINICIAN-001"
+    supabase_url: str = ""
+    supabase_publishable_key: str = ""
 
     model_config = SettingsConfigDict(
         env_file=".env",

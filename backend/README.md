@@ -15,13 +15,18 @@ Current endpoints:
 
 ## Identity and authorization
 
-Development currently uses one explicitly synthetic clinician identity:
+All patient routes require a Bearer access token issued by Supabase Auth. The service asks
+the project's Auth `/auth/v1/user` endpoint to validate the token on every request. The returned
+Auth user ID must match an **active, synthetic clinician** in `iam.principal.auth_user_id`.
+The older `X-Dev-Principal` header no longer grants access. Missing Auth configuration fails
+closed with HTTP 503; a missing or invalid session returns HTTP 401; an unlinked Auth user
+returns HTTP 403. Browser code must never receive the database password.
 
-`SYN-CLINICIAN-001`
-
-The development identity adapter works only when:
-
-`ENVIRONMENT=development`
+The development database currently has one synthetic clinician record but no Auth user or
+linked `auth_user_id`. No one can use the gateway until a clinician Auth account is created
+and explicitly linked to the intended `iam.principal` row. Do not enable open sign-up for
+clinical accounts. The existing public preview still calls synthetic-only Edge Functions;
+this backend has not yet been deployed or wired into that preview.
 
 The database authorization model checks:
 
@@ -32,6 +37,8 @@ The database authorization model checks:
 5. action-specific permission
 
 Patient-specific decisions are written to `iam.access_audit`.
+Assigned census reads are also audited. All gateway patient queries are restricted to
+synthetic records.
 
 ## Architecture
 
@@ -59,7 +66,8 @@ python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
-# Add a development DATABASE_URL locally. Never commit credentials.
+# Set DATABASE_URL, SUPABASE_URL, and SUPABASE_PUBLISHABLE_KEY locally.
+# Never commit credentials.
 uvicorn app.main:app --reload
 ```
 
@@ -69,18 +77,18 @@ Health check:
 curl http://127.0.0.1:8000/health
 ```
 
-Development identity example:
+Once the Auth user is linked, an authenticated read looks like:
 
 ```bash
 curl \
-  -H "X-Dev-Principal: SYN-CLINICIAN-001" \
+  -H "Authorization: Bearer <clinician access token>" \
   "http://127.0.0.1:8000/v1/patients?workspace=office"
 ```
 
 ## Important security boundary
 
-The development header is not production authentication.
-
-Before any real-patient use, replace it with a validated identity provider/session and enforce user/practice authorization for every patient and action.
+This slice covers authenticated read access and auditing. Before routing review decisions or
+agent approvals through FastAPI, those actions need per-action authorization and the old
+anonymous-token write routes must be disabled or secured. No real-patient use is enabled.
 
 Never place the database password, service-role key, or other secret in browser code.
