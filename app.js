@@ -770,5 +770,11 @@ SUGGESTIONS.forEach((s) => {
   sug.appendChild(b);
 });
 
-if (window.PATIENTS.length) currentPatient = window.PATIENTS[0];
-renderWorkspace();
+function initializeHarness() {
+  if (window.PATIENTS.length) currentPatient = window.PATIENTS[0];
+  renderWorkspace();
+}
+
+Promise.resolve(window.BACKEND_PATIENT_READY)
+  .catch(function () { return null; })
+  .then(initializeHarness);
