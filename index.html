@@ -24,6 +24,12 @@
         <label>Password<input name="password" type="password" autocomplete="current-password" required /></label>
         <button type="submit">Sign in</button>
       </form>
+      <form id="clinicianPasswordSetupForm" hidden>
+        <p>Invitation accepted. Set a password to finish your clinician account.</p>
+        <label>New password<input name="password" type="password" autocomplete="new-password" minlength="12" required /></label>
+        <label>Confirm password<input name="confirmation" type="password" autocomplete="new-password" minlength="12" required /></label>
+        <button type="submit">Set password</button>
+      </form>
       <p id="clinicianSignInStatus" role="status" aria-live="polite"></p>
     </div>
   </section>
