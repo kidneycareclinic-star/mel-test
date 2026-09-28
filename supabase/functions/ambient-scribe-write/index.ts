@@ -1,9 +1,10 @@
 import postgres from "npm:postgres@3.4.7";
+import { clinician, patientAccess, authFailure } from "./clinician-auth.ts";
 
 const dbUrl = Deno.env.get("SUPABASE_DB_URL");
 if (!dbUrl) throw new Error("SUPABASE_DB_URL is not configured");
 const sql = postgres(dbUrl, { prepare:false, max:1 });
-const WRITER_VERSION = "8-proposal";
+const WRITER_VERSION = "9-clinician-gated";
 const LAB_FIELDS = new Set(["eGFR","UACR","UPCR","Potassium","Phosphate","Bicarbonate","Hemoglobin","Creatinine"]);
 const VITAL_FIELDS = new Set(["bloodPressure","heartRate","weight","temperature","oxygenSaturation"]);
 
@@ -36,6 +37,8 @@ Deno.serve(async(req:Request)=>{
   const reviewedTranscript=String(body?.reviewedTranscript||"");
   if(!/^PT-\d{3}$/.test(patientExternalId)||!records.length||records.length>20) return response({writerVersion:WRITER_VERSION,error:"invalid_payload"},400,origin);
   try{
+    const person=await clinician(req,sql);
+    await patientAccess(sql,person,patientExternalId,"office","scribe.review");
     const result=await sql.begin(async(tx:any)=>{
       const p=await tx.unsafe("select id,synthetic from ehr.patient where external_id=$1 limit 1",[patientExternalId]);
       if(!p.length||p[0].synthetic!==true) throw new Error("synthetic_patient_not_found");
@@ -84,5 +87,8 @@ Deno.serve(async(req:Request)=>{
       return {provenanceId,eventId,proposals};
     });
     return response({source:"supabase-postgresql",writerVersion:WRITER_VERSION,proposed:result.proposals.length,...result},200,origin);
-  }catch(error){return response({writerVersion:WRITER_VERSION,error:String(error?.message||error)},400,origin);}
+  }catch(error){
+    const denied=authFailure(error);
+    return response({writerVersion:WRITER_VERSION,error:denied?.code||String(error?.message||error)},denied?.status||400,origin);
+  }
 });

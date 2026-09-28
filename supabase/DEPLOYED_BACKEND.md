@@ -173,7 +173,12 @@ The reducer currently refreshes:
 | `scribe-review` | 2 | physician accept/edit/reject + atomic review validation + reducer |
 | `workspace-review` | 4 | CKD/Dialysis/Hospital review + low-risk approval workflow |
 | `patient-activity-audit` | 2 | event/provenance/agent/tool/approval/open-loop audit |
-| `synthetic-patient` | 1 | legacy PT-001 read endpoint |
+| `synthetic-patient` | 2 | retired legacy endpoint; HTTP 410 |
+| `synthetic-census-gated` | 2 | authenticated assigned-patient census (staged) |
+| `ambient-scribe-write-gated` | 2 | authenticated observation proposals (staged) |
+| `scribe-review-gated` | 2 | authenticated physician review (staged) |
+| `workspace-review-gated` | 2 | authenticated agent/approval flow (staged) |
+| `patient-activity-audit-gated` | 2 | authenticated audit read (staged) |
 
 ## Frontend workflow modules
 
@@ -198,6 +203,16 @@ The reducer currently refreshes:
 - scribe review safety checks for blank edits, duplicate decisions, and stale proposals
 
 ## Next production-oriented backend steps
+
+### Clinician gateway staging (2026-09-28)
+
+Five `*-gated` Edge Functions are deployed beside the existing demo endpoints. They ask
+Supabase Auth to verify the user, require a linked active synthetic clinician, check
+practice and patient assignment and action permission, and record access decisions.
+The legacy `synthetic-patient` route now returns HTTP 410. No clinician Auth account is
+linked yet; see `docs/clinician-gateway-cutover.md` for activation and legacy-route
+retirement. The existing demo endpoints remain active until the cutover is verified.
+
 
 1. Move from static GitHub Pages + Edge Functions to FastAPI service boundary.
 2. Replace legacy anon JWT use with production auth/session handling.

@@ -771,6 +771,7 @@ SUGGESTIONS.forEach((s) => {
 });
 
 function initializeHarness() {
+  if (!window.CLINICIAN_AUTH || !window.CLINICIAN_AUTH.isSignedIn() || !window.BACKEND_PATIENT) return;
   if (window.PATIENTS.length) currentPatient = window.PATIENTS[0];
   renderWorkspace();
 }

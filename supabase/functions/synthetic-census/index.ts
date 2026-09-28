@@ -1,4 +1,5 @@
 import postgres from "npm:postgres@3.4.7";
+import { clinician, censusAccess, authFailure } from "./clinician-auth.ts";
 
 const dbUrl = Deno.env.get("SUPABASE_DB_URL");
 if (!dbUrl) throw new Error("SUPABASE_DB_URL is not configured");
@@ -25,16 +26,15 @@ Deno.serve(async (req: Request) => {
   if (origin && !allowedOrigin(origin)) return response({ error: "origin_not_allowed" }, 403, origin);
   if (req.method === "OPTIONS") return response({ ok: true }, 200, origin);
   if (req.method !== "GET") return response({ error: "method_not_allowed" }, 405, origin);
-  const query = [
-    "select p.external_id, p.display_name, ps.state_version, ps.generated_at, ps.engine_version, ps.state",
-    "from ehr.patient p",
-    "join lateral (select state_version, generated_at, engine_version, state from ehr.patient_state where patient_id=p.id order by state_version desc limit 1) ps on true",
-    "where p.synthetic=true",
-    "order by p.external_id"
-  ].join("\n");
-  const rows = await sql.unsafe(query);
-  return response({ source: "supabase-postgresql", count: rows.length, patients: rows.map((row: any) => ({
-    externalId: row.external_id, displayName: row.display_name, stateVersion: Number(row.state_version),
-    generatedAt: row.generated_at, engineVersion: row.engine_version, patient: row.state
-  })) }, 200, origin);
+  try {
+    const person = await clinician(req, sql);
+    const rows = await censusAccess(sql, person, "office");
+    return response({ source: "supabase-postgresql", count: rows.length, patients: rows.map((row: any) => ({
+      externalId: row.external_id, displayName: row.display_name, stateVersion: Number(row.state_version),
+      generatedAt: row.generated_at, engineVersion: row.engine_version, patient: row.state
+    })) }, 200, origin);
+  } catch (error) {
+    const denied = authFailure(error);
+    return response({ error: denied?.code || "census_unavailable" }, denied?.status || 500, origin);
+  }
 });

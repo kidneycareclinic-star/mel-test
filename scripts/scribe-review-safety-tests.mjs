@@ -4,7 +4,9 @@ import vm from "node:vm";
 import { stripTypeScriptTypes } from "node:module";
 
 const source = fs.readFileSync("supabase/functions/scribe-review/index.ts", "utf8")
-  .replace('import postgres from "npm:postgres@3.4.7";', "const postgres = globalThis.__mockPostgres;");
+  .replace('import postgres from "npm:postgres@3.4.7";', "const postgres = globalThis.__mockPostgres;")
+  .replace('import { clinician, patientAccess, authFailure } from "./clinician-auth.ts";',
+    'const { clinician, patientAccess, authFailure } = globalThis.__mockAuth;');
 const patientId = "PT-001";
 const proposalId = "11111111-1111-4111-8111-111111111111";
 let handler;
@@ -33,6 +35,11 @@ const tx = {
 const sql = { begin: async fn => fn(tx) };
 const sandbox = {
   __mockPostgres: () => sql,
+  __mockAuth: {
+    clinician: async () => ({ id: "demo", externalId: "synthetic-clinician" }),
+    patientAccess: async () => patientId,
+    authFailure: () => null
+  },
   Deno: { env: { get: () => "mock-db" }, serve: fn => { handler = fn; } },
   Headers, Response, URL, console
 };

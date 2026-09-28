@@ -1,9 +1,10 @@
 import postgres from "npm:postgres@3.4.7";
+import { clinician, patientAccess, authFailure } from "./clinician-auth.ts";
 
 const dbUrl=Deno.env.get("SUPABASE_DB_URL");
 if(!dbUrl) throw new Error("SUPABASE_DB_URL is not configured");
 const sql=postgres(dbUrl,{prepare:false,max:1});
-const API_VERSION="scribe-review-v2";
+const API_VERSION="scribe-review-v3-clinician-gated";
 
 function originAllowed(origin:string|null){if(!origin)return null;if(origin==="https://kidneycareclinic-star.github.io")return origin;if(/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin))return origin;return null;}
 function response(body:unknown,status=200,origin:string|null=null){const h=new Headers({"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store"});const a=originAllowed(origin);if(a){h.set("Access-Control-Allow-Origin",a);h.set("Vary","Origin");}h.set("Access-Control-Allow-Methods","GET, POST, OPTIONS");h.set("Access-Control-Allow-Headers","authorization, apikey, content-type");return new Response(JSON.stringify(body),{status,headers:h});}
@@ -32,6 +33,8 @@ Deno.serve(async(req:Request)=>{
   try{
     if(req.method==="GET"){
       if(!/^PT-\d{3}$/.test(externalId))return response({apiVersion:API_VERSION,error:"invalid_patient"},400,origin);
+      const person=await clinician(req,sql);
+      await patientAccess(sql,person,externalId,"office","scribe.review");
       const p=await patientRow(sql,externalId);
       const proposals=await listPending(sql,p.id);
       const sv=await sql.unsafe("select state_version,engine_version from ehr.patient_state where patient_id=$1 order by state_version desc limit 1",[p.id]);
@@ -53,6 +56,8 @@ Deno.serve(async(req:Request)=>{
     if(decisions.some((d:any)=>!["accepted","edited","rejected"].includes(d?.decision))){
       return response({apiVersion:API_VERSION,error:"invalid_decision"},400,origin);
     }
+    const person=await clinician(req,sql);
+    await patientAccess(sql,person,patientExternalId,"office","scribe.review");
     const result=await sql.begin(async(tx:any)=>{
       const p=await patientRow(tx,patientExternalId);
       const patientId=p.id;
@@ -79,10 +84,10 @@ Deno.serve(async(req:Request)=>{
       const acceptedDecisions=decisions.filter((d:any)=>["accepted","edited"].includes(String(d?.decision||"")));
       const rejectedDecisions=decisions.filter((d:any)=>String(d?.decision||"")==="rejected");
       const ev=await tx.unsafe([
-        "insert into ehr.event(patient_id,event_type,actor_type,source,status,payload)",
-        "values($1,'SCRIBE_REVIEW_DECIDED','physician','scribe-review','recorded',",
+        "insert into ehr.event(patient_id,event_type,actor_type,actor_id,source,status,payload)",
+        "values($1,'SCRIBE_REVIEW_DECIDED','physician',$5,'scribe-review','recorded',",
         "jsonb_build_object('acceptedCount',$2::int,'rejectedCount',$3::int,'apiVersion',$4::text)) returning id"
-      ].join(" "),[patientId,acceptedDecisions.length,rejectedDecisions.length,API_VERSION]);
+      ].join(" "),[patientId,acceptedDecisions.length,rejectedDecisions.length,API_VERSION,person.externalId]);
       const eventId=ev[0].id;
       let canonicalInserted=0;
       const outcomes:any[]=[];
@@ -92,9 +97,9 @@ Deno.serve(async(req:Request)=>{
         const po:any=proposals.get(proposalId.toLowerCase());
         if(decision==="rejected"){
           await tx.unsafe([
-            "update ehr.proposed_observation set status='rejected',decision_event_id=$2,reviewed_by_type='physician',reviewed_by_id='synthetic-demo-physician',reviewed_at=now()",
+            "update ehr.proposed_observation set status='rejected',decision_event_id=$2,reviewed_by_type='physician',reviewed_by_id=$3,reviewed_at=now()",
             "where id=$1::uuid"
-          ].join(" "),[proposalId,eventId]);
+          ].join(" "),[proposalId,eventId,person.externalId]);
           outcomes.push({proposalId,status:"rejected"});
           continue;
         }
@@ -129,9 +134,9 @@ Deno.serve(async(req:Request)=>{
         const obsId=obsRows[0].id;
         canonicalInserted+=1;
         await tx.unsafe([
-          "update ehr.proposed_observation set status=$2,decision_event_id=$3,accepted_observation_id=$4,reviewed_by_type='physician',reviewed_by_id='synthetic-demo-physician',reviewed_at=now(),",
+          "update ehr.proposed_observation set status=$2,decision_event_id=$3,accepted_observation_id=$4,reviewed_by_type='physician',reviewed_by_id=$8,reviewed_at=now(),",
           "metadata=metadata||jsonb_build_object('decisionApi',$5::text,'originalValue',$6::jsonb,'reviewedValue',$7::jsonb) where id=$1::uuid"
-        ].join(" "),[proposalId,decision,eventId,obsId,API_VERSION,JSON.stringify(po.value_numeric==null?po.value_json:Number(po.value_numeric)),JSON.stringify(valueNumeric==null?valueJson:valueNumeric)]);
+        ].join(" "),[proposalId,decision,eventId,obsId,API_VERSION,JSON.stringify(po.value_numeric==null?po.value_json:Number(po.value_numeric)),JSON.stringify(valueNumeric==null?valueJson:valueNumeric),person.externalId]);
         outcomes.push({proposalId,status:decision,observationId:obsId});
       }
       let stateVersion:null|number=null;
@@ -150,6 +155,8 @@ Deno.serve(async(req:Request)=>{
     });
     return response({apiVersion:API_VERSION,...result},200,origin);
   }catch(error){
+    const denied=authFailure(error);
+    if(denied)return response({apiVersion:API_VERSION,error:denied.code},denied.status,origin);
     const message=String(error?.message||error);
     return response({apiVersion:API_VERSION,error:message},message.includes("refresh_and_retry")?409:400,origin);
   }

@@ -106,7 +106,7 @@
     }
 
     var patientId = patient.id;
-    var endpoint = cfg.baseUrl + "/functions/v1/ambient-scribe-write";
+    var endpoint = cfg.baseUrl + "/functions/v1/ambient-scribe-write-gated";
     setRuntimeStatus("Sending structured observations for physician review…", "warn");
 
     scribeWriteQueue = scribeWriteQueue.then(function() {
