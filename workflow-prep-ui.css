@@ -1,0 +1,45 @@
+.workflow-prep-panel{
+  border-bottom:1px solid var(--border);
+  padding:12px;
+  background:var(--panel);
+}
+.workflow-prep-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.workflow-prep-head>div{display:flex;flex-direction:column;gap:2px}
+.workflow-prep-head strong{font-size:12px;color:var(--text)}
+.workflow-prep-head span{font-size:9px;color:var(--muted)}
+.workflow-prep-form{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:9px}
+.workflow-prep-form select,
+.workflow-prep-form input{
+  min-width:0;
+  border:1px solid var(--border);
+  border-radius:6px;
+  padding:6px 8px;
+  background:var(--bg);
+  color:var(--text);
+  font-size:10px;
+}
+.workflow-prep-form button{justify-self:start}
+.workflow-prep-result{margin-top:8px}
+.workflow-prep-proposal{
+  display:flex;
+  justify-content:space-between;
+  gap:10px;
+  align-items:center;
+  border:1px solid rgba(76,194,255,.28);
+  border-radius:7px;
+  padding:8px;
+  background:rgba(76,194,255,.05);
+}
+.workflow-prep-proposal>div:first-child{display:flex;flex-direction:column;gap:2px}
+.workflow-prep-proposal span{font-size:8px;color:var(--accent);font-weight:800;letter-spacing:.45px}
+.workflow-prep-proposal strong{font-size:10px;color:var(--text)}
+.workflow-prep-proposal small{font-size:8px;color:var(--muted)}
+.workflow-prep-actions{display:flex;gap:6px;flex-wrap:wrap}
+.workflow-prep-decision{display:flex;flex-direction:column;gap:2px;border:1px solid var(--border);border-radius:7px;padding:8px;background:var(--panel-2)}
+.workflow-prep-decision strong{font-size:10px;color:var(--good)}
+.workflow-prep-decision span{font-size:9px;color:var(--muted)}
+.workflow-prep-error{color:var(--bad)}
+@media(max-width:760px){
+  .workflow-prep-form{grid-template-columns:1fr}
+  .workflow-prep-proposal{flex-direction:column;align-items:flex-start}
+}
