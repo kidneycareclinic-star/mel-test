@@ -16,7 +16,7 @@ app.add_middleware(
     allow_origins=settings.cors_origins,
     allow_credentials=False,
     allow_methods=["GET"],
-    allow_headers=["Content-Type", "X-Dev-Principal"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 @app.get("/health")

@@ -14,7 +14,7 @@ class AuthorizationDecision:
     patient_id: str | None = None
 
 
-def _record_access_decision(
+def record_access_decision(
     principal: Principal,
     patient_id: str | None,
     *,
@@ -74,7 +74,11 @@ def authorize_patient_action(
             join ehr.patient p
               on p.id = pa.patient_id
              and p.active = true
+             and p.synthetic = true
             where ip.id = %s::uuid
+              and ip.active = true
+              and ip.synthetic = true
+              and ip.principal_type = 'clinician'
               and p.external_id = %s
             limit 1
             """,
@@ -87,7 +91,7 @@ def authorize_patient_action(
             False,
             "No active care-team assignment.",
         )
-        _record_access_decision(
+        record_access_decision(
             principal,
             None,
             workspace=workspace,
@@ -106,7 +110,7 @@ def authorize_patient_action(
             row["access_level"],
             patient_id,
         )
-        _record_access_decision(
+        record_access_decision(
             principal,
             patient_id,
             workspace=workspace,
@@ -123,7 +127,7 @@ def authorize_patient_action(
             row["access_level"],
             patient_id,
         )
-        _record_access_decision(
+        record_access_decision(
             principal,
             patient_id,
             workspace=workspace,
@@ -133,7 +137,7 @@ def authorize_patient_action(
         return decision
 
     permissions = row["permissions"] or {}
-    if not bool(permissions.get(action, False)):
+    if permissions.get(action) is not True:
         decision = AuthorizationDecision(
             False,
             f"Permission '{action}' is not granted.",
@@ -141,7 +145,7 @@ def authorize_patient_action(
             row["access_level"],
             patient_id,
         )
-        _record_access_decision(
+        record_access_decision(
             principal,
             patient_id,
             workspace=workspace,
@@ -157,7 +161,7 @@ def authorize_patient_action(
         row["access_level"],
         patient_id,
     )
-    _record_access_decision(
+    record_access_decision(
         principal,
         patient_id,
         workspace=workspace,

@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 
 from .auth import Principal, get_current_principal
 from .db import db_cursor
-from .policy import authorize_patient_action
+from .policy import AuthorizationDecision, record_access_decision, authorize_patient_action
 
 router = APIRouter(prefix="/v1")
 
@@ -54,14 +54,28 @@ def patient_census(
               limit 1
             ) ps on true
             where ip.id = %s::uuid
+              and ip.active = true
+              and ip.synthetic = true
+              and ip.principal_type = 'clinician'
               and %s = any(pm.workspaces)
               and %s = any(pa.workspaces)
-              and coalesce((pm.permissions ->> 'patient.read')::boolean, false) = true
+              and pm.permissions -> 'patient.read' = 'true'::jsonb
             order by p.external_id
             """,
             (principal.id, workspace, workspace),
         )
         rows = cur.fetchall()
+
+    record_access_decision(
+        principal,
+        None,
+        workspace=workspace,
+        action="patient.read",
+        decision=AuthorizationDecision(
+            bool(rows),
+            "Assigned synthetic census returned." if rows else "No assigned synthetic patients in workspace.",
+        ),
+    )
 
     return {
         "source": "fastapi-postgresql",
