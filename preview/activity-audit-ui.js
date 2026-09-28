@@ -287,7 +287,7 @@
       : "state —";
     list.innerHTML = "<div class='audit-loading'>Loading PostgreSQL activity…</div>";
 
-    var endpoint = cfg.baseUrl + "/functions/v1/patient-activity-audit?patient_id=" +
+    var endpoint = cfg.baseUrl + "/functions/v1/patient-activity-audit-gated?patient_id=" +
       encodeURIComponent(patient.id) + "&limit=75";
     try {
       var response = await fetch(endpoint, {

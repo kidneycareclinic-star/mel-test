@@ -1,20 +1,10 @@
 /* =========================================================================
  * PostgreSQL-backed synthetic census loader
- * All 24 synthetic patient states are read from Supabase through a read-only
- * Edge Function. Browser fixtures remain only as local demo scaffolding and
- * are replaced before the first render when the backend is available.
+ * Assigned synthetic patient states are read only after clinician sign-in.
  * ========================================================================= */
 (function () {
   var ENDPOINT =
-    "https://excqvjpsmdxzhujsbkmz.supabase.co/functions/v1/synthetic-census";
-  var ANON_JWT =
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV4Y3F2anBzbWR4emh1anNia216Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA1NjE1NDAsImV4cCI6MjEwNjEzNzU0MH0.qjhZBxmU2odQ2U2eEISxZNrHQp4EUkqCsfcD5ZceE5U";
-
-  window.SUPABASE_DEMO_BACKEND = {
-    baseUrl: "https://excqvjpsmdxzhujsbkmz.supabase.co",
-    anonJwt: ANON_JWT,
-    syntheticOnly: true
-  };
+    "https://excqvjpsmdxzhujsbkmz.supabase.co/functions/v1/synthetic-census-gated";
 
   function setStatus(text, tone) {
     var el = document.getElementById("backendStatus");
@@ -25,22 +15,21 @@
   }
 
   async function loadBackendCensus() {
+    await window.CLINICIAN_AUTH.ready;
     setStatus("PostgreSQL · loading", "chip-agent");
-
-    var response = await fetch(ENDPOINT, {
-      method: "GET",
-      headers: {
-        "Accept": "application/json",
-        "Authorization": "Bearer " + ANON_JWT
-      },
-      cache: "no-store"
-    });
-
-    if (!response.ok) {
-      throw new Error("Census load HTTP " + response.status + ": " + await response.text());
+    var payload = window.CLINICIAN_AUTH.initialCensus;
+    if (!payload) {
+      var response = await fetch(ENDPOINT, {
+        method: "GET",
+        headers: {
+          "Accept": "application/json",
+          "Authorization": "Bearer " + window.CLINICIAN_AUTH.accessToken()
+        },
+        cache: "no-store"
+      });
+      if (!response.ok) throw new Error("Census load HTTP " + response.status);
+      payload = await response.json();
     }
-
-    var payload = await response.json();
     if (!payload || !Array.isArray(payload.patients) || !payload.patients.length) {
       throw new Error("Backend census returned no patients");
     }
@@ -70,9 +59,10 @@
   }
 
   window.BACKEND_PATIENT_READY = loadBackendCensus().catch(function (error) {
-    console.warn("Backend census load failed; browser fixtures remain available.", error);
+    console.warn("Authenticated census load failed.", error);
     window.BACKEND_PATIENT_ERROR = String(error && error.message ? error.message : error);
-    setStatus("backend fallback", "chip-warn");
+    window.PATIENTS.splice(0, window.PATIENTS.length);
+    setStatus("census unavailable", "chip-warn");
     return null;
   });
 })();
