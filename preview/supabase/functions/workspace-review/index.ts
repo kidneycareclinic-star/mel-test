@@ -2,7 +2,7 @@ import postgres from "npm:postgres@3.4.7";
 const dbUrl=Deno.env.get("SUPABASE_DB_URL");
 if(!dbUrl) throw new Error("SUPABASE_DB_URL is not configured");
 const sql=postgres(dbUrl,{prepare:false,max:1});
-const API_VERSION="workspace-review-v2";
+const API_VERSION="workspace-review-v4";
 
 function allowed(origin:string|null){
   if(!origin) return null;
@@ -45,13 +45,63 @@ Deno.serve(async(req:Request)=>{
       const stateVersion=Number(st[0].state_version);
       const state=JSON.parse(String(st[0].state_text));
 
+      if(mode==="prepare"){
+        const toolName=String(body?.toolName||"");
+        if(!["prepare_followup_lab_order","prepare_followup_appointment"].includes(toolName)){
+          throw new Error("tool_not_allowed_for_preparation");
+        }
+        const summary=String(body?.summary||"").trim();
+        const timing=String(body?.timing||"").trim();
+        const reason=String(body?.reason||"").trim();
+        const tests=Array.isArray(body?.tests)?body.tests.map(String).filter(Boolean).slice(0,20):[];
+        if(!summary) throw new Error("summary_required");
+
+        const registry=await tx.unsafe(
+          "select tool_name,risk_level,requires_approval,execution_mode,enabled from ehr.tool_registry where tool_name=$1 limit 1",
+          [toolName]
+        );
+        if(!registry.length||registry[0].enabled!==true) throw new Error("tool_not_available");
+
+        const ev=await tx.unsafe(
+          "insert into ehr.event(patient_id,event_type,actor_type,source,status,payload) values($1,'TOOL_ACTION_PREPARED','physician','workflow-preparation','proposed',jsonb_build_object('toolName',$2::text,'summary',$3::text,'externalExecution',false)) returning id",
+          [patientId,toolName,summary]
+        );
+
+        const tool=await tx.unsafe(
+          "insert into ehr.tool_call(patient_id,tool_name,risk_level,requires_approval,status,input,prepared_event_id) values($1,$2,$3,$4,'awaiting_approval',jsonb_build_object('summary',$5::text,'timing',$6::text,'reason',$7::text,'testsText',$8::text,'externalExecution',false),$9) returning id",
+          [
+            patientId,
+            toolName,
+            registry[0].risk_level,
+            registry[0].requires_approval,
+            summary,
+            timing,
+            reason,
+            tests.join(", "),
+            ev[0].id
+          ]
+        );
+
+        return {
+          mode:"prepare",
+          stateVersion,
+          toolName,
+          proposedAction:{
+            toolCallId:tool[0].id,
+            label:summary,
+            status:"awaiting_approval",
+            externalExecution:false
+          }
+        };
+      }
+
       if(mode==="decide"){
         const toolCallId=String(body?.toolCallId||"");
         const decision=String(body?.decision||"");
         if(!toolCallId||!["approved","rejected"].includes(decision)) throw new Error("invalid_decision_payload");
 
         const rows=await tx.unsafe(
-          "select tc.* from ehr.tool_call tc where tc.id=$1::uuid and tc.patient_id=$2 and tc.status='awaiting_approval' and tc.tool_name='create_open_loop' limit 1 for update",
+          "select tc.*,tr.execution_mode from ehr.tool_call tc join ehr.tool_registry tr on tr.tool_name=tc.tool_name where tc.id=$1::uuid and tc.patient_id=$2 and tc.status='awaiting_approval' and tr.enabled=true limit 1 for update",
           [toolCallId,patientId]
         );
         if(!rows.length) throw new Error("tool_call_not_pending");
@@ -74,24 +124,37 @@ Deno.serve(async(req:Request)=>{
 
         const input=tc.input||{};
         const executedEvent=await tx.unsafe(
-          "insert into ehr.event(patient_id,event_type,actor_type,source,status,payload) values($1,'TOOL_ACTION_EXECUTED','system','workspace-review','executed',jsonb_build_object('toolCallId',$2::text,'toolName','create_open_loop')) returning id",
-          [patientId,toolCallId]
+          "insert into ehr.event(patient_id,event_type,actor_type,source,status,payload) values($1,'TOOL_ACTION_EXECUTED','system','workspace-review','executed',jsonb_build_object('toolCallId',$2::text,'toolName',$3::text,'externalExecution',false)) returning id",
+          [patientId,toolCallId,tc.tool_name]
         );
 
+        let loopLabel="";
+        let loopType="";
+        let loopWorkspace="office";
+        let sourceLabel="approved-workflow-action";
+
+        if(tc.tool_name==="create_open_loop"){
+          loopLabel=String(input.label||"Review agent workspace");
+          loopType=String(input.loopType||"agent-review");
+          loopWorkspace=String(input.workspace||"shared");
+          sourceLabel="approved-agent-review";
+        }else if(tc.tool_name==="prepare_followup_lab_order"){
+          loopLabel="Prepared lab follow-up: "+String(input.summary||"physician-specified labs");
+          loopType="lab-order-preparation";
+        }else if(tc.tool_name==="prepare_followup_appointment"){
+          loopLabel="Prepared follow-up appointment: "+String(input.summary||"physician-specified follow-up");
+          loopType="appointment-preparation";
+        }else{
+          throw new Error("tool_not_allowlisted_for_execution");
+        }
+
         const loop=await tx.unsafe(
-          "insert into ehr.open_loop(patient_id,label,loop_type,workspace,owner_type,status,created_from_event_id,metadata) values($1,$2,$3,$4,'nephrology-team','pending',$5,jsonb_build_object('toolCallId',$6::text,'source','approved-agent-review')) returning id",
-          [
-            patientId,
-            String(input.label||"Review agent workspace"),
-            String(input.loopType||"agent-review"),
-            String(input.workspace||"shared"),
-            executedEvent[0].id,
-            toolCallId
-          ]
+          "insert into ehr.open_loop(patient_id,label,loop_type,workspace,owner_type,status,created_from_event_id,metadata) values($1,$2,$3,$4,'nephrology-team','pending',$5,jsonb_build_object('toolCallId',$6::text,'source',$7::text,'externalExecution',false)) returning id",
+          [patientId,loopLabel,loopType,loopWorkspace,executedEvent[0].id,toolCallId,sourceLabel]
         );
 
         await tx.unsafe(
-          "update ehr.tool_call set status='executed',executed_event_id=$2,executed_at=now(),output=jsonb_build_object('openLoopId',$3::text) where id=$1::uuid",
+          "update ehr.tool_call set status='executed',executed_event_id=$2,executed_at=now(),output=jsonb_build_object('openLoopId',$3::text,'prepared',true,'externalExecution',false) where id=$1::uuid",
           [toolCallId,executedEvent[0].id,loop[0].id]
         );
 
@@ -117,7 +180,23 @@ Deno.serve(async(req:Request)=>{
 
       if(!["ckd","dialysis","hospital"].includes(workspace)) throw new Error("invalid_workspace");
 
-      const context=workspace==="ckd"?(state?.contexts?.office||{}):(state?.contexts?.[workspace]||{});
+      const context=workspace==="ckd"
+        ? {
+            active:true,
+            diagnosis:state?.diagnosis||null,
+            ckdStage:state?.ckdStage||null,
+            eGFR:state?.labs?.eGFR?.value??null,
+            UACR:state?.labs?.UACR?.value??null,
+            UPCR:state?.labs?.UPCR?.value??null,
+            potassium:state?.labs?.Potassium?.value??null,
+            bicarbonate:state?.labs?.Bicarbonate?.value??null,
+            hemoglobin:state?.labs?.Hemoglobin?.value??null,
+            phosphate:state?.labs?.Phosphate?.value??null,
+            bloodPressure:state?.longitudinal?.bpVolume?.latestBp||state?.contexts?.office?.bp||null,
+            activeMedications:Array.isArray(state?.meds)?state.meds.length:0,
+            openLoops:Array.isArray(state?.longitudinal?.openLoops)?state.longitudinal.openLoops.length:0
+          }
+        : (state?.contexts?.[workspace]||{});
       const summary=workspace==="ckd"
         ?"CKD workspace review snapshot generated from canonical Patient State."
         : workspace.charAt(0).toUpperCase()+workspace.slice(1)+" workspace review snapshot generated from canonical Patient State.";
