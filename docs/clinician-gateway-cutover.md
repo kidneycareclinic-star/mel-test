@@ -32,9 +32,12 @@ external order placement and scheduling remain disabled.
 
 ## Activation sequence
 
-1. Identify the one approved development clinician email. Create or invite that user in
-   Supabase Auth using a private, verified account. Let the clinician set their password;
-   never send it in chat or commit it to the repository.
+1. Identify the one approved development clinician email. In the Supabase Dashboard use
+   Authentication > Users > Add user > Send invitation. Configure the Auth Site URL (or
+   the invite redirect) to the deployed signed-in preview URL, so the invitation opens
+   the password setup form. The invitee sets their password there; never send it in chat
+   or commit it to the repository. For default Supabase email delivery, the invited
+   address must be an authorized project team address; otherwise configure SMTP.
 2. Confirm the exact `auth.users.id` of the verified account. Link it to the intended active
    synthetic `iam.principal` row (`SYN-CLINICIAN-001`) after checking identity. Do not
    automatically link the first person to register.
