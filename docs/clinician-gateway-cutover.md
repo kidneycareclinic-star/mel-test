@@ -32,19 +32,20 @@ external order placement and scheduling remain disabled.
 
 ## Activation sequence
 
-1. Identify the one approved development clinician email. In the Supabase Dashboard use
-   Authentication > Users > Add user > Send invitation. Configure the Auth Site URL (or
-   the invite redirect) to the deployed signed-in preview URL, so the invitation opens
-   the password setup form. The invitee sets their password there; never send it in chat
-   or commit it to the repository. For default Supabase email delivery, the invited
-   address must be an authorized project team address; otherwise configure SMTP.
-2. Confirm the exact `auth.users.id` of the verified account. Link it to the intended active
+1. Publish the signed-in preview and configure the Supabase Auth Site URL (or an allowed
+   invite redirect) to that exact preview URL. The preview calls only protected `*-gated`
+   functions. Keep the legacy routes in place until existing callers are migrated.
+2. Identify the one approved development clinician email. In the Supabase Dashboard use
+   Authentication > Users > Add user > Send invitation. The invitation opens the preview's
+   password setup form. The invitee sets their password there; never send it in chat or
+   commit it to the repository. For default Supabase email delivery, the invited address
+   must be an authorized project team address; otherwise configure SMTP.
+3. Confirm the exact `auth.users.id` of the verified account. Link it to the intended active
    synthetic `iam.principal` row (`SYN-CLINICIAN-001`) after checking identity. Do not
    automatically link the first person to register.
-3. Test signed-in census, an assigned patient read, denied unassigned-patient access,
+4. Test signed-in census, an assigned patient read, denied unassigned-patient access,
    a proposed observation followed by physician acceptance/rejection, an agent tool
    proposal and approval, and the corresponding audit entries.
-4. Publish the signed-in preview. It points only to protected `*-gated` functions.
 5. Replace the legacy five deployed endpoints with their verified gated implementations
    (or retire them after callers migrate). Test that the old anon JWT returns 401/403 for
    both reads and writes. Then mark the cutover complete.
