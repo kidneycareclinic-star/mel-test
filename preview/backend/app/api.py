@@ -18,6 +18,70 @@ def me(principal: Principal = Depends(get_current_principal)):
     }
 
 
+@router.get("/patients")
+def patient_census(
+    workspace: str = "office",
+    principal: Principal = Depends(get_current_principal),
+):
+    with db_cursor() as cur:
+        cur.execute(
+            """
+            select
+              p.external_id,
+              p.display_name,
+              pa.access_level,
+              ps.state_version,
+              ps.generated_at,
+              ps.engine_version,
+              ps.state
+            from iam.principal ip
+            join iam.practice_membership pm
+              on pm.principal_id = ip.id
+             and pm.active = true
+            join iam.patient_assignment pa
+              on pa.principal_id = ip.id
+             and pa.practice_id = pm.practice_id
+             and pa.active = true
+            join ehr.patient p
+              on p.id = pa.patient_id
+             and p.active = true
+             and p.synthetic = true
+            join lateral (
+              select state_version, generated_at, engine_version, state
+              from ehr.patient_state
+              where patient_id = p.id
+              order by state_version desc
+              limit 1
+            ) ps on true
+            where ip.id = %s::uuid
+              and %s = any(pm.workspaces)
+              and %s = any(pa.workspaces)
+              and coalesce((pm.permissions ->> 'patient.read')::boolean, false) = true
+            order by p.external_id
+            """,
+            (principal.id, workspace, workspace),
+        )
+        rows = cur.fetchall()
+
+    return {
+        "source": "fastapi-postgresql",
+        "workspace": workspace,
+        "count": len(rows),
+        "patients": [
+            {
+                "externalId": row["external_id"],
+                "displayName": row["display_name"],
+                "accessLevel": row["access_level"],
+                "stateVersion": row["state_version"],
+                "generatedAt": row["generated_at"],
+                "engineVersion": row["engine_version"],
+                "state": row["state"],
+            }
+            for row in rows
+        ],
+    }
+
+
 @router.get("/patients/{patient_external_id}/state")
 def patient_state(
     patient_external_id: str,
