@@ -102,9 +102,7 @@ Current registered tools:
 | `prepare_followup_lab_order` | moderate | required | external-preparation only |
 | `prepare_followup_appointment` | low | required | external-preparation only |
 
-Only `create_open_loop` is currently executable by the deployed approval workflow.
-
-The order/appointment tools remain preparation-only and must not execute externally until an authorized EHR integration and policy layer exist.
+`create_open_loop`, `prepare_followup_lab_order`, and `prepare_followup_appointment` can now complete an internal approval workflow. The two follow-up tools create preparation artifacts/open loops only; their outputs explicitly record `externalExecution=false` and they do not place orders or schedule appointments externally.
 
 ## Core tables
 
@@ -170,7 +168,7 @@ The reducer currently refreshes:
 | `synthetic-census` | 2 | read latest Patient State for synthetic census |
 | `ambient-scribe-write` | 8 | create proposed observations only |
 | `scribe-review` | 1 | physician accept/edit/reject + reducer |
-| `workspace-review` | 3 | CKD/Dialysis/Hospital review + low-risk approval workflow |
+| `workspace-review` | 4 | CKD/Dialysis/Hospital review + low-risk approval workflow |
 | `patient-activity-audit` | 2 | event/provenance/agent/tool/approval/open-loop audit |
 | `synthetic-patient` | 1 | legacy PT-001 read endpoint |
 
