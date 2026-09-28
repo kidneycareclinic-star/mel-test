@@ -61,12 +61,22 @@
 
     setStatus("PostgreSQL · syncing", "chip-agent");
 
-    for (var offset = 0; offset < bootstrapPatients.length; offset += BATCH_SIZE) {
-      var batch = bootstrapPatients.slice(offset, offset + BATCH_SIZE);
+    var initialPayload = await loadCensus();
+    var existingIds = new Set(
+      (initialPayload.patients || []).map(function (entry) {
+        return entry && entry.patient ? entry.patient.id : null;
+      }).filter(Boolean)
+    );
+    var missingPatients = bootstrapPatients.filter(function (patient) {
+      return patient && !existingIds.has(patient.id);
+    });
+
+    for (var offset = 0; offset < missingPatients.length; offset += BATCH_SIZE) {
+      var batch = missingPatients.slice(offset, offset + BATCH_SIZE);
       await importBatch(batch);
     }
 
-    var payload = await loadCensus();
+    var payload = missingPatients.length ? await loadCensus() : initialPayload;
     if (!payload || !Array.isArray(payload.patients) || !payload.patients.length) {
       throw new Error("Backend census returned no patients");
     }
