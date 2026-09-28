@@ -52,6 +52,10 @@ Patient State vN+1
 ```
 
 Rejected observations never enter `ehr.clinical_observation` and do not create a new Patient State version.
+Pending `scribe-review-v2` change: review requests validate every proposal before recording a
+decision event. Blank numeric edits, duplicate IDs, and proposals already decided fail the
+whole batch; stale queues return HTTP 409. Accepted edits retain original and reviewed values
+in proposal metadata for audit.
 
 ## Agent workflow
 
@@ -167,7 +171,7 @@ The reducer currently refreshes:
 |---|---:|---|
 | `synthetic-census` | 2 | read latest Patient State for synthetic census |
 | `ambient-scribe-write` | 8 | create proposed observations only |
-| `scribe-review` | 1 | physician accept/edit/reject + reducer |
+| `scribe-review` | 1 | physician accept/edit/reject + reducer; v2 awaiting deployment |
 | `workspace-review` | 4 | CKD/Dialysis/Hospital review + low-risk approval workflow |
 | `patient-activity-audit` | 2 | event/provenance/agent/tool/approval/open-loop audit |
 | `synthetic-patient` | 1 | legacy PT-001 read endpoint |
@@ -192,6 +196,7 @@ The reducer currently refreshes:
 - PostgreSQL census loader
 - absence of service-role credentials in frontend code
 - browser fixture ownership rules
+- scribe review safety checks for blank edits, duplicate decisions, and stale proposals
 
 ## Next production-oriented backend steps
 

@@ -3,6 +3,7 @@
  * Pending ambient extractions remain PROPOSED until physician review.
  * ========================================================================= */
 (function(){
+  var submitting=false;
   function cfg(){ return window.SUPABASE_DEMO_BACKEND || null; }
   function activePatient(){
     try { return currentPatient || null; } catch (_) { return window.BACKEND_PATIENT || null; }
@@ -110,14 +111,20 @@
     });
   }
   function editedValueFor(proposalId){
+    function requiredNumber(input,label){
+      if(!input.value.trim()) throw new Error(label+" cannot be blank.");
+      var value=Number(input.value);
+      if(!Number.isFinite(value)) throw new Error(label+" must be a number.");
+      return value;
+    }
     var numeric=document.querySelector(".scribe-review-edit[data-proposal='"+CSS.escape(proposalId)+"'][data-kind='numeric']");
-    if(numeric) return Number(numeric.value);
+    if(numeric) return requiredNumber(numeric,"Edited value");
     var sys=document.querySelector(".scribe-review-edit[data-proposal='"+CSS.escape(proposalId)+"'][data-kind='bp-sys']");
     var dia=document.querySelector(".scribe-review-edit[data-proposal='"+CSS.escape(proposalId)+"'][data-kind='bp-dia']");
-    if(sys&&dia) return {systolic:Number(sys.value),diastolic:Number(dia.value)};
+    if(sys&&dia) return {systolic:requiredNumber(sys,"Systolic pressure"),diastolic:requiredNumber(dia,"Diastolic pressure")};
     var weight=document.querySelector(".scribe-review-edit[data-proposal='"+CSS.escape(proposalId)+"'][data-kind='weight']");
-    if(weight) return {amount:Number(weight.value)};
-    return null;
+    if(weight) return {amount:requiredNumber(weight,"Weight")};
+    throw new Error("This observation cannot be edited here.");
   }
   function applyBackendPatient(payload){
     if(!payload || !payload.patient) return;
@@ -136,21 +143,35 @@
     if(window.PATIENT_AUDIT_UI && PATIENT_AUDIT_UI.refresh) PATIENT_AUDIT_UI.refresh();
   }
   async function submit(decisions){
+    if(submitting) return;
     var patient=activePatient(); if(!patient) return;
+    submitting=true;
+    document.querySelectorAll("#scribeReviewPanel button").forEach(function(button){button.disabled=true;});
     var status=document.getElementById("voiceRuntimeStatus");
     if(status){status.textContent="Applying physician review decisions…";status.className="voice-runtime-status is-listening";}
     try{
       var payload=await api("POST",patient.id,{patientId:patient.id,decisions:decisions});
       applyBackendPatient(payload);
       if(status){status.textContent="Review applied · "+payload.canonicalInserted+" canonical observation"+(payload.canonicalInserted===1?"":"s")+" · Patient State v"+payload.stateVersion;status.className="voice-runtime-status is-ready";}
-      render({proposals:payload.pending||[]});
+      if(activePatient() && activePatient().id===patient.id) render({proposals:payload.pending||[]});
     }catch(error){
       if(status){status.textContent="Scribe review failed: "+(error&&error.message?error.message:error);status.className="voice-runtime-status is-error";}
+      await refresh();
+    }finally{
+      submitting=false;
+      document.querySelectorAll("#scribeReviewPanel button").forEach(function(button){button.disabled=false;});
     }
   }
   function submitOne(proposalId,decision){
     var d={proposalId:proposalId,decision:decision};
-    if(decision==="edited") d.editedValue=editedValueFor(proposalId);
+    if(decision==="edited"){
+      try{d.editedValue=editedValueFor(proposalId);}
+      catch(error){
+        var status=document.getElementById("voiceRuntimeStatus");
+        if(status){status.textContent=error.message;status.className="voice-runtime-status is-error";}
+        return;
+      }
+    }
     submit([d]);
   }
   function submitAll(decision){
@@ -160,7 +181,10 @@
   async function refresh(){
     ensurePanel();
     var patient=activePatient(); if(!patient) return;
-    try{ render(await api("GET",patient.id)); }
+    try{
+      var payload=await api("GET",patient.id);
+      if(activePatient() && activePatient().id===patient.id) render(payload);
+    }
     catch(error){
       var list=document.getElementById("scribeReviewList");
       if(list) list.innerHTML="<div class='prechart-ledger-empty'>Unable to load review queue: "+esc(error&&error.message?error.message:error)+"</div>";
