@@ -54,7 +54,7 @@
 
   async function post(body){
     var c=cfg(); if(!c) throw new Error("backend configuration unavailable");
-    var res=await fetch(c.baseUrl+"/functions/v1/workspace-review",{
+    var res=await fetch(c.baseUrl+"/functions/v1/workspace-review-gated",{
       method:"POST",
       headers:{
         "Accept":"application/json",

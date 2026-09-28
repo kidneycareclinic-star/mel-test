@@ -68,7 +68,7 @@
     var result=document.getElementById("workspaceReviewResult");
     status.textContent=decision==="approved"?"approving":"rejecting";
     try{
-      var res=await fetch(c.baseUrl+"/functions/v1/workspace-review",{
+      var res=await fetch(c.baseUrl+"/functions/v1/workspace-review-gated",{
         method:"POST",
         headers:{
           "Accept":"application/json",
@@ -105,7 +105,7 @@
     status.textContent="running";
     result.innerHTML="<div class='micro'>Reading canonical Patient State and recording "+esc(workspace)+" review…</div>";
     try{
-      var res=await fetch(c.baseUrl+"/functions/v1/workspace-review",{
+      var res=await fetch(c.baseUrl+"/functions/v1/workspace-review-gated",{
         method:"POST",
         headers:{
           "Accept":"application/json",

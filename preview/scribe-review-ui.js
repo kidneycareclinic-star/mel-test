@@ -36,11 +36,11 @@
   }
   function endpoint(patientId){
     var c=cfg();
-    return c ? c.baseUrl+"/functions/v1/scribe-review?patient_id="+encodeURIComponent(patientId) : null;
+    return c ? c.baseUrl+"/functions/v1/scribe-review-gated?patient_id="+encodeURIComponent(patientId) : null;
   }
   async function api(method,patientId,body){
     var c=cfg(); if(!c) throw new Error("backend configuration unavailable");
-    var res=await fetch(method==="GET"?endpoint(patientId):c.baseUrl+"/functions/v1/scribe-review",{
+    var res=await fetch(method==="GET"?endpoint(patientId):c.baseUrl+"/functions/v1/scribe-review-gated",{
       method:method,
       headers:{
         "Accept":"application/json",
