@@ -170,6 +170,50 @@
     "</div>";
   }
 
+  function harnessSection(event) {
+    var parts = [];
+
+    if (event.agentRun) {
+      parts.push(
+        "<div class='audit-harness-card'><span>Agent run</span><strong>" +
+        esc(event.agentRun.agentName || "agent") + " · " + esc(event.agentRun.status || "—") +
+        "</strong><small>run " + esc(shortId(event.agentRun.runId)) +
+        " · " + esc(event.agentRun.modelName || event.agentRun.modelProvider || "deterministic") + "</small></div>"
+      );
+    }
+
+    (event.toolCalls || []).forEach(function(tool) {
+      parts.push(
+        "<div class='audit-harness-card'><span>Tool proposal</span><strong>" +
+        esc(tool.toolName) + " · " + esc(tool.status) +
+        "</strong><small>risk " + esc(tool.riskLevel || "—") +
+        " · approval " + esc(tool.requiresApproval ? "required" : "not required") + "</small></div>"
+      );
+    });
+
+    (event.approvals || []).forEach(function(approval) {
+      parts.push(
+        "<div class='audit-harness-card'><span>Physician decision</span><strong>" +
+        esc(approval.decision) +
+        "</strong><small>tool " + esc(shortId(approval.toolCallId)) +
+        " · " + esc(fmtTime(approval.decidedAt)) + "</small></div>"
+      );
+    });
+
+    (event.openLoops || []).forEach(function(loop) {
+      parts.push(
+        "<div class='audit-harness-card'><span>Open loop</span><strong>" +
+        esc(loop.label) + " · " + esc(loop.status) +
+        "</strong><small>" + esc(loop.workspace || "shared") +
+        " · " + esc(shortId(loop.openLoopId)) + "</small></div>"
+      );
+    });
+
+    if (!parts.length) return "";
+    return "<section><div class='audit-section-label'>6 · Harness action</div><div class='audit-harness-grid'>" +
+      parts.join("") + "</div></section>";
+  }
+
   function eventCard(event, index) {
     var isScribe = event.eventType === "SCRIBE_EXTRACTION_APPLIED";
     var openAttr = isScribe && index < 3 ? " open" : "";
@@ -200,6 +244,7 @@
         "</section>" +
         "<section><div class='audit-section-label'>4 · Provenance</div>" + provenanceSection(event) + "</section>" +
         "<section><div class='audit-section-label'>5 · Resulting patient state</div>" + statesSection(event) + "</section>" +
+        harnessSection(event) +
       "</div>" +
     "</details>";
   }
