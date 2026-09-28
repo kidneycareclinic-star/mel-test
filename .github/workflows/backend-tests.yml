@@ -34,4 +34,6 @@ jobs:
       - name: Compile application
         run: python -m compileall app
       - name: Run tests
+        env:
+          PYTHONPATH: .
         run: pytest -q
