@@ -322,3 +322,37 @@ body.audit-drawer-open { overflow:hidden; }
   }
   .audit-observation-value { text-align:left; }
 }
+.audit-harness-grid{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:6px;
+}
+.audit-harness-card{
+  border:1px solid rgba(76,194,255,.24);
+  border-radius:7px;
+  background:rgba(76,194,255,.05);
+  padding:8px 9px;
+}
+.audit-harness-card span{
+  display:block;
+  color:var(--accent);
+  font-size:8px;
+  font-weight:800;
+  letter-spacing:.45px;
+  text-transform:uppercase;
+}
+.audit-harness-card strong{
+  display:block;
+  color:var(--text);
+  font-size:10px;
+  margin-top:3px;
+}
+.audit-harness-card small{
+  display:block;
+  color:var(--muted);
+  font-size:8px;
+  margin-top:3px;
+}
+@media(max-width:760px){
+  .audit-harness-grid{grid-template-columns:1fr}
+}
