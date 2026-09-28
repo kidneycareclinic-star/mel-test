@@ -740,58 +740,154 @@
     return record;
   }
 
-  function firstMatch(text, regex) {
-    var match = regex.exec(text);
-    return match || null;
+  function normalizeClinicalTranscript(raw) {
+    var text = String(raw || "");
+    if (!text.trim()) return "";
+
+    text = text
+      .replace(/[\u2018\u2019]/g, "'")
+      .replace(/[\u201c\u201d]/g, '"')
+      .replace(/\s+/g, " ")
+      .trim();
+
+    text = text
+      .replace(/\be\s*[- ]?\s*g\s*f\s*r\b/gi, "eGFR")
+      .replace(/\bestimated\s+g\s*f\s*r\b/gi, "eGFR")
+      .replace(/\bu\s*a\s*c\s*r\b/gi, "UACR")
+      .replace(/\bu\s*p\s*c\s*r\b/gi, "UPCR")
+      .replace(/\bh\s*c\s*o\s*3\b/gi, "bicarbonate")
+      .replace(/\bbicarb(?:onate)?\b/gi, "bicarbonate")
+      .replace(/\bh\s*g\s*b\b/gi, "hemoglobin")
+      .replace(/\bphos(?:phorus|phate)?\b/gi, "phosphate")
+      .replace(/\bo\s*(?:two|2)\s*sat(?:uration)?\b/gi, "oxygen saturation")
+      .replace(/\bspo\s*2\b/gi, "oxygen saturation")
+      .replace(/\bheart\s*rate\b/gi, "heart rate")
+      .replace(/\bblood\s*pressure\b/gi, "blood pressure");
+
+    text = text
+      .replace(/\s+([,.;:!?])/g, "$1")
+      .replace(/([,.;:!?])(?=[A-Za-z0-9])/g, "$1 ")
+      .replace(/\s{2,}/g, " ")
+      .trim();
+
+    return text;
+  }
+
+  function lastMatch(text, regex) {
+    var flags = regex.flags.indexOf("g") >= 0 ? regex.flags : regex.flags + "g";
+    var re = new RegExp(regex.source, flags);
+    var match = null;
+    var current = null;
+    while ((current = re.exec(text)) !== null) {
+      match = current;
+      if (current[0] === "") re.lastIndex += 1;
+    }
+    return match;
   }
 
   function parseAmbientStructuredData(text, reviewedText) {
     var patient = activePatient();
     if (!patient || !text || !text.trim()) return [];
 
-    var normalized = text.replace(/,/g, "").replace(/\s+/g, " ").trim();
-    var extracted = [];
+    var normalized = normalizeClinicalTranscript(text).replace(/,/g, "");
+    var reviewedNormalized = normalizeClinicalTranscript(reviewedText || "");
+    var extractedByField = new Map();
 
     function addLab(field, label, regex, unit) {
-      var m = firstMatch(normalized, regex);
+      var m = lastMatch(normalized, regex);
       if (!m) return;
       var value = Number(m[1]);
       if (!Number.isFinite(value)) return;
-      extracted.push(recordExtraction(patient, field, label, value, unit, m[0], "lab"));
+      extractedByField.set(field, recordExtraction(patient, field, label, value, unit, m[0], "lab"));
     }
 
     function addVital(field, label, regex, unit, transform) {
-      var m = firstMatch(normalized, regex);
+      var m = lastMatch(normalized, regex);
       if (!m) return;
       var value = transform ? transform(m) : Number(m[1]);
       if (value == null || (typeof value === "number" && !Number.isFinite(value))) return;
-      extracted.push(recordExtraction(patient, field, label, value, unit, m[0], "vital"));
+      extractedByField.set(field, recordExtraction(patient, field, label, value, unit, m[0], "vital"));
     }
 
     addVital(
       "bloodPressure", "Blood pressure",
-      /(?:blood\s+pressure|\bbp\b)\s*(?:(?:is|was|of|today(?:\s+is)?)\s*)?(\d{2,3})\s*(?:over|\/)\s*(\d{2,3})/i,
+      /(?:blood\s+pressure|\bbp\b)\s*(?:(?:is|was|of|today(?:\s+is)?|equals?|at|reads?|reading)\s*)?(\d{2,3})\s*(?:over|\/)\s*(\d{2,3})/i,
       "mm Hg",
       function(m){ return { systolic:Number(m[1]), diastolic:Number(m[2]) }; }
     );
-    addVital("heartRate", "Heart rate", /(?:heart\s+rate|pulse)\s*(?:(?:is|was|of)\s*)?(\d{2,3})/i, "bpm");
-    addVital("weight", "Weight", /(?:weight|weighs)\s*(?:(?:is|was|of)\s*)?(\d+(?:\.\d+)?)\s*(pounds?|lbs?|kg|kilograms?)?/i, "reported", function(m){
-      return { amount:Number(m[1]), reportedUnit:(m[2] || "").toLowerCase() || "unspecified" };
-    });
-    addVital("temperature", "Temperature", /(?:temperature|temp)\s*(?:(?:is|was|of)\s*)?(\d{2,3}(?:\.\d+)?)/i, "reported");
-    addVital("oxygenSaturation", "Oxygen saturation", /(?:oxygen\s+saturation|o2\s*sat(?:uration)?|spo2)\s*(?:(?:is|was|of)\s*)?(\d{2,3})(?:\s*percent|\s*%)?/i, "%");
+    addVital(
+      "heartRate", "Heart rate",
+      /(?:heart\s+rate|pulse)\s*(?:(?:is|was|of|equals?|at|reads?|reading)\s*)?(\d{2,3})/i,
+      "bpm"
+    );
+    addVital(
+      "weight", "Weight",
+      /(?:weight|weighs|weighed)\s*(?:(?:is|was|of|equals?|at)\s*)?(\d+(?:\.\d+)?)\s*(pounds?|lbs?|lb|kg|kilograms?)?/i,
+      "reported",
+      function(m){
+        return { amount:Number(m[1]), reportedUnit:(m[2] || "").toLowerCase() || "unspecified" };
+      }
+    );
+    addVital(
+      "temperature", "Temperature",
+      /(?:temperature|temp)\s*(?:(?:is|was|of|equals?|at)\s*)?(\d{2,3}(?:\.\d+)?)/i,
+      "reported"
+    );
+    addVital(
+      "oxygenSaturation", "Oxygen saturation",
+      /(?:oxygen\s+saturation|o2\s*sat(?:uration)?|spo2|sat(?:uration)?)\s*(?:(?:is|was|of|equals?|at)\s*)?(\d{2,3})(?:\s*percent|\s*%)?/i,
+      "%"
+    );
 
-    addLab("eGFR", "eGFR", /(?:\be\s*[- ]?gfr\b|estimated\s+(?:glomerular\s+filtration\s+rate|gfr)|\bgfr\b)\s*(?:(?:is|was|of|equals?)\s*)?(\d+(?:\.\d+)?)/i, "mL/min/1.73m²");
-    addLab("UACR", "UACR", /(?:\bu\s*a\s*c\s*r\b|\buacr\b|urine\s+albumin(?:\s*[-/]?to)?\s+creatinine\s+ratio|albumin\s+creatinine\s+ratio)\s*(?:(?:is|was|of|equals?)\s*)?(\d+(?:\.\d+)?)/i, "mg/g");
-    addLab("UPCR", "UPCR", /(?:\bu\s*p\s*c\s*r\b|\bupcr\b|urine\s+protein(?:\s*[-/]?to)?\s+creatinine\s+ratio|protein\s+creatinine\s+ratio)\s*(?:(?:is|was|of|equals?)\s*)?(\d+(?:\.\d+)?)/i, "g/g");
-    addLab("Potassium", "Potassium", /\bpotassium\b\s*(?:(?:is|was|of|equals?)\s*)?(\d+(?:\.\d+)?)/i, "mEq/L");
-    addLab("Phosphate", "Phosphate", /\b(?:phosphorus|phosphate)\b\s*(?:(?:is|was|of|equals?)\s*)?(\d+(?:\.\d+)?)/i, "mg/dL");
-    addLab("Bicarbonate", "Bicarbonate", /\b(?:bicarbonate|hco3)\b\s*(?:(?:is|was|of|equals?)\s*)?(\d+(?:\.\d+)?)/i, "mEq/L");
-    addLab("Hemoglobin", "Hemoglobin", /\b(?:hemoglobin|haemoglobin)\b\s*(?:(?:is|was|of|equals?)\s*)?(\d+(?:\.\d+)?)/i, "g/dL");
-    addLab("Creatinine", "Creatinine", /\bcreatinine\b\s*(?:(?:is|was|of|equals?)\s*)?(\d+(?:\.\d+)?)/i, "mg/dL");
+    addLab(
+      "eGFR", "eGFR",
+      /(?:\begfr\b|estimated\s+(?:glomerular\s+filtration\s+rate|gfr)|\bgfr\b)\s*(?:(?:is|was|of|equals?|at|now|today(?:\s+is)?)\s*)?(\d+(?:\.\d+)?)/i,
+      "mL/min/1.73m²"
+    );
+    addLab(
+      "UACR", "UACR",
+      /(?:\buacr\b|urine\s+albumin(?:\s*[-\/]?to)?\s+creatinine\s+ratio|albumin\s+creatinine\s+ratio)\s*(?:(?:is|was|of|equals?|at)\s*)?(\d+(?:\.\d+)?)/i,
+      "mg/g"
+    );
+    addLab(
+      "UPCR", "UPCR",
+      /(?:\bupcr\b|urine\s+protein(?:\s*[-\/]?to)?\s+creatinine\s+ratio|protein\s+creatinine\s+ratio)\s*(?:(?:is|was|of|equals?|at)\s*)?(\d+(?:\.\d+)?)/i,
+      "g/g"
+    );
+    addLab(
+      "Potassium", "Potassium",
+      /\bpotassium\b\s*(?:(?:is|was|of|equals?|at|now)\s*)?(\d+(?:\.\d+)?)/i,
+      "mEq/L"
+    );
+    addLab(
+      "Phosphate", "Phosphate",
+      /\b(?:phosphorus|phosphate)\b\s*(?:(?:is|was|of|equals?|at|now)\s*)?(\d+(?:\.\d+)?)/i,
+      "mg/dL"
+    );
+    addLab(
+      "Bicarbonate", "Bicarbonate",
+      /\b(?:bicarbonate|hco3)\b\s*(?:(?:is|was|of|equals?|at|now)\s*)?(\d+(?:\.\d+)?)/i,
+      "mEq/L"
+    );
+    addLab(
+      "Hemoglobin", "Hemoglobin",
+      /\b(?:hemoglobin|haemoglobin|hgb)\b\s*(?:(?:is|was|of|equals?|at|now)\s*)?(\d+(?:\.\d+)?)/i,
+      "g/dL"
+    );
+    addLab(
+      "Creatinine", "Creatinine",
+      /\bcreatinine\b\s*(?:(?:is|was|of|equals?|at|now)\s*)?(\d+(?:\.\d+)?)/i,
+      "mg/dL"
+    );
 
+    var extracted = Array.from(extractedByField.values());
     if (extracted.length) {
-      persistAmbientExtractions(patient, extracted, text, reviewedText || "");
+      persistAmbientExtractions(
+        patient,
+        extracted,
+        normalizeClinicalTranscript(text),
+        reviewedNormalized
+      );
     }
     return extracted;
   }
@@ -853,7 +949,7 @@
 
 
   function conservativeTranscriptReview(raw) {
-    var text = String(raw || "").trim();
+    var text = normalizeClinicalTranscript(raw);
     if (!text) return "";
 
     text = text
@@ -1030,7 +1126,9 @@
         if (finalChunk.trim()) {
           finalTextByMode[mode] = [finalTextByMode[mode], finalChunk.trim()]
             .filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
-          if (mode === "ambient") parseAmbientStructuredData(finalChunk.trim(), "");
+          if (mode === "ambient") {
+            parseAmbientStructuredData(finalTextByMode.ambient, reviewAmbientTranscript());
+          }
         }
         appendTranscriptText(mode, "", interimChunk.trim());
         if (mode === "ambient") reviewAmbientTranscript();
