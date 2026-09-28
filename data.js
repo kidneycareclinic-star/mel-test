@@ -713,3 +713,13 @@ patients.forEach((p, idx) => {
   p.longitudinal = buildLongitudinalState(p, index);
   p.contexts = buildContexts(p, index);
 });
+
+
+/* PT-001 is backend-owned after the Supabase migration.
+ * Remove the browser fixture after all deterministic fixture generation has
+ * completed so the remaining synthetic patient identities stay unchanged.
+ */
+{
+  const backendOwnedIndex = patients.findIndex((patient) => patient.id === "PT-001");
+  if (backendOwnedIndex >= 0) patients.splice(backendOwnedIndex, 1);
+}
