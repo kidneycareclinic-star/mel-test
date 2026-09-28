@@ -1,0 +1,23 @@
+name: Bootstrap synthetic Supabase census
+
+on:
+  push:
+    branches:
+      - agentic-harness-tabs
+    paths:
+      - "scripts/bootstrap-synthetic-census.mjs"
+      - ".github/workflows/bootstrap-synthetic-census.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout development branch
+        uses: actions/checkout@v4
+
+      - name: Import remaining synthetic patients
+        run: node scripts/bootstrap-synthetic-census.mjs

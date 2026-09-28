@@ -1,0 +1,177 @@
+/* Census status palette — deliberately subtle, loaded after style.css */
+
+/* Neutral card base */
+.patient-list li.patient-tile {
+  background: transparent !important;
+  border: 1px solid var(--border) !important;
+  border-left-width: 5px !important;
+  box-shadow: none !important;
+}
+
+.patient-list li.patient-tile .patient-tile-compact {
+  background: var(--panel-2) !important;
+  color: var(--text) !important;
+  text-shadow: none !important;
+}
+
+.patient-list li.patient-tile .p-name,
+.patient-list li.patient-tile .p-sub,
+.patient-list li.patient-tile .p-demographics,
+.patient-list li.patient-tile .expand-hint,
+.patient-list li.patient-tile .p-flag {
+  color: var(--text) !important;
+  text-shadow: none !important;
+}
+
+/* Dark mode: soft wash */
+.patient-list li.patient-status-stable {
+  border-left-color: #3ddc97 !important;
+}
+.patient-list li.patient-status-stable .patient-tile-compact {
+  background: rgba(61, 220, 151, 0.10) !important;
+}
+.patient-list li.patient-status-stable .p-flag {
+  background: rgba(61, 220, 151, 0.14) !important;
+  border-color: rgba(61, 220, 151, 0.38) !important;
+}
+
+.patient-list li.patient-status-flag {
+  border-left-color: #ffbf47 !important;
+}
+.patient-list li.patient-status-flag .patient-tile-compact {
+  background: rgba(255, 191, 71, 0.11) !important;
+}
+.patient-list li.patient-status-flag .p-flag {
+  background: rgba(255, 191, 71, 0.15) !important;
+  border-color: rgba(255, 191, 71, 0.40) !important;
+}
+
+.patient-list li.patient-status-critical {
+  border-left-color: #ff6b6b !important;
+}
+.patient-list li.patient-status-critical .patient-tile-compact {
+  background: rgba(255, 107, 107, 0.10) !important;
+}
+.patient-list li.patient-status-critical .p-flag {
+  background: rgba(255, 107, 107, 0.14) !important;
+  border-color: rgba(255, 107, 107, 0.38) !important;
+}
+
+/* Light mode: even lighter wash over white */
+:root[data-theme="light"] .patient-list li.patient-tile {
+  background: transparent !important;
+  border-color: #d7dee9 !important;
+}
+
+:root[data-theme="light"] .patient-list li.patient-tile .patient-tile-compact {
+  color: #172033 !important;
+}
+
+:root[data-theme="light"] .patient-list li.patient-tile .p-name,
+:root[data-theme="light"] .patient-list li.patient-tile .p-sub,
+:root[data-theme="light"] .patient-list li.patient-tile .p-demographics,
+:root[data-theme="light"] .patient-list li.patient-tile .expand-hint,
+:root[data-theme="light"] .patient-list li.patient-tile .p-flag {
+  color: #172033 !important;
+}
+
+:root[data-theme="light"] .patient-list li.patient-status-stable {
+  border-left-color: #20a866 !important;
+}
+:root[data-theme="light"] .patient-list li.patient-status-stable .patient-tile-compact {
+  background: rgba(32, 168, 102, 0.075) !important;
+}
+:root[data-theme="light"] .patient-list li.patient-status-stable .p-flag {
+  background: rgba(32, 168, 102, 0.10) !important;
+  border-color: rgba(32, 168, 102, 0.28) !important;
+}
+
+:root[data-theme="light"] .patient-list li.patient-status-flag {
+  border-left-color: #d6a000 !important;
+}
+:root[data-theme="light"] .patient-list li.patient-status-flag .patient-tile-compact {
+  background: rgba(214, 160, 0, 0.085) !important;
+}
+:root[data-theme="light"] .patient-list li.patient-status-flag .p-flag {
+  background: rgba(214, 160, 0, 0.11) !important;
+  border-color: rgba(214, 160, 0, 0.30) !important;
+}
+
+:root[data-theme="light"] .patient-list li.patient-status-critical {
+  border-left-color: #d94c4c !important;
+}
+:root[data-theme="light"] .patient-list li.patient-status-critical .patient-tile-compact {
+  background: rgba(217, 76, 76, 0.075) !important;
+}
+:root[data-theme="light"] .patient-list li.patient-status-critical .p-flag {
+  background: rgba(217, 76, 76, 0.10) !important;
+  border-color: rgba(217, 76, 76, 0.28) !important;
+}
+
+/* Selected patient: use a clean accent outline without increasing fill intensity */
+.patient-list li.patient-tile.active {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 2px rgba(76, 194, 255, 0.14) !important;
+}
+
+/* Preserve neutral expanded problem-list body */
+.patient-list li.patient-tile.expanded .patient-tile-detail {
+  background: var(--panel) !important;
+}
+:root[data-theme="light"] .patient-list li.patient-tile.expanded .patient-tile-detail {
+  background: #ffffff !important;
+}
+
+
+/* ---- active patient focus mode ---- */
+.patient-list:has(li.patient-tile.active) li.patient-tile:not(.active) {
+  opacity:.46;
+  filter:saturate(.55);
+  transition:opacity .14s ease, filter .14s ease, transform .14s ease;
+}
+.patient-list:has(li.patient-tile.active) li.patient-tile:not(.active):hover {
+  opacity:.78;
+  filter:saturate(.8);
+}
+.patient-list li.patient-tile.active {
+  opacity:1 !important;
+  filter:none !important;
+  border-width:2px !important;
+  border-left-width:6px !important;
+  box-shadow:0 0 0 2px rgba(76,194,255,.28), 0 5px 18px rgba(0,0,0,.18) !important;
+  transform:translateX(2px);
+}
+.patient-list li.patient-status-stable.active .patient-tile-compact {
+  background:#168a45 !important;
+}
+.patient-list li.patient-status-flag.active .patient-tile-compact {
+  background:#d59a00 !important;
+}
+.patient-list li.patient-status-critical.active .patient-tile-compact {
+  background:#c62828 !important;
+}
+.patient-list li.patient-tile.active .p-name,
+.patient-list li.patient-tile.active .p-sub,
+.patient-list li.patient-tile.active .p-demographics,
+.patient-list li.patient-tile.active .expand-hint,
+.patient-list li.patient-tile.active .p-flag {
+  color:#fff !important;
+  text-shadow:0 1px 1px rgba(0,0,0,.18) !important;
+}
+.patient-list li.patient-tile.active .p-flag {
+  background:rgba(0,0,0,.16) !important;
+  border-color:rgba(255,255,255,.56) !important;
+}
+:root[data-theme="light"] .patient-list:has(li.patient-tile.active) li.patient-tile:not(.active) {
+  opacity:.42;
+  filter:saturate(.45);
+}
+:root[data-theme="light"] .patient-list li.patient-status-stable.active .patient-tile-compact {
+  background:#168a45 !important;
+}
+:root[data-theme="light"] .patient-list li.patient-status-flag.active .patient-tile-compact {
+  background:#d59a00 !important;
+}
+:root[data-theme="light"] .patient-list li.patient-status-critical.active .patient-tile-compact {
+  background:#c62828 !important;
+}

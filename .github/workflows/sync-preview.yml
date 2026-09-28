@@ -1,0 +1,49 @@
+name: Sync development preview to stable Pages
+
+on:
+  push:
+    branches:
+      - agentic-harness-tabs
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync-preview:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout stable main branch
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: stable
+          fetch-depth: 0
+
+      - name: Checkout development branch
+        uses: actions/checkout@v4
+        with:
+          ref: agentic-harness-tabs
+          path: preview-source
+
+      - name: Mirror development build into main/preview
+        run: |
+          rm -rf stable/preview
+          mkdir -p stable/preview
+          rsync -a --delete \
+            --exclude '.git' \
+            --exclude '.github' \
+            preview-source/ stable/preview/
+
+      - name: Commit preview update to main
+        run: |
+          cd stable
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add preview
+          if git diff --cached --quiet; then
+            echo "Preview already up to date."
+            exit 0
+          fi
+          git commit -m "Sync development preview from agentic-harness-tabs"
+          git push origin HEAD:main

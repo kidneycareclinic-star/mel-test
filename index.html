@@ -3,61 +3,181 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Nephrology EHR — Agentic Harness (Synthetic Demo)</title>
-<link rel="stylesheet" href="style.css" />
+<title>Nephrology Agentic Harness — Synthetic Demo</title>
+<link rel="stylesheet" href="style.css?v=ckd-protection-timeline-20260926" />
+<link rel="stylesheet" href="census-status.css?v=active-focus-2-20260927" />
+<link rel="stylesheet" href="prechart-workspace.css?v=reviewed-scribe-focus-2-20260927" />
+<link rel="stylesheet" href="activity-audit-ui.css?v=activity-audit-v3-20260928" />
+<link rel="stylesheet" href="scribe-review-ui.css?v=scribe-review-v1-20260928" />
+<link rel="stylesheet" href="workspace-review-ui.css?v=workspace-review-v2-20260928" />
+<link rel="stylesheet" href="workflow-prep-ui.css?v=workflow-prep-v1-20260928" />
 </head>
 <body>
   <header class="topbar">
     <div class="brand">
       <span class="logo">🫘</span>
       <div>
-        <h1>Nephrology EHR <span class="badge">synthetic</span></h1>
-        <p class="sub">Agentic clinical-harness demo · all patient data is fabricated</p>
+        <h1>Nephrology Agentic Harness <span class="badge">synthetic</span></h1>
+        <p class="sub">Physician intelligence + workflow layer above office, hospital, dialysis and transplant systems</p>
       </div>
     </div>
     <div class="top-right">
+      <button id="themeToggle" class="theme-toggle" type="button" aria-label="Switch color theme">☀ Light</button>
       <span id="patientCount" class="chip">—</span>
+      <span id="backendStatus" class="chip">backend: connecting</span>
       <span class="chip chip-warn">⚠ demo · not for clinical use</span>
     </div>
   </header>
 
-  <div class="layout">
-    <!-- LEFT: patient census -->
+  <nav class="workspace-tabs" aria-label="Nephrology workspace">
+    <button class="workspace-tab active" data-setting="office">
+      <span class="tab-icon">🏥</span>
+      <span><strong>Office</strong><small>CKD · HTN · GN</small></span>
+    </button>
+    <button class="workspace-tab" data-setting="hospital">
+      <span class="tab-icon">🛏️</span>
+      <span><strong>Hospital</strong><small>Consults · AKI · ICU</small></span>
+    </button>
+    <button class="workspace-tab" data-setting="dialysis">
+      <span class="tab-icon">🩸</span>
+      <span><strong>Dialysis</strong><small>HD rounds · PD rounds · longitudinal</small></span>
+    </button>
+    <button class="workspace-tab" data-setting="transplant">
+      <span class="tab-icon">🫛</span>
+      <span><strong>Transplant</strong><small>Evaluation · waitlist · post-transplant</small></span>
+    </button>
+  </nav>
+
+  <div id="workspaceSubtabs" class="workspace-subtabs hidden" aria-label="Dialysis modality">
+    <button class="workspace-subtab active" data-dialysis-mode="hemodialysis">Hemodialysis round</button>
+    <button class="workspace-subtab" data-dialysis-mode="peritoneal">Peritoneal dialysis round</button>
+  </div>
+
+  <div class="workspace-strip">
+    <div>
+      <span class="eyebrow">ACTIVE WORKSPACE</span>
+      <strong id="workspaceTitle">Office nephrology</strong>
+      <span id="workspaceSubtitle" class="workspace-sub">Longitudinal outpatient kidney care</span>
+    </div>
+    <div class="workspace-actions">
+      <span class="chip chip-agent" id="workspaceMode">office</span>
+      <span class="chip">Shared patient state</span>
+    </div>
+  </div>
+
+  <nav id="mobilePaneNav" class="mobile-pane-nav" aria-label="Mobile pane navigation">
+    <button type="button" data-mobile-pane="census">Census</button>
+    <button type="button" data-mobile-pane="patient" class="active">Patient</button>
+    <button type="button" data-mobile-pane="agent">Agent</button>
+  </nav>
+
+  <div class="layout mobile-pane-patient" id="mainLayout">
     <aside class="census">
       <div class="panel-head">
-        <h2>Patient census</h2>
-        <input id="search" type="search" placeholder="Filter…" />
+        <div>
+          <h2 id="censusTitle">Office census</h2>
+          <div class="micro" id="censusMeta">Patients active in this workspace</div>
+        </div>
       </div>
+      <input id="search" type="search" placeholder="Filter census…" />
       <ul id="patientList" class="patient-list"></ul>
     </aside>
 
-    <!-- MIDDLE: chart -->
-    <main class="chart">
-      <section class="panel" id="demographics">
-        <h2 id="ptName">—</h2>
-        <div class="meta" id="ptMeta"></div>
+    <div id="centerResizeHandle" class="center-resize-handle" title="Drag to resize middle pane" aria-hidden="true"></div>
+    <main class="chart" id="centerPane">
+      <section class="panel identity-panel" id="demographics">
+        <div class="identity-row">
+          <div>
+            <span class="eyebrow">SHARED PATIENT IDENTITY</span>
+            <h2 id="ptName">—</h2>
+            <div class="meta" id="ptMeta"></div>
+          </div>
+          <div class="identity-actions">
+            <div id="careFootprint" class="care-footprint"></div>
+            <button id="openActivityAuditBtn" class="small-btn audit-open-btn" type="button">Activity / Audit</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel context-panel">
+        <div class="panel-head">
+          <div>
+            <h2 id="contextTitle">Office context</h2>
+            <div class="micro" id="contextMeta">Workspace-specific episode data layered on the shared patient record</div>
+          </div>
+          <span class="chip" id="contextBadge">longitudinal</span>
+        </div>
+        <div id="contextGrid" class="context-grid"></div>
+        <div id="contextDetail" class="context-detail"></div>
+      </section>
+
+      <section class="panel prechart-panel">
+        <div class="panel-head">
+          <div>
+            <h2>Pre-charting note</h2>
+            <div class="micro">Open the workspace for ambient transcript text, typed/pasted notes, attachments, and lab trends</div>
+          </div>
+          <div class="prechart-head-actions">
+            <button id="openPrechartWorkspaceBtn" class="small-btn prechart-open-btn" type="button">Open workspace</button>
+            <button id="clearPrechartBtn" class="small-btn" type="button">Clear</button>
+          </div>
+        </div>
+        <div id="prechartNote" class="prechart-note"></div>
+      </section>
+
+      <section class="panel state-panel">
+        <div class="panel-head">
+          <div>
+            <h2>Longitudinal patient state</h2>
+            <div class="micro">Persistent kidney state shared across Office, Hospital and Dialysis</div>
+          </div>
+          <span class="chip chip-agent">patient state</span>
+        </div>
+        <div id="stateGrid" class="state-grid"></div>
+      </section>
+
+      <section class="panel loop-panel">
+        <div class="panel-head">
+          <div>
+            <h2>Open-loop engine</h2>
+            <div class="micro">Longitudinal obligations that persist beyond an encounter note</div>
+          </div>
+          <div class="loop-head-actions">
+            <span id="loopSummary" class="chip">—</span>
+            <button id="addLoopBtn" class="small-btn" type="button">+ Add loop</button>
+          </div>
+        </div>
+        <div id="openLoopList" class="open-loop-list"></div>
       </section>
 
       <section class="panel">
-        <h2>Latest labs</h2>
+        <div class="panel-head">
+          <h2>Source data · latest labs</h2>
+          <span class="micro">Evidence beneath the patient-state summary</span>
+        </div>
         <div id="labsGrid" class="labs-grid"></div>
       </section>
 
       <section class="panel">
-        <h2>Active medications</h2>
+        <div class="panel-head">
+          <h2>Source data · active medications</h2>
+          <span class="micro">Shared medication list</span>
+        </div>
         <div id="medsList" class="meds-list"></div>
       </section>
     </main>
 
-    <!-- RIGHT: agent -->
     <aside class="agent-pane">
       <div class="panel-head">
-        <h2>🩺 Nephro agent</h2>
+        <div>
+          <h2>🩺 Nephro agent</h2>
+          <div class="micro">One shared agent framework · workspace-aware presentation</div>
+        </div>
         <span class="chip chip-agent" id="agentStatus">idle</span>
       </div>
 
+      <div id="judgmentSummary" class="judgment-summary"></div>
       <div id="findings" class="findings"></div>
-
       <div id="chat" class="chat"></div>
 
       <form id="askForm" class="ask">
@@ -68,8 +188,222 @@
     </aside>
   </div>
 
-  <script src="data.js"></script>
+  <div id="prechartWorkspace" class="prechart-workspace hidden" aria-hidden="true">
+    <div class="prechart-workspace-shell">
+      <header class="prechart-workspace-header">
+        <div>
+          <span class="eyebrow">PRE-CHARTING WORKSPACE</span>
+          <h2 id="prechartWorkspaceTitle">Patient pre-charting</h2>
+          <div id="prechartWorkspaceMeta" class="micro">Collect and organize source material before the encounter</div>
+        </div>
+        <div class="prechart-workspace-header-actions">
+          <span class="chip chip-agent">2 organizer agents</span>
+          <button id="closePrechartWorkspaceBtn" class="icon-btn" type="button" aria-label="Close pre-charting workspace">×</button>
+        </div>
+      </header>
+
+      <div class="voice-mode-launcher" id="voiceModeLauncher">
+        <div class="voice-mode-copy">
+          <span class="eyebrow">VOICE CAPTURE</span>
+          <strong>Choose transcription mode</strong>
+          <span>Use synthetic patient information only in this prototype.</span>
+        </div>
+        <div class="voice-mode-buttons">
+          <button id="ambientModeBtn" class="voice-mode-btn ambient-mode" type="button">
+            <span class="voice-mode-icon">●</span>
+            <span><strong>Ambient</strong><small>Encounter conversation</small></span>
+          </button>
+          <button id="dictationModeBtn" class="voice-mode-btn dictation-mode" type="button">
+            <span class="voice-mode-icon">✎</span>
+            <span><strong>Dictation</strong><small>Physician note dictation</small></span>
+          </button>
+        </div>
+        <div id="voiceRuntimeStatus" class="voice-runtime-status">Checking browser voice support…</div>
+      </div>
+
+      <div class="prechart-workspace-grid">
+        <section class="prechart-source-column">
+          <div class="prechart-source-card voice-capture-card" id="ambientCaptureCard">
+            <div class="prechart-section-head">
+              <div>
+                <h3>Ambient transcription</h3>
+                <div class="micro">Live microphone transcription for synthetic-patient testing only</div>
+              </div>
+              <span id="ambientStatus" class="prechart-source-status">idle</span>
+            </div>
+            <div class="voice-synthetic-warning">
+              SYNTHETIC TESTING ONLY · Browser speech recognition may use the browser vendor's speech service. Do not use real patient PHI in this prototype.
+            </div>
+            <div class="ambient-transcript-grid">
+              <div class="ambient-transcript-pane raw">
+                <div class="ambient-transcript-pane-head">
+                  <strong>Raw transcript</strong>
+                  <span>speech-recognition output · preserved for provenance</span>
+                </div>
+                <textarea id="ambientTranscriptInput" class="prechart-large-input" placeholder="Start the microphone and conduct a synthetic visit. Interim and final transcript text will appear here…"></textarea>
+              </div>
+              <div class="ambient-transcript-pane reviewed">
+                <div class="ambient-transcript-pane-head">
+                  <strong>Reviewed transcript</strong>
+                  <span id="ambientReviewStatus">conservative local review · no new clinical facts</span>
+                </div>
+                <textarea id="ambientReviewedInput" class="prechart-large-input reviewed-transcript-input" placeholder="Reviewed transcript will appear here automatically and remains editable before saving…"></textarea>
+              </div>
+            </div>
+            <div class="prechart-inline-actions">
+              <button id="startAmbientDemoBtn" class="small-btn voice-start-btn" type="button">Start ambient mic</button>
+              <button id="reviewAmbientBtn" class="small-btn" type="button">Review transcript</button>
+              <button id="addAmbientSourceBtn" class="small-btn" type="button">Save reviewed transcript</button>
+              <span id="ambientMicSupport" class="voice-support-note">checking microphone support…</span>
+            </div>
+            <div class="scribe-extraction-panel">
+              <div class="prechart-section-head">
+                <div>
+                  <h3>Structured scribe extraction</h3>
+                  <div class="micro">Recognized discrete values are PROPOSED first; physician review is required before canonical Patient State changes</div>
+                </div>
+                <span id="scribeExtractionCount" class="chip">0 extracted</span>
+              </div>
+              <div id="scribeExtractionList" class="scribe-extraction-list">
+                <div class="prechart-ledger-empty">No discrete observations extracted yet.</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="prechart-source-card voice-capture-card" id="dictationCaptureCard">
+            <div class="prechart-section-head">
+              <div>
+                <h3>Physician dictation</h3>
+                <div class="micro">Separate post-encounter voice dictation for assessment, exam, and plan wording</div>
+              </div>
+              <span id="dictationStatus" class="prechart-source-status">idle</span>
+            </div>
+            <textarea id="physicianDictationInput" class="prechart-large-input" placeholder="Start dictation and speak your synthetic physician note. The transcript remains editable before saving…"></textarea>
+            <div class="prechart-inline-actions">
+              <button id="startDictationBtn" class="small-btn voice-start-btn" type="button">Start dictation mic</button>
+              <button id="addDictationSourceBtn" class="small-btn" type="button">Save dictation</button>
+              <button id="clearDictationBtn" class="small-btn" type="button">Clear</button>
+            </div>
+          </div>
+
+          <div class="prechart-source-card">
+            <div class="prechart-section-head">
+              <div>
+                <h3>Typed / pasted text</h3>
+                <div class="micro">Add referral text, outside notes, phone notes, or other pre-visit material</div>
+              </div>
+            </div>
+            <textarea id="typedPrechartInput" class="prechart-large-input" placeholder="Type or paste text here…"></textarea>
+            <div class="prechart-inline-actions">
+              <select id="typedSourceType" class="prechart-select" aria-label="Text source type">
+                <option value="typed-note">Typed note</option>
+                <option value="outside-note">Outside note</option>
+                <option value="referral">Referral</option>
+                <option value="patient-message">Patient message</option>
+                <option value="other">Other</option>
+              </select>
+              <button id="addTypedSourceBtn" class="small-btn" type="button">Add text</button>
+            </div>
+          </div>
+
+          <div class="prechart-source-card">
+            <div class="prechart-section-head">
+              <div>
+                <h3>Documents & images</h3>
+                <div class="micro">Attach source files for pre-chart review</div>
+              </div>
+            </div>
+            <label class="prechart-dropzone" for="prechartFileInput">
+              <strong>Attach documents</strong>
+              <span>PDF, images, text, Word, spreadsheets, and common clinical document formats</span>
+              <input id="prechartFileInput" type="file" multiple
+                accept=".pdf,.png,.jpg,.jpeg,.webp,.gif,.txt,.rtf,.doc,.docx,.xls,.xlsx,.csv,.tsv,.xml,.json,.html,.htm" />
+            </label>
+            <div id="prechartAttachmentList" class="prechart-attachment-list"></div>
+          </div>
+        </section>
+
+        <section class="prechart-center-column">
+          <div class="prechart-agent-row">
+            <article class="prechart-agent-card intake-agent">
+              <div class="prechart-agent-title">
+                <span class="agent-orb">1</span>
+                <div>
+                  <strong>Intake Agent</strong>
+                  <span>Classifies source type, records provenance, and flags unprocessed inputs</span>
+                </div>
+              </div>
+              <div id="intakeAgentSummary" class="prechart-agent-summary">No source material added yet.</div>
+            </article>
+
+            <article class="prechart-agent-card organizer-agent">
+              <div class="prechart-agent-title">
+                <span class="agent-orb">2</span>
+                <div>
+                  <strong>Organizer Agent</strong>
+                  <span>Groups material into a physician-facing pre-chart structure</span>
+                </div>
+              </div>
+              <div id="organizerAgentSummary" class="prechart-agent-summary">Waiting for source material.</div>
+            </article>
+          </div>
+
+          <div class="prechart-source-ledger-card">
+            <div class="prechart-section-head">
+              <div>
+                <h3>Source ledger</h3>
+                <div class="micro">Every pre-chart item remains linked to its source</div>
+              </div>
+              <span id="prechartSourceCount" class="chip">0 sources</span>
+            </div>
+            <div id="prechartSourceLedger" class="prechart-source-ledger"></div>
+          </div>
+
+          <div class="prechart-note-editor-card">
+            <div class="prechart-section-head">
+              <div>
+                <h3>Organized pre-charting note</h3>
+                <div class="micro">Editable physician workspace · organizational draft only</div>
+              </div>
+              <div class="prechart-inline-actions">
+                <button id="organizePrechartBtn" class="small-btn" type="button">Organize</button>
+                <button id="copyPrechartBtn" class="small-btn" type="button">Copy</button>
+              </div>
+            </div>
+            <textarea id="prechartWorkspaceNote" class="prechart-note-editor" placeholder="Organized pre-charting content will appear here…"></textarea>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <div id="provenanceBackdrop" class="provenance-backdrop hidden"></div>
+  <aside id="provenanceDrawer" class="provenance-drawer hidden" aria-label="Provenance inspector">
+    <div class="prov-head">
+      <div>
+        <span class="eyebrow">PROVENANCE INSPECTOR</span>
+        <h2 id="provTitle">Source details</h2>
+      </div>
+      <button id="closeProvBtn" class="icon-btn" type="button" aria-label="Close provenance inspector">×</button>
+    </div>
+    <div id="provBody" class="prov-body"></div>
+  </aside>
+
+  <script src="theme.js?v=light-theme-visible-20260922"></script>
+  <script src="data.js?v=backend-owned-pt001-20260927"></script>
+  <script src="backend-patient-loader.js?v=scribe-write-config-20260927"></script>
+  <script src="open-loop.js"></script>
+  <script src="patient-state.js?v=scribe-discrete-v2-20260927"></script>
+  <script src="judgment-fabric.js"></script>
   <script src="agent.js"></script>
-  <script src="app.js"></script>
+  <script src="app.js?v=supabase-pt001-20260927"></script>
+  <script src="lab-trends-ui.js?v=append-dated-points-20260927"></script>
+  <script src="kidney-protection-ui.js?v=ckd-protection-timeline-20260926"></script>
+  <script src="prechart-workspace.js?v=scribe-proposal-writer-v8-20260928"></script>
+  <script src="scribe-review-ui.js?v=scribe-review-v1-20260928"></script>
+  <script src="activity-audit-ui.js?v=activity-audit-v3-20260928"></script>
+  <script src="workspace-review-ui.js?v=workspace-review-v2-20260928"></script>
+  <script src="workflow-prep-ui.js?v=workflow-prep-v1-20260928"></script>
+  <script src="mobile-ui.js?v=iphone-nav-20260926"></script>
 </body>
 </html>
