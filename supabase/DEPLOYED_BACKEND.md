@@ -210,8 +210,10 @@ Five `*-gated` Edge Functions are deployed beside the existing demo endpoints. T
 Supabase Auth to verify the user, require a linked active synthetic clinician, check
 practice and patient assignment and action permission, and record access decisions.
 The legacy `synthetic-patient` route now returns HTTP 410. No clinician Auth account is
-linked yet; see `docs/clinician-gateway-cutover.md` for activation and legacy-route
-retirement. The existing demo endpoints remain active until the cutover is verified.
+linked yet; the published `/preview/` browser path shows clinician sign-in and uses
+the gated functions. See `docs/clinician-gateway-cutover.md` for activation and
+legacy-route retirement. The existing demo endpoints remain active until the cutover
+is verified.
 
 
 1. Move from static GitHub Pages + Edge Functions to FastAPI service boundary.
