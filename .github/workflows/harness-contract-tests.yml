@@ -1,0 +1,31 @@
+name: Harness contract tests
+
+on:
+  push:
+    branches:
+      - agentic-harness-tabs
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: JavaScript syntax
+        run: |
+          node --check backend-patient-loader.js
+          node --check prechart-workspace.js
+          node --check scribe-review-ui.js
+          node --check workspace-review-ui.js
+          node --check activity-audit-ui.js
+          node --check patient-state.js
+      - name: Harness contracts
+        run: node scripts/harness-contract-tests.mjs
