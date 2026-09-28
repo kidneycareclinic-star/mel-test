@@ -45,6 +45,58 @@
       return "<div><span>"+esc(k)+"</span><strong>"+esc(context[k])+"</strong></div>";
     }).join("")+"</div>";
   }
+  function applyBackendPatient(payload){
+    if(!payload||!payload.patient) return;
+    var patient=payload.patient;
+    patient.backendSource={
+      type:"supabase-postgresql",
+      stateVersion:payload.stateVersion,
+      generatedAt:new Date().toISOString(),
+      engineVersion:"patient-state-reducer-v1"
+    };
+    var idx=window.PATIENTS.findIndex(function(x){return x.id===patient.id;});
+    if(idx>=0) window.PATIENTS[idx]=patient;
+    try{
+      if(currentPatient&&currentPatient.id===patient.id) renderPatient(patient,false);
+    }catch(_){}
+  }
+
+  async function decide(toolCallId,decision){
+    var patient=activePatient(), c=cfg();
+    if(!patient||!c) return;
+    var status=document.getElementById("workspaceReviewStatus");
+    var result=document.getElementById("workspaceReviewResult");
+    status.textContent=decision==="approved"?"approving":"rejecting";
+    try{
+      var res=await fetch(c.baseUrl+"/functions/v1/workspace-review",{
+        method:"POST",
+        headers:{
+          "Accept":"application/json",
+          "Content-Type":"application/json",
+          "Authorization":"Bearer "+c.anonJwt
+        },
+        cache:"no-store",
+        body:JSON.stringify({
+          patientId:patient.id,
+          mode:"decide",
+          toolCallId:toolCallId,
+          decision:decision
+        })
+      });
+      var payload=await res.json().catch(function(){return {};});
+      if(!res.ok) throw new Error(payload.error||("workspace decision HTTP "+res.status));
+      applyBackendPatient(payload);
+      status.textContent=payload.status;
+      result.innerHTML=
+        "<div class='workspace-review-decision'><strong>"+esc(payload.status==="executed"?"Approved and executed":"Rejected")+"</strong>"+
+        "<span>"+(payload.status==="executed"?"Open loop created · Patient State v"+esc(payload.stateVersion):"No Patient State change")+"</span></div>";
+      if(window.PATIENT_AUDIT_UI&&PATIENT_AUDIT_UI.refresh) PATIENT_AUDIT_UI.refresh();
+    }catch(error){
+      status.textContent="error";
+      result.innerHTML="<div class='micro workspace-review-error'>"+esc(error&&error.message?error.message:error)+"</div>";
+    }
+  }
+
   async function run(workspace){
     var panel=ensurePanel(), patient=activePatient(), c=cfg();
     if(!panel||!patient||!c) return;
@@ -66,11 +118,32 @@
       var payload=await res.json().catch(function(){return {};});
       if(!res.ok) throw new Error(payload.error||("workspace review HTTP "+res.status));
       status.textContent="recorded";
+      var actionHtml="";
+      if(payload.proposedAction){
+        actionHtml=
+          "<div class='workspace-review-proposal' data-tool='"+esc(payload.proposedAction.toolCallId)+"'>"+
+            "<div><span>PROPOSED ACTION</span><strong>"+esc(payload.proposedAction.label)+"</strong>"+
+            "<small>Low-risk internal tool · physician approval required</small></div>"+
+            "<div class='workspace-review-proposal-actions'>"+
+              "<button class='small-btn workspace-approve-btn' type='button'>Approve</button>"+
+              "<button class='small-btn workspace-reject-btn' type='button'>Reject</button>"+
+            "</div>"+
+          "</div>";
+      }
       result.innerHTML=
         "<div class='workspace-review-summary'><strong>"+esc(payload.workspace.toUpperCase())+" review</strong>"+
         "<span>"+esc(payload.summary)+"</span>"+
         "<small>Patient State v"+esc(payload.stateVersion)+" · run "+esc(String(payload.runId).slice(0,8))+"… · event "+esc(String(payload.eventId).slice(0,8))+"…</small></div>"+
-        prettyContext(payload.context);
+        prettyContext(payload.context)+actionHtml;
+      var proposal=result.querySelector(".workspace-review-proposal");
+      if(proposal){
+        proposal.querySelector(".workspace-approve-btn").addEventListener("click",function(){
+          decide(proposal.dataset.tool,"approved");
+        });
+        proposal.querySelector(".workspace-reject-btn").addEventListener("click",function(){
+          decide(proposal.dataset.tool,"rejected");
+        });
+      }
       if(window.PATIENT_AUDIT_UI&&PATIENT_AUDIT_UI.refresh) PATIENT_AUDIT_UI.refresh();
     }catch(error){
       status.textContent="error";
