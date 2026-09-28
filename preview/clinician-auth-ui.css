@@ -22,6 +22,9 @@ html.clinician-authenticated #clinicianSignIn { display: none; }
   font-weight: 700; background: #5ee6c4; color: #072431; cursor: pointer;
 }
 .clinician-signin-card button:disabled { opacity: .6; }
+.clinician-signin-card .clinician-secondary-btn {
+  margin-top: 10px; border: 1px solid #83a9be; background: transparent; color: #edf8ff;
+}
 #clinicianSignInStatus { min-height: 24px; color: #ffdc8e; }
 #clinicianSignOut { display: none; }
 html.clinician-authenticated #clinicianSignOut { display: inline-block; }

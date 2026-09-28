@@ -1,6 +1,7 @@
 /* Synthetic clinician sign-in. Tokens stay in memory and are cleared on reload. */
 (function () {
   var baseUrl = "https://excqvjpsmdxzhujsbkmz.supabase.co";
+  var previewUrl = "https://kidneycareclinic-star.github.io/mel-test/preview/";
   // Legacy anon JWT is a public API key only. Never use it as a clinician credential.
   var publicKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV4Y3F2anBzbWR4emh1anNia216Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA1NjE1NDAsImV4cCI6MjEwNjEzNzU0MH0.qjhZBxmU2odQ2U2eEISxZNrHQp4EUkqCsfcD5ZceE5U";
   var accessToken = null;
@@ -22,7 +23,7 @@
   // Supabase's implicit invitation redirect puts the temporary session in the
   // fragment. Remove it from browser history before handling the invitation.
   var fragment = new URLSearchParams(window.location.hash.replace(/^#/, ""));
-  if (fragment.get("type") === "invite" && fragment.get("access_token")) {
+  if (["invite", "recovery"].includes(fragment.get("type")) && fragment.get("access_token")) {
     invitationToken = fragment.get("access_token");
     window.history.replaceState(null, "", window.location.pathname + window.location.search);
     document.getElementById("clinicianSignInForm").hidden = true;
@@ -44,7 +45,24 @@
     invitationToken = null;
     document.getElementById("clinicianPasswordSetupForm").hidden = true;
     document.getElementById("clinicianSignInForm").hidden = false;
-    status("Password set. Your administrator must link this account to assigned synthetic patients before you can sign in.");
+    status("Password set. You can now sign in to your assigned synthetic patients.");
+  }
+
+  async function requestPasswordReset() {
+    var emailInput = document.getElementById("clinicianSignInForm").elements.email;
+    if (!emailInput.value.trim() || !emailInput.checkValidity()) {
+      status("Enter your clinician email address first.");
+      emailInput.focus();
+      return;
+    }
+    var response = await fetch(baseUrl + "/auth/v1/recover?redirect_to=" + encodeURIComponent(previewUrl), {
+      method: "POST",
+      headers: { "apikey": publicKey, "Content-Type": "application/json" },
+      body: JSON.stringify({ email: emailInput.value.trim() }),
+      cache: "no-store"
+    });
+    if (!response.ok) throw new Error("Could not send a password setup email. Check the project email settings.");
+    status("If that clinician email exists, a password setup link has been sent. Open the newest email.");
   }
 
   async function signIn(email, password) {
@@ -125,6 +143,13 @@
       form.elements.confirmation.value = "";
       button.disabled = false;
     }
+  });
+  document.getElementById("requestPasswordResetBtn").addEventListener("click", async function () {
+    var button = this;
+    button.disabled = true;
+    try { await requestPasswordReset(); }
+    catch (error) { status(error && error.message ? error.message : "Password setup unavailable."); }
+    finally { button.disabled = false; }
   });
   document.getElementById("clinicianSignOut").addEventListener("click", signOut);
 })();
