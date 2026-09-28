@@ -127,13 +127,15 @@
       }).then(async function(response) {
         var payload = await response.json().catch(function(){ return {}; });
         if (!response.ok) {
-          throw new Error(payload.error || ("Ambient scribe write HTTP " + response.status));
+          var writerSuffix = payload.writerVersion ? " [writer v" + payload.writerVersion + "]" : "";
+          throw new Error((payload.error || ("Ambient scribe write HTTP " + response.status)) + writerSuffix);
         }
         replacePatientFromBackend(patientId, payload);
+        var writerLabel = payload.writerVersion ? " · writer v" + payload.writerVersion : "";
         setRuntimeStatus(
           payload.inserted
-            ? "PostgreSQL saved " + payload.inserted + " structured observation" + (payload.inserted === 1 ? "" : "s") + " · state v" + payload.stateVersion
-            : "Structured observations already persisted · state v" + payload.stateVersion,
+            ? "PostgreSQL saved " + payload.inserted + " structured observation" + (payload.inserted === 1 ? "" : "s") + " · state v" + payload.stateVersion + writerLabel
+            : "Structured observations already persisted · state v" + payload.stateVersion + writerLabel,
           "ok"
         );
         return payload;
