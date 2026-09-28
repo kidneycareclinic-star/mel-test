@@ -1,6 +1,7 @@
 html:not(.clinician-authenticated) body > :not(#clinicianSignIn):not(script) { visibility: hidden; }
 html.clinician-authenticated #clinicianSignIn { display: none; }
 #clinicianSignIn[hidden] { display: none; }
+#clinicianPasswordSetupForm[hidden], #clinicianSignInForm[hidden] { display: none; }
 #clinicianSignIn {
   position: fixed; inset: 0; z-index: 9999; display: grid; place-items: center;
   background: #091e35; color: #edf8ff; padding: 20px; font: 16px/1.5 system-ui, sans-serif;
