@@ -15,6 +15,18 @@ const agents = fs.readFileSync("workspace-review-ui.js", "utf8");
 const prep = fs.readFileSync("workflow-prep-ui.js", "utf8");
 const data = fs.readFileSync("data.js", "utf8");
 
+// GitHub Pages serves /preview/ rather than the root app. Keep every gateway
+// entry point identical so the published preview enforces the same sign-in.
+for (const filename of [
+  "index.html", "clinician-auth-ui.js", "clinician-auth-ui.css",
+  "activity-audit-ui.js", "app.js", "backend-patient-loader.js",
+  "prechart-workspace.js", "scribe-review-ui.js", "workspace-review-ui.js",
+  "workflow-prep-ui.js"
+]) {
+  assert(fs.readFileSync(`preview/${filename}`, "utf8") === fs.readFileSync(filename, "utf8"),
+    `published preview ${filename} must match the protected app`);
+}
+
 assert(index.includes("scribe-review-ui.js"), "scribe review UI must be loaded");
 assert(index.includes("clinician-auth-ui.js"), "clinician sign-in UI must load before the census");
 assert(index.indexOf("clinician-auth-ui.js") < index.indexOf("backend-patient-loader.js"), "sign-in must load before the census loader");
