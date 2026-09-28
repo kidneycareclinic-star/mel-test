@@ -8,6 +8,7 @@
 <link rel="stylesheet" href="census-status.css?v=active-focus-2-20260927" />
 <link rel="stylesheet" href="prechart-workspace.css?v=reviewed-scribe-focus-2-20260927" />
 <link rel="stylesheet" href="activity-audit-ui.css?v=activity-audit-2-20260927" />
+<link rel="stylesheet" href="scribe-review-ui.css?v=scribe-review-v1-20260928" />
 </head>
 <body>
   <header class="topbar">
@@ -257,7 +258,7 @@
               <div class="prechart-section-head">
                 <div>
                   <h3>Structured scribe extraction</h3>
-                  <div class="micro">Synthetic mode auto-applies recognized discrete values to Patient State with ambient-scribe provenance</div>
+                  <div class="micro">Recognized discrete values are PROPOSED first; physician review is required before canonical Patient State changes</div>
                 </div>
                 <span id="scribeExtractionCount" class="chip">0 extracted</span>
               </div>
@@ -396,7 +397,8 @@
   <script src="app.js?v=supabase-pt001-20260927"></script>
   <script src="lab-trends-ui.js?v=append-dated-points-20260927"></script>
   <script src="kidney-protection-ui.js?v=ckd-protection-timeline-20260926"></script>
-  <script src="prechart-workspace.js?v=ambient-writer-v7-20260928"></script>
+  <script src="prechart-workspace.js?v=scribe-proposal-writer-v8-20260928"></script>
+  <script src="scribe-review-ui.js?v=scribe-review-v1-20260928"></script>
   <script src="activity-audit-ui.js?v=activity-audit-2-20260927"></script>
   <script src="mobile-ui.js?v=iphone-nav-20260926"></script>
 </body>
