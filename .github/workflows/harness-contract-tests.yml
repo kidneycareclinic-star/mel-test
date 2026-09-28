@@ -25,6 +25,7 @@ jobs:
           node --check prechart-workspace.js
           node --check scribe-review-ui.js
           node --check workspace-review-ui.js
+          node --check workflow-prep-ui.js
           node --check activity-audit-ui.js
           node --check patient-state.js
       - name: Harness contracts
