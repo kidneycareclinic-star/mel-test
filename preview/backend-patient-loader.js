@@ -34,8 +34,6 @@
         return patient.id === "PT-001";
       });
 
-      if (index < 0) throw new Error("PT-001 browser fixture not found");
-
       payload.patient.backendSource = {
         type: "supabase-postgresql",
         stateVersion: payload.stateVersion,
@@ -43,14 +41,15 @@
         engineVersion: payload.engineVersion
       };
 
-      window.PATIENTS[index] = payload.patient;
+      if (index >= 0) window.PATIENTS[index] = payload.patient;
+      else window.PATIENTS.unshift(payload.patient);
       window.BACKEND_PATIENT = payload.patient;
       window.BACKEND_PATIENT_PAYLOAD = payload;
       setStatus("PostgreSQL · PT-001", "chip-agent");
       return payload.patient;
     })
     .catch(function (error) {
-      console.warn("PT-001 backend load failed; using browser fixture.", error);
+      console.warn("PT-001 backend load failed; backend-owned patient will be unavailable.", error);
       window.BACKEND_PATIENT_ERROR = String(error && error.message ? error.message : error);
       setStatus("backend fallback", "chip-warn");
       return null;
