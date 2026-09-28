@@ -10,6 +10,7 @@ const prechart = fs.readFileSync("prechart-workspace.js", "utf8");
 const loader = fs.readFileSync("backend-patient-loader.js", "utf8");
 const review = fs.readFileSync("scribe-review-ui.js", "utf8");
 const agents = fs.readFileSync("workspace-review-ui.js", "utf8");
+const prep = fs.readFileSync("workflow-prep-ui.js", "utf8");
 const data = fs.readFileSync("data.js", "utf8");
 
 assert(index.includes("scribe-review-ui.js"), "scribe review UI must be loaded");
@@ -31,6 +32,9 @@ assert(agents.includes("/functions/v1/workspace-review"), "workspace review endp
 assert(agents.includes("CKD review"), "CKD review UI missing");
 assert(agents.includes("Dialysis review"), "dialysis review UI missing");
 assert(agents.includes("Hospital review"), "hospital review UI missing");
+assert(prep.includes("prepare_followup_lab_order"), "lab preparation workflow missing");
+assert(prep.includes("prepare_followup_appointment"), "appointment preparation workflow missing");
+assert(prep.includes("external execution disabled"), "preparation workflow must declare no external execution");
 
 assert(loader.includes("/functions/v1/synthetic-census"), "PostgreSQL census loader missing");
 assert(!loader.includes("service_role"), "frontend must never expose service-role credentials");
