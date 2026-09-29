@@ -63,9 +63,11 @@
   }
 
   function scribeRecordId(patient, field, value, sourceText, observedDate) {
+    var encounterId = window.ENCOUNTER_WORKFLOW_UI && ENCOUNTER_WORKFLOW_UI.currentId(patient.id);
     return [
       "scribe",
       patient.id,
+      encounterId || "unsaved",
       observedDate,
       field,
       stableHash(JSON.stringify(value) + "|" + String(sourceText || "").toLowerCase())
@@ -105,6 +107,12 @@
       return Promise.resolve(null);
     }
 
+    var encounterId = window.ENCOUNTER_WORKFLOW_UI && ENCOUNTER_WORKFLOW_UI.currentId(patient.id);
+    if (!encounterId) {
+      setRuntimeStatus("Save an encounter draft before submitting proposed observations.", "warn");
+      return Promise.resolve(null);
+    }
+
     var patientId = patient.id;
     var endpoint = cfg.baseUrl + "/functions/v1/ambient-scribe-write-gated";
     setRuntimeStatus("Sending structured observations for physician review…", "warn");
@@ -120,6 +128,7 @@
         cache:"no-store",
         body:JSON.stringify({
           patientId:patientId,
+          encounterId:encounterId,
           records:records,
           rawTranscript:rawTranscript || "",
           reviewedTranscript:reviewedTranscript || ""
@@ -1394,6 +1403,23 @@
   window.PRECHART_WORKSPACE_API = {
     open: openWorkspace,
     refresh: renderWorkspace,
+    hydrateEncounterDraft: function (patientId, draft) {
+      if (!draft || !Array.isArray(draft.sources)) return false;
+      var state = getState(patientId);
+      // Preserve unsaved local edits; a remote draft can be loaded into a fresh workspace.
+      if (state.note.trim() || state.sources.some(function (s) { return s.kind !== "lab-trend"; })) return false;
+      state.note = String(draft.note_text || "");
+      state.sources = draft.sources.map(function (source) {
+        return {
+          id:newId("saved"), kind:source.kind, title:source.title, text:source.text || "",
+          rawText:source.rawText || "", file:source.file ? Object.assign({label:"FILE"},source.file) : null,
+          status:source.kind === "attachment" ? "attached" : "ready",
+          provenance:"Saved synthetic encounter", createdAt:new Date().toISOString()
+        };
+      });
+      if (activePatientId() === patientId) renderWorkspace();
+      return true;
+    },
     getPatientState: function (patientId) {
       var state = patientStore.get(patientId);
       return state ? JSON.parse(JSON.stringify({

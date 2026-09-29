@@ -21,7 +21,7 @@ for (const filename of [
   "index.html", "clinician-auth-ui.js", "clinician-auth-ui.css",
   "activity-audit-ui.js", "app.js", "backend-patient-loader.js",
   "prechart-workspace.js", "scribe-review-ui.js", "workspace-review-ui.js",
-  "workflow-prep-ui.js"
+  "workflow-prep-ui.js", "encounter-workflow-ui.js", "encounter-workflow-ui.css"
 ]) {
   assert(fs.readFileSync(`preview/${filename}`, "utf8") === fs.readFileSync(filename, "utf8"),
     `published preview ${filename} must match the protected app`);
@@ -29,6 +29,8 @@ for (const filename of [
 
 assert(index.includes("scribe-review-ui.js"), "scribe review UI must be loaded");
 assert(index.includes("clinician-auth-ui.js"), "clinician sign-in UI must load before the census");
+assert(index.includes("encounter-workflow-ui.js"), "encounter review controls must load");
+assert(index.includes("encounter-workflow-ui.css"), "encounter review controls need styling");
 assert(index.indexOf("clinician-auth-ui.js") < index.indexOf("backend-patient-loader.js"), "sign-in must load before the census loader");
 assert(loader.includes("CLINICIAN_AUTH.ready"), "census loading must wait for sign-in");
 assert(app.includes("CLINICIAN_AUTH.isSignedIn()"), "workspace rendering must require a clinician session");
@@ -57,6 +59,8 @@ assert(prep.includes("prepare_followup_appointment"), "appointment preparation w
 assert(prep.includes("external execution disabled"), "preparation workflow must declare no external execution");
 
 assert(loader.includes("/functions/v1/synthetic-census"), "PostgreSQL census loader missing");
+assert(prechart.includes("encounterId:encounterId"), "scribe proposals must link to a saved encounter");
+assert(review.includes("encounter_id="), "scribe review must filter by encounter");
 assert(!loader.includes("service_role"), "frontend must never expose service-role credentials");
 
 const sandbox = { console, structuredClone, window: null };

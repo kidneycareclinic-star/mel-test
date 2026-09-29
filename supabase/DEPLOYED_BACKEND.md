@@ -175,10 +175,11 @@ The reducer currently refreshes:
 | `patient-activity-audit` | 2 | event/provenance/agent/tool/approval/open-loop audit |
 | `synthetic-patient` | 2 | retired legacy endpoint; HTTP 410 |
 | `synthetic-census-gated` | 2 | authenticated assigned-patient census (staged) |
-| `ambient-scribe-write-gated` | 2 | authenticated observation proposals (staged) |
-| `scribe-review-gated` | 2 | authenticated physician review (staged) |
+| `ambient-scribe-write-gated` | 3 | authenticated encounter-linked observation proposals (staged) |
+| `scribe-review-gated` | 3 | authenticated physician review (staged) |
 | `workspace-review-gated` | 2 | authenticated agent/approval flow (staged) |
-| `patient-activity-audit-gated` | 2 | authenticated audit read (staged) |
+| `patient-activity-audit-gated` | 3 | authenticated audit read including encounter note provenance (staged) |
+| `synthetic-encounter-gated` | 2 | authenticated encounter draft and physician signing (staged) |
 
 ## Frontend workflow modules
 
@@ -215,6 +216,15 @@ clinician Auth account is linked to its synthetic assignment, and the published
 the gated functions. See `docs/clinician-gateway-cutover.md` for activation and
 legacy-route retirement. The existing demo endpoints remain active until the cutover
 is verified.
+
+### Synthetic encounter staging (2026-09-29)
+
+The private `ehr.synthetic_encounter` table, encounter-linked scribe proposals,
+versioned draft events, physician signing event, and note/source provenance are
+deployed in the synthetic development project. The protected writer, review, and
+activity audit functions support the flow. See `docs/synthetic-encounter-workflow.md`.
+The clinician browser preview still needs to publish its encounter UI; no signed-in
+browser encounter test has yet been recorded.
 
 
 1. Move from static GitHub Pages + Edge Functions to FastAPI service boundary.

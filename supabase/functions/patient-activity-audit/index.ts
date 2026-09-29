@@ -231,6 +231,11 @@ Deno.serve(async (req: Request) => {
         status: row.status,
         createdAt: row.created_at,
         payload: row.payload || {},
+        encounter: ["ENCOUNTER_DRAFT_SAVED","ENCOUNTER_SIGNED"].includes(row.event_type) ? {
+          noteText: typeof rawPayload.noteText === "string" ? rawPayload.noteText : null,
+          sourceCount: Array.isArray(rawPayload.sources) ? rawPayload.sources.length : 0,
+          stateVersion: row.payload?.stateVersion || null
+        } : null,
         heard: {
           rawTranscript: rawPayload.rawTranscript || null,
           reviewedTranscript: rawPayload.reviewedTranscript || null

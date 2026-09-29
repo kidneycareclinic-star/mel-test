@@ -3,7 +3,7 @@ import fs from "node:fs";
 import vm from "node:vm";
 import { stripTypeScriptTypes } from "node:module";
 
-const names = ["synthetic-census", "ambient-scribe-write", "scribe-review", "workspace-review", "patient-activity-audit"];
+const names = ["synthetic-census", "ambient-scribe-write", "scribe-review", "workspace-review", "patient-activity-audit", "synthetic-encounter"];
 const shared = fs.readFileSync("supabase/functions/_shared/clinician-auth.ts", "utf8");
 for (const name of names) {
   assert.equal(fs.readFileSync(`supabase/functions/${name}/clinician-auth.ts`, "utf8"), shared);

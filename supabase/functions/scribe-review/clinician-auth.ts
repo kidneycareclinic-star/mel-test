@@ -14,7 +14,7 @@ export type Clinician = { id: string; externalId: string; role?: string };
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const workspaceNames = new Set(["office", "hospital", "dialysis"]);
-const actions = new Set(["patient.read", "scribe.review", "agent.review", "tool.prepare", "tool.approve.low"]);
+const actions = new Set(["patient.read", "scribe.review", "agent.review", "tool.prepare", "tool.approve.low", "encounter.draft", "encounter.sign"]);
 
 export async function clinician(req: Request, conn: Conn): Promise<Clinician> {
   const header = req.headers.get("authorization") || "";

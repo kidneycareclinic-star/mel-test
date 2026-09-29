@@ -4,7 +4,7 @@ import { clinician, patientAccess, authFailure } from "./clinician-auth.ts";
 const dbUrl = Deno.env.get("SUPABASE_DB_URL");
 if (!dbUrl) throw new Error("SUPABASE_DB_URL is not configured");
 const sql = postgres(dbUrl, { prepare:false, max:1 });
-const WRITER_VERSION = "9-clinician-gated";
+const WRITER_VERSION = "10-encounter-linked";
 const LAB_FIELDS = new Set(["eGFR","UACR","UPCR","Potassium","Phosphate","Bicarbonate","Hemoglobin","Creatinine"]);
 const VITAL_FIELDS = new Set(["bloodPressure","heartRate","weight","temperature","oxygenSaturation"]);
 
@@ -22,7 +22,11 @@ function response(body:unknown,status=200,origin:string|null=null){
   h.set("Access-Control-Allow-Headers","authorization, apikey, content-type");
   return new Response(JSON.stringify(body),{status,headers:h});
 }
-function num(v:unknown,name:string){const n=Number(v);if(!Number.isFinite(n)) throw new Error("invalid numeric value for "+name);return n;}
+function num(v:unknown,name:string){
+  if((typeof v!=="number"&&typeof v!=="string") || (typeof v==="string"&&!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/.test(v.trim()))) throw new Error("invalid numeric value for "+name);
+  const n=Number(v);if(!Number.isFinite(n)) throw new Error("invalid numeric value for "+name);return n;
+}
+function uuid(v:unknown){return typeof v==="string"&&/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);}
 function dateOnly(v:unknown){const s=String(v||"");if(!/^\d{4}-\d{2}-\d{2}$/.test(s)) throw new Error("invalid observedDate");return s;}
 
 Deno.serve(async(req:Request)=>{
@@ -33,9 +37,10 @@ Deno.serve(async(req:Request)=>{
   const body=await req.json().catch(()=>null);
   const patientExternalId=String(body?.patientId||"");
   const records=Array.isArray(body?.records)?body.records:[];
+  const encounterId=body?.encounterId==null?null:body.encounterId;
   const rawTranscript=String(body?.rawTranscript||"");
   const reviewedTranscript=String(body?.reviewedTranscript||"");
-  if(!/^PT-\d{3}$/.test(patientExternalId)||!records.length||records.length>20) return response({writerVersion:WRITER_VERSION,error:"invalid_payload"},400,origin);
+  if(!/^PT-\d{3}$/.test(patientExternalId)||!records.length||records.length>20||(encounterId!==null&&!uuid(encounterId))||rawTranscript.length>20000||reviewedTranscript.length>20000) return response({writerVersion:WRITER_VERSION,error:"invalid_payload"},400,origin);
   try{
     const person=await clinician(req,sql);
     await patientAccess(sql,person,patientExternalId,"office","scribe.review");
@@ -43,6 +48,10 @@ Deno.serve(async(req:Request)=>{
       const p=await tx.unsafe("select id,synthetic from ehr.patient where external_id=$1 limit 1",[patientExternalId]);
       if(!p.length||p[0].synthetic!==true) throw new Error("synthetic_patient_not_found");
       const patientId=p[0].id;
+      if(encounterId){
+        const encounter=await tx.unsafe("select id from ehr.synthetic_encounter where id=$1::uuid and patient_id=$2::uuid and clinician_principal_id=$3::uuid and status='draft' for update",[encounterId,patientId,person.id]);
+        if(!encounter.length) throw new Error("encounter_draft_not_found");
+      }
       const prov=await tx.unsafe([
         "insert into ehr.provenance(patient_id,source_kind,source_label,source_system,observed_at,actor_type,confidence,certainty,raw_payload)",
         "values($1,'ambient-scribe-extraction','Ambient scribe · proposed structured data','mel-test',now(),'ambient_scribe',1.0,'proposed',",
@@ -77,11 +86,11 @@ Deno.serve(async(req:Request)=>{
         if(existing.length){proposals.push({id:existing[0].id,clientRecordId:id,status:existing[0].status,duplicate:true});continue;}
         const valueExpr=jsonKind==="bp" ? "jsonb_build_object('systolic',$5::numeric,'diastolic',$6::numeric)" : jsonKind==="weight" ? "jsonb_build_object('amount',$5::numeric,'reportedUnit',$7::text)" : "null::jsonb";
         const q=[
-          "insert into ehr.proposed_observation(patient_id,provenance_id,source_event_id,client_record_id,field,display_label,observation_type,value_numeric,value_json,unit,source_text,observed_at,confidence,certainty,status,metadata)",
-          "values($1,$2,$3,$4,$8,$9,$10,$11,"+valueExpr+",$12,$13,$14::timestamptz,'deterministic-normalized','proposed','pending',jsonb_build_object('writerVersion',$15::text))",
+          "insert into ehr.proposed_observation(patient_id,provenance_id,source_event_id,client_record_id,field,display_label,observation_type,value_numeric,value_json,unit,source_text,observed_at,confidence,certainty,status,metadata,encounter_id)",
+          "values($1,$2,$3,$4,$8,$9,$10,$11,"+valueExpr+",$12,$13,$14::timestamptz,'deterministic-normalized','proposed','pending',jsonb_build_object('writerVersion',$15::text),$16::uuid)",
           "returning id,client_record_id,field,display_label,observation_type,value_numeric,value_json,unit,source_text,observed_at,status"
         ].join(" ");
-        const rows=await tx.unsafe(q,[patientId,provenanceId,eventId,id,jsonA,jsonB,jsonUnit,field,String(input.displayLabel||field),type,numericValue,String(input.unit||""),String(input.sourceText||""),observedAt,WRITER_VERSION]);
+        const rows=await tx.unsafe(q,[patientId,provenanceId,eventId,id,jsonA,jsonB,jsonUnit,field,String(input.displayLabel||field),type,numericValue,String(input.unit||""),String(input.sourceText||""),observedAt,WRITER_VERSION,encounterId]);
         proposals.push(rows[0]);
       }
       return {provenanceId,eventId,proposals};
