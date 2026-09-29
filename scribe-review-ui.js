@@ -36,11 +36,13 @@
   }
   function endpoint(patientId){
     var c=cfg();
-    return c ? c.baseUrl+"/functions/v1/scribe-review?patient_id="+encodeURIComponent(patientId) : null;
+    var encounterId=window.ENCOUNTER_WORKFLOW_UI && ENCOUNTER_WORKFLOW_UI.currentId(patientId);
+    return c ? c.baseUrl+"/functions/v1/scribe-review-gated?patient_id="+encodeURIComponent(patientId)+
+      (encounterId?"&encounter_id="+encodeURIComponent(encounterId):"") : null;
   }
   async function api(method,patientId,body){
     var c=cfg(); if(!c) throw new Error("backend configuration unavailable");
-    var res=await fetch(method==="GET"?endpoint(patientId):c.baseUrl+"/functions/v1/scribe-review",{
+    var res=await fetch(method==="GET"?endpoint(patientId):c.baseUrl+"/functions/v1/scribe-review-gated",{
       method:method,
       headers:{
         "Accept":"application/json",
@@ -150,10 +152,12 @@
     var status=document.getElementById("voiceRuntimeStatus");
     if(status){status.textContent="Applying physician review decisions…";status.className="voice-runtime-status is-listening";}
     try{
-      var payload=await api("POST",patient.id,{patientId:patient.id,decisions:decisions});
+      var encounterId=window.ENCOUNTER_WORKFLOW_UI && ENCOUNTER_WORKFLOW_UI.currentId(patient.id);
+      var payload=await api("POST",patient.id,{patientId:patient.id,encounterId:encounterId||null,decisions:decisions});
       applyBackendPatient(payload);
       if(status){status.textContent="Review applied · "+payload.canonicalInserted+" canonical observation"+(payload.canonicalInserted===1?"":"s")+" · Patient State v"+payload.stateVersion;status.className="voice-runtime-status is-ready";}
       if(activePatient() && activePatient().id===patient.id) render({proposals:payload.pending||[]});
+      if(window.ENCOUNTER_WORKFLOW_UI && ENCOUNTER_WORKFLOW_UI.refresh) ENCOUNTER_WORKFLOW_UI.refresh();
     }catch(error){
       if(status){status.textContent="Scribe review failed: "+(error&&error.message?error.message:error);status.className="voice-runtime-status is-error";}
       await refresh();

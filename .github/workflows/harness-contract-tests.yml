@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - agentic-harness-tabs
+      - clinician-gateway-cutover
   pull_request:
     branches:
       - main
@@ -22,8 +23,10 @@ jobs:
       - name: JavaScript syntax
         run: |
           node --check backend-patient-loader.js
+          node --check clinician-auth-ui.js
           node --check prechart-workspace.js
           node --check scribe-review-ui.js
+          node --check encounter-workflow-ui.js
           node --check workspace-review-ui.js
           node --check workflow-prep-ui.js
           node --check activity-audit-ui.js
@@ -32,3 +35,9 @@ jobs:
         run: node scripts/harness-contract-tests.mjs
       - name: Scribe review safety
         run: node scripts/scribe-review-safety-tests.mjs
+      - name: Synthetic encounter review safety
+        run: node scripts/encounter-workflow-tests.mjs
+      - name: Clinician access safety
+        run: node scripts/clinician-auth-tests.mjs
+      - name: Clinician sign-in UI
+        run: node scripts/clinician-auth-ui-tests.mjs

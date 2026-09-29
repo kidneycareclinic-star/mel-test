@@ -1,8 +1,9 @@
 import postgres from "npm:postgres@3.4.7";
+import { clinician, patientAccess, authFailure, AccessError } from "./clinician-auth.ts";
 const dbUrl=Deno.env.get("SUPABASE_DB_URL");
 if(!dbUrl) throw new Error("SUPABASE_DB_URL is not configured");
 const sql=postgres(dbUrl,{prepare:false,max:1});
-const API_VERSION="workspace-review-v4";
+const API_VERSION="workspace-review-v5-clinician-gated";
 
 function allowed(origin:string|null){
   if(!origin) return null;
@@ -35,6 +36,27 @@ Deno.serve(async(req:Request)=>{
   }
 
   try{
+    const person=await clinician(req,sql);
+    if(mode==="decide"){
+      const toolCallId=String(body?.toolCallId||"");
+      if(!/^[0-9a-f-]{36}$/i.test(toolCallId))throw new AccessError(400,"invalid_tool_call");
+      const proposed=await sql.unsafe([
+        "select tc.tool_name,tc.risk_level,tc.input from ehr.tool_call tc",
+        "join ehr.patient p on p.id=tc.patient_id where tc.id=$1::uuid",
+        "and p.external_id=$2 and p.active=true and p.synthetic=true and tc.status='awaiting_approval' limit 1"
+      ].join(" "),[toolCallId,externalId]);
+      if(!proposed.length)throw new AccessError(403,"tool_call_not_available");
+      const risk=String(proposed[0].risk_level);
+      if(!["low","moderate"].includes(risk))throw new AccessError(403,"risk_not_enabled");
+      const tool=String(proposed[0].tool_name);
+      if(!["create_open_loop","prepare_followup_lab_order","prepare_followup_appointment"].includes(tool))throw new AccessError(403,"tool_not_enabled");
+      const assignedWorkspace=tool==="create_open_loop"?String(proposed[0].input?.workspace||"office"):"office";
+      await patientAccess(sql,person,externalId,assignedWorkspace,
+        risk==="low"?"tool.approve.low":"tool.prepare");
+    }else{
+      const assignedWorkspace=mode==="prepare"?"office":workspace==="ckd"?"office":workspace;
+      await patientAccess(sql,person,externalId,assignedWorkspace,mode==="prepare"?"tool.prepare":"agent.review");
+    }
     const result=await sql.begin(async(tx:any)=>{
       const p=await tx.unsafe("select id,display_name,synthetic from ehr.patient where external_id=$1 limit 1",[externalId]);
       if(!p.length||p[0].synthetic!==true) throw new Error("synthetic_patient_not_found");
@@ -63,8 +85,8 @@ Deno.serve(async(req:Request)=>{
         if(!registry.length||registry[0].enabled!==true) throw new Error("tool_not_available");
 
         const ev=await tx.unsafe(
-          "insert into ehr.event(patient_id,event_type,actor_type,source,status,payload) values($1,'TOOL_ACTION_PREPARED','physician','workflow-preparation','proposed',jsonb_build_object('toolName',$2::text,'summary',$3::text,'externalExecution',false)) returning id",
-          [patientId,toolName,summary]
+          "insert into ehr.event(patient_id,event_type,actor_type,actor_id,source,status,payload) values($1,'TOOL_ACTION_PREPARED','physician',$4,'workflow-preparation','proposed',jsonb_build_object('toolName',$2::text,'summary',$3::text,'externalExecution',false)) returning id",
+          [patientId,toolName,summary,person.externalId]
         );
 
         const tool=await tx.unsafe(
@@ -108,13 +130,13 @@ Deno.serve(async(req:Request)=>{
         const tc=rows[0];
 
         const decisionEvent=await tx.unsafe(
-          "insert into ehr.event(patient_id,event_type,actor_type,source,status,payload) values($1,$2,'physician','workspace-review','recorded',jsonb_build_object('toolCallId',$3::text,'decision',$4::text)) returning id",
-          [patientId,decision==="approved"?"PHYSICIAN_APPROVAL_GRANTED":"PHYSICIAN_APPROVAL_REJECTED",toolCallId,decision]
+          "insert into ehr.event(patient_id,event_type,actor_type,actor_id,source,status,payload) values($1,$2,'physician',$5,'workspace-review','recorded',jsonb_build_object('toolCallId',$3::text,'decision',$4::text)) returning id",
+          [patientId,decision==="approved"?"PHYSICIAN_APPROVAL_GRANTED":"PHYSICIAN_APPROVAL_REJECTED",toolCallId,decision,person.externalId]
         );
 
         await tx.unsafe(
-          "insert into ehr.approval(patient_id,tool_call_id,decision,decided_by_type,decided_by_id,event_id) values($1,$2::uuid,$3,'physician','synthetic-demo-physician',$4)",
-          [patientId,toolCallId,decision,decisionEvent[0].id]
+          "insert into ehr.approval(patient_id,tool_call_id,decision,decided_by_type,decided_by_id,event_id) values($1,$2::uuid,$3,'physician',$5,$4)",
+          [patientId,toolCallId,decision,decisionEvent[0].id,person.externalId]
         );
 
         if(decision==="rejected"){
@@ -237,6 +259,7 @@ Deno.serve(async(req:Request)=>{
 
     return reply({apiVersion:API_VERSION,...result},200,origin);
   }catch(error){
-    return reply({apiVersion:API_VERSION,error:String(error?.message||error)},400,origin);
+    const denied=authFailure(error);
+    return reply({apiVersion:API_VERSION,error:denied?.code||String(error?.message||error)},denied?.status||400,origin);
   }
 });

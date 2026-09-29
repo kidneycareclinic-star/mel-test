@@ -1,9 +1,10 @@
 import postgres from "npm:postgres@3.4.7";
+import { clinician, patientAccess, authFailure } from "./clinician-auth.ts";
 
 const dbUrl=Deno.env.get("SUPABASE_DB_URL");
 if(!dbUrl) throw new Error("SUPABASE_DB_URL is not configured");
 const sql=postgres(dbUrl,{prepare:false,max:1});
-const API_VERSION="scribe-review-v2";
+const API_VERSION="scribe-review-v4-encounter-linked";
 
 function originAllowed(origin:string|null){if(!origin)return null;if(origin==="https://kidneycareclinic-star.github.io")return origin;if(/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin))return origin;return null;}
 function response(body:unknown,status=200,origin:string|null=null){const h=new Headers({"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store"});const a=originAllowed(origin);if(a){h.set("Access-Control-Allow-Origin",a);h.set("Vary","Origin");}h.set("Access-Control-Allow-Methods","GET, POST, OPTIONS");h.set("Access-Control-Allow-Headers","authorization, apikey, content-type");return new Response(JSON.stringify(body),{status,headers:h});}
@@ -18,10 +19,10 @@ function num(v:unknown,name:string){
 function uuid(v:unknown){return typeof v==="string"&&/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);}
 
 async function patientRow(tx:any,externalId:string){const rows=await tx.unsafe("select id,synthetic from ehr.patient where external_id=$1 limit 1",[externalId]);if(!rows.length||rows[0].synthetic!==true)throw new Error("synthetic_patient_not_found");return rows[0];}
-async function listPending(conn:any,patientId:string){return await conn.unsafe([
+async function listPending(conn:any,patientId:string,encounterId:string|null=null){return await conn.unsafe([
   "select id,client_record_id,field,display_label,observation_type,value_numeric,value_json,unit,source_text,observed_at,confidence,certainty,status,created_at",
-  "from ehr.proposed_observation where patient_id=$1 and status='pending' order by created_at,id"
-].join(" "),[patientId]);}
+  "from ehr.proposed_observation where patient_id=$1 and status='pending' and ($2::uuid is null or encounter_id=$2::uuid) order by created_at,id"
+].join(" "),[patientId,encounterId]);}
 
 Deno.serve(async(req:Request)=>{
   const origin=req.headers.get("origin");
@@ -29,19 +30,28 @@ Deno.serve(async(req:Request)=>{
   if(req.method==="OPTIONS")return response({apiVersion:API_VERSION,ok:true},200,origin);
   const url=new URL(req.url);
   const externalId=String(url.searchParams.get("patient_id")||"");
+  const queryEncounterId=url.searchParams.get("encounter_id");
   try{
     if(req.method==="GET"){
       if(!/^PT-\d{3}$/.test(externalId))return response({apiVersion:API_VERSION,error:"invalid_patient"},400,origin);
+      if(queryEncounterId!==null&&!uuid(queryEncounterId))return response({apiVersion:API_VERSION,error:"invalid_encounter"},400,origin);
+      const person=await clinician(req,sql);
+      await patientAccess(sql,person,externalId,"office","scribe.review");
       const p=await patientRow(sql,externalId);
-      const proposals=await listPending(sql,p.id);
+      if(queryEncounterId){
+        const e=await sql.unsafe("select id from ehr.synthetic_encounter where id=$1::uuid and patient_id=$2::uuid and clinician_principal_id=$3::uuid and status='draft'",[queryEncounterId,p.id,person.id]);
+        if(!e.length)return response({apiVersion:API_VERSION,error:"encounter_draft_not_found"},404,origin);
+      }
+      const proposals=await listPending(sql,p.id,queryEncounterId);
       const sv=await sql.unsafe("select state_version,engine_version from ehr.patient_state where patient_id=$1 order by state_version desc limit 1",[p.id]);
       return response({apiVersion:API_VERSION,patientId:externalId,pending:proposals.length,proposals,stateVersion:sv[0]?.state_version?Number(sv[0].state_version):null,engineVersion:sv[0]?.engine_version||null},200,origin);
     }
     if(req.method!=="POST")return response({apiVersion:API_VERSION,error:"method_not_allowed"},405,origin);
     const body=await req.json().catch(()=>null);
     const patientExternalId=String(body?.patientId||"");
+    const encounterId=body?.encounterId==null?null:body.encounterId;
     const decisions=Array.isArray(body?.decisions)?body.decisions:[];
-    if(!/^PT-\d{3}$/.test(patientExternalId)||!decisions.length||decisions.length>30)return response({apiVersion:API_VERSION,error:"invalid_payload"},400,origin);
+    if(!/^PT-\d{3}$/.test(patientExternalId)||!decisions.length||decisions.length>30||(encounterId!==null&&!uuid(encounterId)))return response({apiVersion:API_VERSION,error:"invalid_payload"},400,origin);
     const rawIds=decisions.map((d:any)=>d?.proposalId);
     if(rawIds.some((id:unknown)=>!uuid(id))){
       return response({apiVersion:API_VERSION,error:"invalid_or_duplicate_proposal_id"},400,origin);
@@ -53,9 +63,15 @@ Deno.serve(async(req:Request)=>{
     if(decisions.some((d:any)=>!["accepted","edited","rejected"].includes(d?.decision))){
       return response({apiVersion:API_VERSION,error:"invalid_decision"},400,origin);
     }
+    const person=await clinician(req,sql);
+    await patientAccess(sql,person,patientExternalId,"office","scribe.review");
     const result=await sql.begin(async(tx:any)=>{
       const p=await patientRow(tx,patientExternalId);
       const patientId=p.id;
+      if(encounterId){
+        const e=await tx.unsafe("select id from ehr.synthetic_encounter where id=$1::uuid and patient_id=$2::uuid and clinician_principal_id=$3::uuid and status='draft' for update",[encounterId,patientId,person.id]);
+        if(!e.length)throw new Error("encounter_draft_not_found");
+      }
       // Lock every requested proposal before recording an event. A stale batch fails atomically.
       const placeholders=ids.map((_:string,i:number)=>"$"+(i+2)+"::uuid").join(",");
       const locked=await tx.unsafe([
@@ -63,7 +79,7 @@ Deno.serve(async(req:Request)=>{
         "where patient_id=$1 and id in ("+placeholders+") order by id for update"
       ].join(" "),[patientId,...ids]);
       const proposals=new Map(locked.map((row:any)=>[String(row.id),row]));
-      if(locked.length!==ids.length||locked.some((row:any)=>row.status!=="pending"))throw new Error("review_queue_changed_refresh_and_retry");
+      if(locked.length!==ids.length||locked.some((row:any)=>row.status!=="pending"||(encounterId&&String(row.encounter_id)!==encounterId)))throw new Error("review_queue_changed_refresh_and_retry");
       // Check edits before inserting the decision event, so a rejected batch leaves no trace.
       const checked=new Map<string,{valueNumeric:number|null,valueJson:any}>();
       for(const d of decisions){
@@ -79,10 +95,10 @@ Deno.serve(async(req:Request)=>{
       const acceptedDecisions=decisions.filter((d:any)=>["accepted","edited"].includes(String(d?.decision||"")));
       const rejectedDecisions=decisions.filter((d:any)=>String(d?.decision||"")==="rejected");
       const ev=await tx.unsafe([
-        "insert into ehr.event(patient_id,event_type,actor_type,source,status,payload)",
-        "values($1,'SCRIBE_REVIEW_DECIDED','physician','scribe-review','recorded',",
-        "jsonb_build_object('acceptedCount',$2::int,'rejectedCount',$3::int,'apiVersion',$4::text)) returning id"
-      ].join(" "),[patientId,acceptedDecisions.length,rejectedDecisions.length,API_VERSION]);
+        "insert into ehr.event(patient_id,event_type,actor_type,actor_id,source,status,payload)",
+        "values($1,'SCRIBE_REVIEW_DECIDED','physician',$5,'scribe-review','recorded',",
+        "jsonb_build_object('acceptedCount',$2::int,'rejectedCount',$3::int,'apiVersion',$4::text,'encounterId',$6::uuid)) returning id"
+      ].join(" "),[patientId,acceptedDecisions.length,rejectedDecisions.length,API_VERSION,person.externalId,encounterId]);
       const eventId=ev[0].id;
       let canonicalInserted=0;
       const outcomes:any[]=[];
@@ -92,9 +108,9 @@ Deno.serve(async(req:Request)=>{
         const po:any=proposals.get(proposalId.toLowerCase());
         if(decision==="rejected"){
           await tx.unsafe([
-            "update ehr.proposed_observation set status='rejected',decision_event_id=$2,reviewed_by_type='physician',reviewed_by_id='synthetic-demo-physician',reviewed_at=now()",
+            "update ehr.proposed_observation set status='rejected',decision_event_id=$2,reviewed_by_type='physician',reviewed_by_id=$3,reviewed_at=now()",
             "where id=$1::uuid"
-          ].join(" "),[proposalId,eventId]);
+          ].join(" "),[proposalId,eventId,person.externalId]);
           outcomes.push({proposalId,status:"rejected"});
           continue;
         }
@@ -111,7 +127,7 @@ Deno.serve(async(req:Request)=>{
             "insert into ehr.clinical_observation(patient_id,observation_type,display,value_json,unit,status,observed_at,provenance_id,source_event_id,client_record_id)",
             "values($1,$2,$3,jsonb_build_object('systolic',$4::numeric,'diastolic',$5::numeric),$6,'final',$7,$8,$9,$10)",
             "on conflict(patient_id,client_record_id) where client_record_id is not null do nothing returning id"
-          ].join(" "),[patientId,po.field,po.display_label,num(valueJson.systolic,"systolic"),num(valueJson.diastolic,"diastolic"),po.unit,po.observed_at,po.provenance_id,eventId,po.client_record_id]);
+          ].join(" "),[patientId,"BloodPressure",po.display_label,num(valueJson.systolic,"systolic"),num(valueJson.diastolic,"diastolic"),po.unit,po.observed_at,po.provenance_id,eventId,po.client_record_id]);
         }else if(valueJson&&po.field==="weight"){
           obsRows=await tx.unsafe([
             "insert into ehr.clinical_observation(patient_id,observation_type,display,value_json,unit,status,observed_at,provenance_id,source_event_id,client_record_id)",
@@ -129,9 +145,9 @@ Deno.serve(async(req:Request)=>{
         const obsId=obsRows[0].id;
         canonicalInserted+=1;
         await tx.unsafe([
-          "update ehr.proposed_observation set status=$2,decision_event_id=$3,accepted_observation_id=$4,reviewed_by_type='physician',reviewed_by_id='synthetic-demo-physician',reviewed_at=now(),",
+          "update ehr.proposed_observation set status=$2,decision_event_id=$3,accepted_observation_id=$4,reviewed_by_type='physician',reviewed_by_id=$8,reviewed_at=now(),",
           "metadata=metadata||jsonb_build_object('decisionApi',$5::text,'originalValue',$6::jsonb,'reviewedValue',$7::jsonb) where id=$1::uuid"
-        ].join(" "),[proposalId,decision,eventId,obsId,API_VERSION,JSON.stringify(po.value_numeric==null?po.value_json:Number(po.value_numeric)),JSON.stringify(valueNumeric==null?valueJson:valueNumeric)]);
+        ].join(" "),[proposalId,decision,eventId,obsId,API_VERSION,JSON.stringify(po.value_numeric==null?po.value_json:Number(po.value_numeric)),JSON.stringify(valueNumeric==null?valueJson:valueNumeric),person.externalId]);
         outcomes.push({proposalId,status:decision,observationId:obsId});
       }
       let stateVersion:null|number=null;
@@ -145,11 +161,13 @@ Deno.serve(async(req:Request)=>{
         const st=await tx.unsafe("select state_version,state::text as state_text from ehr.patient_state where patient_id=$1 order by state_version desc limit 1",[patientId]);
         stateVersion=Number(st[0].state_version);patient=JSON.parse(String(st[0].state_text));
       }
-      const pending=await listPending(tx,patientId);
+      const pending=await listPending(tx,patientId,encounterId);
       return {eventId,canonicalInserted,stateVersion,patient,pending,outcomes};
     });
     return response({apiVersion:API_VERSION,...result},200,origin);
   }catch(error){
+    const denied=authFailure(error);
+    if(denied)return response({apiVersion:API_VERSION,error:denied.code},denied.status,origin);
     const message=String(error?.message||error);
     return response({apiVersion:API_VERSION,error:message},message.includes("refresh_and_retry")?409:400,origin);
   }

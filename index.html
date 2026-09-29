@@ -11,8 +11,30 @@
 <link rel="stylesheet" href="scribe-review-ui.css?v=scribe-review-v1-20260928" />
 <link rel="stylesheet" href="workspace-review-ui.css?v=workspace-review-v2-20260928" />
 <link rel="stylesheet" href="workflow-prep-ui.css?v=workflow-prep-v1-20260928" />
+<link rel="stylesheet" href="clinician-auth-ui.css?v=clinician-gateway-v1" />
+<link rel="stylesheet" href="encounter-workflow-ui.css?v=encounter-v1" />
 </head>
 <body>
+  <section id="clinicianSignIn" aria-label="Synthetic clinician sign-in">
+    <div class="clinician-signin-card">
+      <div class="eyebrow">SYNTHETIC PATIENTS ONLY</div>
+      <h1>Clinician sign-in</h1>
+      <p>Sign in with an approved development clinician account to view assigned synthetic patients.</p>
+      <form id="clinicianSignInForm">
+        <label>Email<input name="email" type="email" autocomplete="username" required /></label>
+        <label>Password<input name="password" type="password" autocomplete="current-password" required /></label>
+        <button type="submit">Sign in</button>
+        <button id="requestPasswordResetBtn" type="button" class="clinician-secondary-btn">Set or reset password</button>
+      </form>
+      <form id="clinicianPasswordSetupForm" hidden>
+        <p>Set a password to finish your clinician account.</p>
+        <label>New password<input name="password" type="password" autocomplete="new-password" minlength="12" required /></label>
+        <label>Confirm password<input name="confirmation" type="password" autocomplete="new-password" minlength="12" required /></label>
+        <button type="submit">Set password</button>
+      </form>
+      <p id="clinicianSignInStatus" role="status" aria-live="polite"></p>
+    </div>
+  </section>
   <header class="topbar">
     <div class="brand">
       <span class="logo">🫘</span>
@@ -25,6 +47,7 @@
       <button id="themeToggle" class="theme-toggle" type="button" aria-label="Switch color theme">☀ Light</button>
       <span id="patientCount" class="chip">—</span>
       <span id="backendStatus" class="chip">backend: connecting</span>
+      <button id="clinicianSignOut" type="button">Sign out</button>
       <span class="chip chip-warn">⚠ demo · not for clinical use</span>
     </div>
   </header>
@@ -391,19 +414,21 @@
 
   <script src="theme.js?v=light-theme-visible-20260922"></script>
   <script src="data.js?v=backend-owned-pt001-20260927"></script>
-  <script src="backend-patient-loader.js?v=scribe-write-config-20260927"></script>
+  <script src="clinician-auth-ui.js?v=clinician-gateway-v1"></script>
+  <script src="backend-patient-loader.js?v=clinician-gateway-v1"></script>
   <script src="open-loop.js"></script>
   <script src="patient-state.js?v=scribe-discrete-v2-20260927"></script>
   <script src="judgment-fabric.js"></script>
   <script src="agent.js"></script>
-  <script src="app.js?v=supabase-pt001-20260927"></script>
+  <script src="app.js?v=clinician-gateway-v1"></script>
   <script src="lab-trends-ui.js?v=append-dated-points-20260927"></script>
   <script src="kidney-protection-ui.js?v=ckd-protection-timeline-20260926"></script>
-  <script src="prechart-workspace.js?v=scribe-proposal-writer-v8-20260928"></script>
-  <script src="scribe-review-ui.js?v=scribe-review-v1-20260928"></script>
-  <script src="activity-audit-ui.js?v=activity-audit-v3-20260928"></script>
-  <script src="workspace-review-ui.js?v=workspace-review-v2-20260928"></script>
-  <script src="workflow-prep-ui.js?v=workflow-prep-v1-20260928"></script>
+  <script src="prechart-workspace.js?v=clinician-gateway-v1"></script>
+  <script src="scribe-review-ui.js?v=clinician-gateway-v1"></script>
+  <script src="encounter-workflow-ui.js?v=encounter-v1"></script>
+  <script src="activity-audit-ui.js?v=clinician-gateway-v1"></script>
+  <script src="workspace-review-ui.js?v=clinician-gateway-v1"></script>
+  <script src="workflow-prep-ui.js?v=clinician-gateway-v1"></script>
   <script src="mobile-ui.js?v=iphone-nav-20260926"></script>
 </body>
 </html>

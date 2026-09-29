@@ -173,7 +173,13 @@ The reducer currently refreshes:
 | `scribe-review` | 2 | physician accept/edit/reject + atomic review validation + reducer |
 | `workspace-review` | 4 | CKD/Dialysis/Hospital review + low-risk approval workflow |
 | `patient-activity-audit` | 2 | event/provenance/agent/tool/approval/open-loop audit |
-| `synthetic-patient` | 1 | legacy PT-001 read endpoint |
+| `synthetic-patient` | 2 | retired legacy endpoint; HTTP 410 |
+| `synthetic-census-gated` | 2 | authenticated assigned-patient census (staged) |
+| `ambient-scribe-write-gated` | 3 | authenticated encounter-linked observation proposals (staged) |
+| `scribe-review-gated` | 3 | authenticated physician review (staged) |
+| `workspace-review-gated` | 2 | authenticated agent/approval flow (staged) |
+| `patient-activity-audit-gated` | 3 | authenticated audit read including encounter note provenance (staged) |
+| `synthetic-encounter-gated` | 2 | authenticated encounter draft and physician signing (staged) |
 
 ## Frontend workflow modules
 
@@ -198,6 +204,28 @@ The reducer currently refreshes:
 - scribe review safety checks for blank edits, duplicate decisions, and stale proposals
 
 ## Next production-oriented backend steps
+
+### Clinician gateway staging (2026-09-28)
+
+Five `*-gated` Edge Functions are deployed beside the existing demo endpoints. They ask
+Supabase Auth to verify the user, require a linked active synthetic clinician, check
+practice and patient assignment and action permission, and record access decisions.
+The legacy `synthetic-patient` route now returns HTTP 410. A confirmed development
+clinician Auth account is linked to its synthetic assignment, and the published
+`/preview/` browser path shows clinician sign-in and uses
+the gated functions. See `docs/clinician-gateway-cutover.md` for activation and
+legacy-route retirement. The existing demo endpoints remain active until the cutover
+is verified.
+
+### Synthetic encounter staging (2026-09-29)
+
+The private `ehr.synthetic_encounter` table, encounter-linked scribe proposals,
+versioned draft events, physician signing event, and note/source provenance are
+deployed in the synthetic development project. The protected writer, review, and
+activity audit functions support the flow. See `docs/synthetic-encounter-workflow.md`.
+The clinician browser preview publishes the encounter UI; no signed-in
+browser encounter test has yet been recorded.
+
 
 1. Move from static GitHub Pages + Edge Functions to FastAPI service boundary.
 2. Replace legacy anon JWT use with production auth/session handling.

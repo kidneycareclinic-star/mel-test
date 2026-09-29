@@ -1,4 +1,5 @@
 import postgres from "npm:postgres@3.4.7";
+import { clinician, patientAccess, authFailure } from "./clinician-auth.ts";
 
 const dbUrl = Deno.env.get("SUPABASE_DB_URL");
 if (!dbUrl) throw new Error("SUPABASE_DB_URL is not configured");
@@ -39,6 +40,8 @@ Deno.serve(async (req: Request) => {
   if (!/^PT-\d{3}$/.test(patientExternalId)) return response({ error: "invalid_patient_id" }, 400, origin);
 
   try {
+    const person = await clinician(req, sql);
+    await patientAccess(sql, person, patientExternalId, "office", "patient.read");
     const patientRows = await sql.unsafe(
       "select id, external_id, display_name, synthetic from ehr.patient where external_id=$1 limit 1",
       [patientExternalId]
@@ -228,6 +231,11 @@ Deno.serve(async (req: Request) => {
         status: row.status,
         createdAt: row.created_at,
         payload: row.payload || {},
+        encounter: ["ENCOUNTER_DRAFT_SAVED","ENCOUNTER_SIGNED"].includes(row.event_type) ? {
+          noteText: typeof rawPayload.noteText === "string" ? rawPayload.noteText : null,
+          sourceCount: Array.isArray(rawPayload.sources) ? rawPayload.sources.length : 0,
+          stateVersion: row.payload?.stateVersion || null
+        } : null,
         heard: {
           rawTranscript: rawPayload.rawTranscript || null,
           reviewedTranscript: rawPayload.reviewedTranscript || null
@@ -271,6 +279,8 @@ Deno.serve(async (req: Request) => {
       events
     }, 200, origin);
   } catch (error) {
+    const denied = authFailure(error);
+    if (denied) return response({ error: denied.code }, denied.status, origin);
     return response({ error: String(error?.message || error) }, 400, origin);
   }
 });

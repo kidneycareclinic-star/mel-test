@@ -4,23 +4,30 @@ import vm from "node:vm";
 import { stripTypeScriptTypes } from "node:module";
 
 const source = fs.readFileSync("supabase/functions/scribe-review/index.ts", "utf8")
-  .replace('import postgres from "npm:postgres@3.4.7";', "const postgres = globalThis.__mockPostgres;");
+  .replace('import postgres from "npm:postgres@3.4.7";', "const postgres = globalThis.__mockPostgres;")
+  .replace('import { clinician, patientAccess, authFailure } from "./clinician-auth.ts";',
+    'const { clinician, patientAccess, authFailure } = globalThis.__mockAuth;');
 const patientId = "PT-001";
 const proposalId = "11111111-1111-4111-8111-111111111111";
 let handler;
 let writes = 0;
 let state = "pending";
+let proposedField = "eGFR";
 let savedMetadata;
+let canonicalType;
 
 const tx = {
   async unsafe(query, params) {
     if (/select id,synthetic from ehr.patient/.test(query)) return [{ id: patientId, synthetic: true }];
     if (/select \* from ehr.proposed_observation/.test(query)) return [{
-      id: proposalId, status: state, field: "eGFR", value_numeric: 30, value_json: null,
+      id: proposalId, status: state, field: proposedField,
+      value_numeric: proposedField === "eGFR" ? 30 : null,
+      value_json: proposedField === "bloodPressure" ? { systolic: 128, diastolic: 74 } : null,
       unit: "mL/min/1.73m²", display_label: "eGFR", observed_at: "2026-09-28T00:00:00Z"
     }];
     if (/^insert|^update/i.test(query)) {
       writes++;
+      if (/insert into ehr.clinical_observation/.test(query)) canonicalType = params[1];
       if (/update ehr.proposed_observation/.test(query)) savedMetadata = params;
       return [{ id: "event" }];
     }
@@ -33,6 +40,11 @@ const tx = {
 const sql = { begin: async fn => fn(tx) };
 const sandbox = {
   __mockPostgres: () => sql,
+  __mockAuth: {
+    clinician: async () => ({ id: "demo", externalId: "synthetic-clinician" }),
+    patientAccess: async () => patientId,
+    authFailure: () => null
+  },
   Deno: { env: { get: () => "mock-db" }, serve: fn => { handler = fn; } },
   Headers, Response, URL, console
 };
@@ -75,5 +87,10 @@ assert.equal(accepted.body.canonicalInserted, 1);
 assert.equal(accepted.body.stateVersion, 2);
 assert.equal(JSON.parse(savedMetadata[5]), 30, "original value must be preserved");
 assert.equal(JSON.parse(savedMetadata[6]), 25, "edited value must be preserved");
+
+proposedField = "bloodPressure";
+const bloodPressure = await review([{ proposalId, decision: "accepted" }]);
+assert.equal(bloodPressure.status, 200);
+assert.equal(canonicalType, "BloodPressure", "accepted BP must match the Patient State reducer's observation type");
 
 console.log("Scribe review safety tests passed");

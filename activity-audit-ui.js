@@ -96,6 +96,10 @@
   function eventLabel(event) {
     var labels = {
       SCRIBE_EXTRACTION_APPLIED:"Ambient scribe applied",
+      SCRIBE_EXTRACTION_PROPOSED:"Structured observations proposed",
+      SCRIBE_REVIEW_DECIDED:"Physician observation review",
+      ENCOUNTER_DRAFT_SAVED:"Encounter draft saved",
+      ENCOUNTER_SIGNED:"Encounter signed",
       SYNTHETIC_PATIENT_IMPORTED:"Synthetic patient imported",
       OBSERVATION_RECORDED:"Observation recorded",
       OPEN_LOOP_CREATED:"Open loop created",
@@ -126,6 +130,14 @@
       "<div class='audit-heard-card'><span>Raw transcript</span><p>" + esc(raw || "—") + "</p></div>" +
       "<div class='audit-heard-card reviewed'><span>Reviewed transcript</span><p>" + esc(reviewed || "—") + "</p></div>" +
     "</div>";
+  }
+
+  function encounterSection(event) {
+    if (!event.encounter) return "";
+    return "<section><div class='audit-section-label'>Reviewed encounter note</div>" +
+      "<div class='audit-heard-card'><span>" + esc(event.encounter.sourceCount) + " pre-chart source(s)" +
+      (event.encounter.stateVersion ? " · Patient State v" + esc(event.encounter.stateVersion) : "") +
+      "</span><p>" + esc(event.encounter.noteText || "Draft has no note text yet.") + "</p></div></section>";
   }
 
   function observationsSection(event) {
@@ -232,6 +244,7 @@
         "</div>" +
       "</summary>" +
       "<div class='audit-event-body'>" +
+        encounterSection(event) +
         "<section><div class='audit-section-label'>1 · What the agent heard</div>" + heardSection(event) + "</section>" +
         "<section><div class='audit-section-label'>2 · What PostgreSQL accepted</div>" + observationsSection(event) + "</section>" +
         "<section><div class='audit-section-label'>3 · Event record</div>" +
@@ -287,7 +300,7 @@
       : "state —";
     list.innerHTML = "<div class='audit-loading'>Loading PostgreSQL activity…</div>";
 
-    var endpoint = cfg.baseUrl + "/functions/v1/patient-activity-audit?patient_id=" +
+    var endpoint = cfg.baseUrl + "/functions/v1/patient-activity-audit-gated?patient_id=" +
       encodeURIComponent(patient.id) + "&limit=75";
     try {
       var response = await fetch(endpoint, {
