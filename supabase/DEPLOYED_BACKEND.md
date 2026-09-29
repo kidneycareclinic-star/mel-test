@@ -223,7 +223,7 @@ The private `ehr.synthetic_encounter` table, encounter-linked scribe proposals,
 versioned draft events, physician signing event, and note/source provenance are
 deployed in the synthetic development project. The protected writer, review, and
 activity audit functions support the flow. See `docs/synthetic-encounter-workflow.md`.
-The clinician browser preview still needs to publish its encounter UI; no signed-in
+The clinician browser preview publishes the encounter UI; no signed-in
 browser encounter test has yet been recorded.
 
 

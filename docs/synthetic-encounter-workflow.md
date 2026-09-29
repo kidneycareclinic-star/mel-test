@@ -32,7 +32,7 @@ No external order placement or real EHR write is available.
 
 The schema SQL is `supabase/sql/synthetic-encounter-workflow.sql`. The protected
 `synthetic-encounter-gated` function and encounter-aware scribe writer/review/audit
-functions are staged on the synthetic development project. The browser UI must be
+functions are staged on the synthetic development project. The browser UI is
 published at the `/preview/` path with matching root and preview assets. Run
 `node scripts/encounter-workflow-tests.mjs`, `node scripts/scribe-review-safety-tests.mjs`,
 and `node scripts/harness-contract-tests.mjs`.

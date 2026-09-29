@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - agentic-harness-tabs
+      - clinician-gateway-cutover
   pull_request:
     branches:
       - main
