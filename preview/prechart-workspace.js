@@ -1406,8 +1406,12 @@
     hydrateEncounterDraft: function (patientId, draft) {
       if (!draft || !Array.isArray(draft.sources)) return false;
       var state = getState(patientId);
-      // Preserve unsaved local edits; a remote draft can be loaded into a fresh workspace.
-      if (state.note.trim() || state.sources.some(function (s) { return s.kind !== "lab-trend"; })) return false;
+      // Opening a fresh workspace generates a note from lab trends. Replace that
+      // generated note with the saved encounter, but preserve actual local edits.
+      var patient = activePatient();
+      var generatedNote = patient && patient.id === patientId ? buildOrganizedNote(patient, state) : null;
+      if (state.sources.some(function (s) { return s.kind !== "lab-trend"; }) ||
+          (state.note.trim() && state.note !== generatedNote)) return false;
       state.note = String(draft.note_text || "");
       state.sources = draft.sources.map(function (source) {
         return {
