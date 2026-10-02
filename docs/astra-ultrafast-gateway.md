@@ -84,3 +84,11 @@ node scripts/harness-contract-tests.mjs
 ```
 
 Then perform one signed-in browser run from the preview and confirm the UI reports **Astra · Ultrafast verified**.
+
+
+## October 2026 hardening increment
+
+- JSONB writes use Postgres.js `sql.json(object)` / `tx.json(object)`; pre-stringified JSON is prohibited because it produces JSON string scalars and violates object-shape constraints.
+- The synthetic PKD fixture keeps etiology (`Polycystic kidney disease`) separate from CKD stage (`3b`).
+- `testApprovalPath: true` is a synthetic-only workflow exercise. It deterministically prepares one low-risk internal open-loop proposal labeled **Synthetic Astra approval-path verification**. It never executes automatically.
+- The existing `workspace-review-gated` decision path remains authoritative: physician approval is required, stale Patient State versions are rejected, and only approval can create the internal open loop and reduce Patient State.
