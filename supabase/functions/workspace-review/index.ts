@@ -128,6 +128,10 @@ Deno.serve(async(req:Request)=>{
         );
         if(!rows.length) throw new Error("tool_call_not_pending");
         const tc=rows[0];
+        const proposedBaseVersion=Number(tc.input?.baseStateVersion||0);
+        if(proposedBaseVersion>0 && proposedBaseVersion!==stateVersion){
+          throw new AccessError(409,"stale_agent_proposal");
+        }
 
         const decisionEvent=await tx.unsafe(
           "insert into ehr.event(patient_id,event_type,actor_type,actor_id,source,status,payload) values($1,$2,'physician',$5,'workspace-review','recorded',jsonb_build_object('toolCallId',$3::text,'decision',$4::text)) returning id",
