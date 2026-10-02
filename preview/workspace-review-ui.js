@@ -26,6 +26,7 @@
         "<button class='small-btn workspace-agent-btn' data-workspace='dialysis' type='button'>Dialysis review</button>"+
         "<button class='small-btn workspace-agent-btn' data-workspace='hospital' type='button'>Hospital review</button>"+
         "<button class='small-btn workspace-astra-btn' data-workspace='ckd' type='button'>Astra Ultrafast</button>"+
+        "<button class='small-btn workspace-astra-test-btn' data-workspace='ckd' type='button'>Astra Approval Test</button>"+
       "</div>"+
       "<div id='workspaceReviewResult' class='workspace-review-result'><div class='micro'>Run a workspace review to create an auditable agent record.</div></div>";
     var anchor=document.getElementById("judgmentSummary");
@@ -33,7 +34,8 @@
     panel.querySelectorAll(".workspace-agent-btn").forEach(function(btn){
       btn.addEventListener("click",function(){run(btn.dataset.workspace);});
     });
-    panel.querySelector(".workspace-astra-btn").addEventListener("click",function(){runAstra(this.dataset.workspace);});
+    panel.querySelector(".workspace-astra-btn").addEventListener("click",function(){runAstra(this.dataset.workspace,false);});
+    panel.querySelector(".workspace-astra-test-btn").addEventListener("click",function(){runAstra(this.dataset.workspace,true);});
     return panel;
   }
   function prettyContext(context){
@@ -106,12 +108,12 @@
     }).join("")+"</div>";
   }
 
-  async function runAstra(workspace){
+  async function runAstra(workspace,testApprovalPath){
     var panel=ensurePanel(), patient=activePatient(), c=cfg();
     if(!panel||!patient||!c) return;
     var status=document.getElementById("workspaceReviewStatus");
     var result=document.getElementById("workspaceReviewResult");
-    status.textContent="Astra · running";
+    status.textContent=testApprovalPath?"Astra · approval test":"Astra · running";
     result.innerHTML="<div class='micro'>GPT-6 Astra · Ultrafast · reading synthetic canonical Patient State…</div>";
     try{
       var res=await fetch(c.baseUrl+"/functions/v1/astra-review-gated",{
@@ -122,7 +124,7 @@
           "Authorization":"Bearer "+c.anonJwt
         },
         cache:"no-store",
-        body:JSON.stringify({patientId:patient.id,workspace:workspace})
+        body:JSON.stringify({patientId:patient.id,workspace:workspace,testApprovalPath:testApprovalPath===true})
       });
       var payload=await res.json().catch(function(){return {};});
       if(!res.ok) throw new Error(payload.error||("Astra review HTTP "+res.status));
