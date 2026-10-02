@@ -66,7 +66,7 @@ const DIAGNOSES = {
   "Type 2 diabetes":    { stage: "DM", eGFR: null },
   "Hypertension":       { stage: "HTN", eGFR: null },
   "IgA nephropathy":    { stage: "GN", eGFR: null },
-  "Polycystic kidney disease": { stage: "PKD", eGFR: null },
+  "Polycystic kidney disease": { stage: "3b", eGFR: [30, 44] },
   "Nephrotic syndrome": { stage: "NS", eGFR: null },
 };
 
