@@ -119,14 +119,29 @@ function validReview(value: any) {
 
 async function markFailed(runId: string, patientId: string, code: string, httpStatus: number | null, requestId: string | null, latencyMs: number | null) {
   await sql.begin(async (tx: any) => {
-    await tx.unsafe(
-      "update ehr.agent_run set status='failed',completed_at=now(),model_provider='openai',model_name=$2,error=$3::jsonb where id=$1::uuid",
-      [runId, MODEL, JSON.stringify({ code, httpStatus, requestId, latencyMs })]
-    );
-    await tx.unsafe(
-      "insert into ehr.event(patient_id,event_type,actor_type,actor_id,source,status,payload) values($1,'AGENT_RUN_FAILED','agent',$2,'astra-review','failed',$3::jsonb)",
-      [patientId, runId, JSON.stringify({ runId, model: MODEL, serviceTierRequested: SERVICE_TIER, code, httpStatus, requestId, latencyMs })]
-    );
+    const errorPayload = { code, httpStatus, requestId, latencyMs };
+    const eventPayload = { runId, model: MODEL, serviceTierRequested: SERVICE_TIER, code, httpStatus, requestId, latencyMs };
+    await tx`
+      update ehr.agent_run
+      set status='failed',
+          completed_at=now(),
+          model_provider='openai',
+          model_name=${MODEL},
+          error=${tx.json(errorPayload)}
+      where id=${runId}::uuid
+    `;
+    await tx`
+      insert into ehr.event(patient_id,event_type,actor_type,actor_id,source,status,payload)
+      values(
+        ${patientId}::uuid,
+        'AGENT_RUN_FAILED',
+        'agent',
+        ${runId},
+        'astra-review',
+        'failed',
+        ${tx.json(eventPayload)}
+      )
+    `;
   });
 }
 
@@ -139,6 +154,7 @@ Deno.serve(async (req: Request) => {
   const body = await req.json().catch(() => null);
   const externalId = String(body?.patientId || "");
   const workspace = String(body?.workspace || "ckd").toLowerCase();
+  const testApprovalPath = body?.testApprovalPath === true;
   if (!/^PT-\d{3}$/.test(externalId)) return reply({ apiVersion: API_VERSION, error: "invalid_patient" }, 400, origin);
   if (!["ckd", "dialysis", "hospital"].includes(workspace)) return reply({ apiVersion: API_VERSION, error: "invalid_workspace" }, 400, origin);
 
@@ -147,7 +163,18 @@ Deno.serve(async (req: Request) => {
     await patientAccess(sql, person, externalId, workspaceName(workspace), "agent.review");
 
     const openaiKey = Deno.env.get("OPENAI_API_KEY");
-    if (!openaiKey) throw new AccessError(503, "openai_key_not_configured");
+    if (!openaiKey) {
+      return reply({
+        apiVersion: API_VERSION,
+        error: "openai_key_not_configured",
+        diagnostics: {
+          openaiApiKeyPresent: false,
+          supabaseUrlPresent: Boolean(Deno.env.get("SUPABASE_URL")),
+          supabaseDbUrlPresent: Boolean(Deno.env.get("SUPABASE_DB_URL")),
+          deploymentIdPresent: Boolean(Deno.env.get("DENO_DEPLOYMENT_ID"))
+        }
+      }, 503, origin);
+    }
 
     const patient = await sql.unsafe(
       "select id,display_name,synthetic from ehr.patient where external_id=$1 and active=true limit 1",
@@ -165,10 +192,23 @@ Deno.serve(async (req: Request) => {
     const state = JSON.parse(String(states[0].state_text));
     const context = buildContext(externalId, workspace, stateVersion, state);
 
-    const started = await sql.unsafe(
-      "insert into ehr.agent_run(patient_id,agent_name,agent_version,run_type,status,input_snapshot,model_provider,model_name) values($1,$2,'1.0.0','astra-ultrafast-review','started',$3::jsonb,'openai',$4) returning id,started_at",
-      [patientId, workspace + "-astra-review-agent", JSON.stringify({ patientId: externalId, stateVersion, workspace, synthetic: true, serviceTierRequested: SERVICE_TIER }), MODEL]
-    );
+    const inputSnapshot = { patientId: externalId, stateVersion, workspace, synthetic: true, serviceTierRequested: SERVICE_TIER, testApprovalPath };
+    const started = await sql`
+      insert into ehr.agent_run(
+        patient_id,agent_name,agent_version,run_type,status,input_snapshot,model_provider,model_name
+      )
+      values(
+        ${patientId}::uuid,
+        ${workspace + "-astra-review-agent"},
+        '1.0.0',
+        'astra-ultrafast-review',
+        'started',
+        ${sql.json(inputSnapshot)},
+        'openai',
+        ${MODEL}
+      )
+      returning id,started_at
+    `;
     const runId = String(started[0].id);
 
     const instructions = [
@@ -238,6 +278,15 @@ Deno.serve(async (req: Request) => {
       throw new AccessError(502, "structured_output_invalid");
     }
 
+    if (testApprovalPath) {
+      review.proposal = {
+        shouldCreateOpenLoop: true,
+        label: "Synthetic Astra approval-path verification",
+        reason: "Synthetic test-only open loop to verify physician approval, audit, and Patient State versioning. No external action.",
+        workspace: workspaceName(workspace)
+      };
+    }
+
     const actualTier = String(payload?.service_tier || "unknown");
     const telemetry = {
       model: String(payload?.model || MODEL),
@@ -252,30 +301,61 @@ Deno.serve(async (req: Request) => {
     };
 
     const result = await sql.begin(async (tx: any) => {
-      const completed = await tx.unsafe(
-        "update ehr.agent_run set status='completed',output=$2::jsonb,model_provider='openai',model_name=$3,completed_at=now() where id=$1::uuid returning completed_at",
-        [runId, JSON.stringify({ review, telemetry }), MODEL]
-      );
+      const completedOutput = { review, telemetry };
+      const completed = await tx`
+        update ehr.agent_run
+        set status='completed',
+            output=${tx.json(completedOutput)},
+            model_provider='openai',
+            model_name=${MODEL},
+            completed_at=now()
+        where id=${runId}::uuid
+        returning completed_at
+      `;
 
-      const event = await tx.unsafe(
-        "insert into ehr.event(patient_id,event_type,actor_type,actor_id,source,status,payload) values($1,'AGENT_RUN_COMPLETED','agent',$2,'astra-review','recorded',$3::jsonb) returning id",
-        [patientId, runId, JSON.stringify({ runId, workspace, stateVersion, ...telemetry })]
-      );
+      const completedEventPayload = { runId, workspace, stateVersion, ...telemetry };
+      const event = await tx`
+        insert into ehr.event(patient_id,event_type,actor_type,actor_id,source,status,payload)
+        values(
+          ${patientId}::uuid,
+          'AGENT_RUN_COMPLETED',
+          'agent',
+          ${runId},
+          'astra-review',
+          'recorded',
+          ${tx.json(completedEventPayload)}
+        )
+        returning id
+      `;
 
       let proposedAction: any = null;
       if (review.proposal.shouldCreateOpenLoop === true && review.proposal.label.trim()) {
-        const tool = await tx.unsafe(
-          "insert into ehr.tool_call(agent_run_id,patient_id,tool_name,risk_level,requires_approval,status,input,prepared_event_id) values($1::uuid,$2::uuid,'create_open_loop','low',true,'awaiting_approval',$3::jsonb,$4::uuid) returning id",
-          [runId, patientId, JSON.stringify({
-            label: review.proposal.label.trim().slice(0, 180),
-            loopType: "astra-review",
-            workspace: review.proposal.workspace,
-            agentType: "astra-ultrafast",
-            reason: review.proposal.reason.trim().slice(0, 500),
-            baseStateVersion: stateVersion,
-            externalExecution: false
-          }), event[0].id]
-        );
+        const toolInput = {
+          label: review.proposal.label.trim().slice(0, 180),
+          loopType: "astra-review",
+          workspace: review.proposal.workspace,
+          agentType: "astra-ultrafast",
+          reason: review.proposal.reason.trim().slice(0, 500),
+          baseStateVersion: stateVersion,
+          externalExecution: false,
+          testOnly: testApprovalPath
+        };
+        const tool = await tx`
+          insert into ehr.tool_call(
+            agent_run_id,patient_id,tool_name,risk_level,requires_approval,status,input,prepared_event_id
+          )
+          values(
+            ${runId}::uuid,
+            ${patientId}::uuid,
+            'create_open_loop',
+            'low',
+            true,
+            'awaiting_approval',
+            ${tx.json(toolInput)},
+            ${event[0].id}::uuid
+          )
+          returning id
+        `;
         proposedAction = {
           toolCallId: tool[0].id,
           label: review.proposal.label.trim().slice(0, 180),
@@ -301,6 +381,7 @@ Deno.serve(async (req: Request) => {
       summary: review.summary,
       signals: review.signals,
       limitations: review.limitations,
+      testApprovalPath,
       telemetry,
       ...result
     }, 200, origin);
