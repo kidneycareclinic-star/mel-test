@@ -20,8 +20,88 @@
   var lastSigned = document.createElement("details");
   lastSigned.id = "encounterLastSigned";
   lastSigned.hidden = true;
-  lastSigned.innerHTML = "<summary>Last signed encounter note</summary><pre></pre>";
+  lastSigned.innerHTML = '<summary>Last signed encounter · approved state and history</summary><div class="encounter-final-view"></div>';
   status.parentNode.insertBefore(lastSigned, status.nextSibling);
+  var reviewPanel=document.createElement("section");
+  reviewPanel.id="encounterAstraReview";
+  reviewPanel.setAttribute("aria-label","Astra physician review");
+  lastSigned.parentNode.insertBefore(reviewPanel,lastSigned);
+
+  function textNode(parent,tag,text){
+    var node=document.createElement(tag);node.textContent=text;parent.appendChild(node);return node;
+  }
+  function valueText(value){return value==null?"—":typeof value==="object"?JSON.stringify(value):String(value);}
+  function renderDetail(parent,detail){
+    if(!detail)return;
+    textNode(parent,"h4","Reviewed observations");
+    var table=document.createElement("table");table.className="encounter-observation-table";parent.appendChild(table);
+    var header=document.createElement("tr");table.appendChild(header);
+    ["Observation","Generated","Reviewed","Status"].forEach(function(label){textNode(header,"th",label);});
+    (detail.observations||[]).forEach(function(obs){
+      var row=document.createElement("tr");table.appendChild(row);
+      [obs.display_label||obs.field,valueText(obs.original_numeric??obs.original_json)+" "+(obs.unit||""),
+       valueText(obs.reviewed_numeric??obs.reviewed_json),obs.status].forEach(function(value){textNode(row,"td",value);});
+    });
+    (detail.reviews||[]).forEach(function(review){
+      textNode(parent,"h4","Astra review · "+review.status);
+      textNode(parent,"p",review.reviewed_content?.summary||"No approved narrative.");
+      var original=document.createElement("details");parent.appendChild(original);
+      textNode(original,"summary","Original generated review and model");
+      textNode(original,"pre",JSON.stringify(review.generated_content,null,2));
+    });
+    textNode(parent,"h4","State history");
+    (detail.audit||[]).forEach(function(audit){
+      var item=document.createElement("details");parent.appendChild(item);
+      textNode(item,"summary","State v"+audit.previous_version+" → v"+audit.resulting_version+" · "+audit.event_type+" · "+new Date(audit.created_at).toLocaleString());
+      textNode(item,"p","Recorded by "+(audit.actor_id||"system"));
+      textNode(item,"pre",JSON.stringify({before:audit.previous_state,after:audit.resulting_state},null,2));
+    });
+  }
+  function renderSigned(encounter){
+    lastSigned.hidden=!encounter;
+    var view=lastSigned.querySelector(".encounter-final-view");view.replaceChildren();
+    if(!encounter)return;
+    var patient=encounter.patient||{};
+    textNode(view,"p","Signed "+new Date(encounter.signed_at).toLocaleString()+" · saved Patient State v"+encounter.final_state_version);
+    textNode(view,"h4","Assessment and plan");textNode(view,"pre",encounter.note_text||"");
+    textNode(view,"p",patient.approvedEncounterReview?.content?.summary||"");
+    textNode(view,"h4","Kidney function and problem list");
+    textNode(view,"p","eGFR: "+valueText(patient.labs?.eGFR?.value)+" · Recorded CKD stage: "+valueText(patient.ckdStage));
+    textNode(view,"p",(patient.problemList||[]).map(function(problem){return problem.name;}).join(" · "));
+    textNode(view,"h4","Medications");textNode(view,"p",(patient.meds||[]).map(valueText).join(" · "));
+    textNode(view,"h4","Saved laboratory values");
+    textNode(view,"p",Object.entries(patient.labs||{}).map(function(entry){return entry[0]+": "+valueText(entry[1].value)+" "+(entry[1].unit||"")+" ("+(entry[1].flag||"unflagged")+")";}).join(" · "));
+    renderDetail(view,encounter.detail);
+  }
+  function renderReview(detail,encounterId){
+    reviewPanel.replaceChildren();
+    (detail?.reviews||[]).filter(function(review){return review.status==="pending";}).forEach(function(review){
+      var item=document.createElement("article");item.className="encounter-review-card";reviewPanel.appendChild(item);
+      textNode(item,"h4","Astra · pending physician review · source State v"+review.base_state_version);
+      var editor=document.createElement("textarea");editor.value=review.generated_content?.review?.summary||"";
+      editor.setAttribute("aria-label","Edit Astra summary");editor.maxLength=20000;item.appendChild(editor);
+      var evidence=document.createElement("details");item.appendChild(evidence);textNode(evidence,"summary","Review evidence and limitations");
+      textNode(evidence,"pre",JSON.stringify(review.generated_content?.review||{},null,2));
+      [["Accept","accepted"],["Accept edit","edited"],["Reject","rejected"]].forEach(function(action){
+        var button=textNode(item,"button",action[0]);button.type="button";button.className="small-btn";
+        button.addEventListener("click",function(){withBusy(async function(patientId){
+          var result=await request("POST",patientId,{action:"review-astra",patientId:patientId,encounterId:encounterId,reviewId:review.id,decision:action[1],summary:editor.value});
+          window.SCRIBE_REVIEW_UI?.applyBackendPatient(result);
+          await refresh();
+          setStatus(result.status==="rejected"?"Astra review rejected. Patient State unchanged.":"Astra review approved and saved · Patient State v"+result.stateVersion);
+        });});
+      });
+    });
+    (detail?.tools||[]).filter(function(tool){return tool.status==="awaiting_approval";}).forEach(function(tool){
+      var item=document.createElement("article");item.className="encounter-review-card";reviewPanel.appendChild(item);
+      textNode(item,"p","Pending internal action: "+(tool.input?.label||tool.tool_name));
+      [["Approve action","approved"],["Reject action","rejected"]].forEach(function(action){
+        var button=textNode(item,"button",action[0]);button.type="button";button.className="small-btn";
+        button.addEventListener("click",function(){withBusy(async function(){await window.WORKSPACE_REVIEW_AGENTS?.decide(tool.id,action[1]);await refresh();});});
+      });
+    });
+    if(detail){var history=document.createElement("details");reviewPanel.appendChild(history);textNode(history,"summary","Encounter review and audit history");renderDetail(history,detail);}
+  }
 
   function activePatient() {
     try { return currentPatient || null; } catch (_) { return window.currentPatient || null; }
@@ -55,11 +135,13 @@
     try {
       var result = await request("GET", id);
       if (activePatient()?.id !== id) return;
-      lastSigned.hidden = !result.lastSigned;
-      if (result.lastSigned) lastSigned.querySelector("pre").textContent = result.lastSigned.note_text || "";
+      if(result.patient && Number(activePatient()?.backendSource?.stateVersion)!==Number(result.stateVersion))window.SCRIBE_REVIEW_UI?.applyBackendPatient(result);
+      renderSigned(result.lastSigned);
+      renderReview(result.draftDetail,result.draft?.id);
       if (result.draft) {
+        var priorDraft=drafts.get(id);
         drafts.set(id, { id: result.draft.id, version: result.draft.version });
-        if (window.PRECHART_WORKSPACE_API?.hydrateEncounterDraft) {
+        if ((!priorDraft||priorDraft.version!==result.draft.version) && window.PRECHART_WORKSPACE_API?.hydrateEncounterDraft) {
           PRECHART_WORKSPACE_API.hydrateEncounterDraft(id, result.draft);
         }
         setStatus("Draft v" + result.draft.version + " saved. Review proposed observations before signing.");
@@ -90,10 +172,10 @@
     var patient = activePatient();
     if (!patient) return;
     busy = true;
-    actions.querySelectorAll("button").forEach(function (button) { button.disabled = true; });
+    document.querySelectorAll(".encounter-workflow-actions button,#encounterAstraReview button").forEach(function (button) { button.disabled = true; });
     try { await action(patient.id); }
     catch (error) { setStatus(error?.message || "Encounter unavailable.", true); }
-    finally { busy = false; actions.querySelectorAll("button").forEach(function (button) { button.disabled = false; }); }
+    finally { busy = false; document.querySelectorAll(".encounter-workflow-actions button,#encounterAstraReview button").forEach(function (button) { button.disabled = false; }); }
   }
   document.getElementById("encounterSaveBtn").addEventListener("click", function () {
     withBusy(saveDraft);
@@ -103,13 +185,13 @@
       var saved = await saveDraft(patientId);
       var result = await request("POST", patientId, {
         action: "sign", patientId: patientId,
-        encounterId: saved.encounterId, expectedVersion: saved.version
+        encounterId: saved.encounterId, expectedVersion: saved.version,
+        expectedStateVersion: activePatient()?.backendSource?.stateVersion
       });
       drafts.delete(patientId);
       var local = window.PRECHART_WORKSPACE_API?.getPatientState(patientId);
-      lastSigned.hidden = false;
-      lastSigned.querySelector("pre").textContent = local?.note || "";
-      setStatus("Signed synthetic encounter · " + result.acceptedCount + " reviewed observation(s) · Patient State v" + result.stateVersion + " · audit event recorded.");
+      await refresh();
+      setStatus("Signed synthetic encounter · " + result.acceptedCount + " reviewed observation(s) · "+(result.approvedReviewCount||0)+" approved Astra review(s) · Patient State v" + result.stateVersion + " · audit event recorded.");
       if (window.PATIENT_AUDIT_UI?.refresh) PATIENT_AUDIT_UI.refresh();
     });
   });
@@ -118,3 +200,4 @@
   if (open) open.addEventListener("click", function () { window.setTimeout(refresh, 0); });
   window.ENCOUNTER_WORKFLOW_UI = { currentId: currentId, refresh: refresh };
 })();
+

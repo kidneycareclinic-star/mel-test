@@ -4,6 +4,8 @@ import vm from "node:vm";
 import { stripTypeScriptTypes } from "node:module";
 
 const source = fs.readFileSync("supabase/functions/synthetic-encounter/index.ts", "utf8")
+  .replace('import { reviewAstra, encounterDetail } from "./encounter-review.ts";',fs.readFileSync("supabase/functions/synthetic-encounter/encounter-review.ts","utf8").replace(/^import .*$/gm," ").replace(/^export /gm,""))
+  .replace('import { jsonObject, patientState } from "./json-boundary.ts";', fs.readFileSync("supabase/functions/_shared/json-boundary.ts","utf8").replace(/^export /gm,""))
   .replace('import postgres from "npm:postgres@3.4.7";', "const postgres = globalThis.__mockPostgres;")
   .replace('import { clinician, patientAccess, authFailure } from "./clinician-auth.ts";',
     "const { clinician, patientAccess, authFailure } = globalThis.__mockAuth;");
@@ -12,12 +14,18 @@ const patientUuid="22222222-2222-4222-8222-222222222222";
 let handler, allowed=true, accepted=0, pending=1, stateVersion=1, writes=0, signed=false;
 let draft=null;
 let signProvenanceId=null;
+let narrativePending=0,toolPending=0;
 const db={
   async unsafe(query,params){
+    if(query.includes("from ehr.patient where id="))return [{id:patientUuid}];
+    if(query.includes("coalesce(a.resulting_state,ps.state)"))return signed?[{id:encounterId,final_state_version:2,signed_at:"2026-09-30T00:00:00Z",note_text:"Signed synthetic note",source_count:1,state_text:JSON.stringify({id:"PT-001",labs:{eGFR:{value:25}}})}]:[];
+    if(query.includes("from ehr.proposed_observation po")||query.includes("from ehr.encounter_review")&&!query.includes("count(*)")||query.includes("from ehr.patient_state_audit")||query.includes("from ehr.tool_call")&&!query.includes("count(*)"))return [];
     if(query.includes("from ehr.patient where external_id"))return [{id:patientUuid}];
     if(query.includes("from ehr.synthetic_encounter where patient_id")&&query.includes("status='draft'"))return draft && !signed ? [{...draft}]:[];
     if(query.includes("from ehr.synthetic_encounter where patient_id")&&query.includes("status='signed'"))return [];
-    if(query.includes("from ehr.patient_state where patient_id")&&query.includes("state_version desc"))return [{state_version:stateVersion,generated_at:new Date("2026-09-30T00:00:00Z"),source_event_id:patientUuid}];
+    if(query.includes("from ehr.patient_state where patient_id")&&query.includes("state_version desc"))return [{state_version:stateVersion,generated_at:new Date("2026-09-30T00:00:00Z"),source_event_id:patientUuid,state_text:JSON.stringify({id:"PT-001"})}];
+    if(query.includes("from ehr.encounter_review")&&query.includes("count(*)"))return [{pending:narrativePending,accepted:0,last_review:null}];
+    if(query.includes("from ehr.tool_call")&&query.includes("count(*)"))return [{pending:toolPending}];
     if(query.includes("from ehr.proposed_observation where encounter_id"))return [{total:accepted+pending,pending,accepted,last_review:"2026-09-29T00:00:00Z"}];
     if(query.startsWith("insert into ehr.synthetic_encounter")){
       writes++;
@@ -37,7 +45,7 @@ const db={
     }
     throw new Error("Unexpected SQL: "+query);
   },
-  begin:async fn=>fn(db)
+  begin:async (...args)=>args.at(-1)(db)
 };
 const sandbox={
   __mockPostgres:()=>db,
@@ -66,14 +74,30 @@ assert.equal(draft.sources[0].text,"eGFR 30");
 const stale=await post({...base,encounterId,expectedVersion:99});
 assert.equal(stale.status,409,JSON.stringify(stale.body));
 const beforeSign=writes;
-const notReviewed=await post({patientId:"PT-001",action:"sign",encounterId,expectedVersion:1});
+const notReviewed=await post({patientId:"PT-001",action:"sign",encounterId,expectedVersion:1,expectedStateVersion:stateVersion});
 assert.equal(notReviewed.status,409);
 assert.equal(writes,beforeSign,"unreviewed encounter must not create a sign event");
 accepted=1;pending=0;stateVersion=2;
-const signedResult=await post({patientId:"PT-001",action:"sign",encounterId,expectedVersion:1});
+const guardsBefore=writes;
+narrativePending=1;
+assert.equal((await post({patientId:"PT-001",action:"sign",encounterId,expectedVersion:1,expectedStateVersion:2})).status,409);
+narrativePending=0;toolPending=1;
+assert.equal((await post({patientId:"PT-001",action:"sign",encounterId,expectedVersion:1,expectedStateVersion:2})).status,409);
+toolPending=0;
+assert.equal((await post({patientId:"PT-001",action:"sign",encounterId,expectedVersion:1,expectedStateVersion:1})).status,409);
+assert.equal(writes,guardsBefore,"pending Astra/action and stale patient state must prevent all sign writes");
+const signedResult=await post({patientId:"PT-001",action:"sign",encounterId,expectedVersion:1,expectedStateVersion:stateVersion});
 assert.equal(signedResult.status,200);
 assert.equal(signedResult.body.stateVersion,2);
 assert.equal(signed,true);
 assert.equal(signProvenanceId,"33333333-3333-4333-8333-333333333333","sign event must reference provenance, not a draft event");
-assert.equal((await post({patientId:"PT-001",action:"sign",encounterId,expectedVersion:1})).status,409);
-console.log("Synthetic encounter review tests passed");
+assert.equal((await post({patientId:"PT-001",action:"sign",encounterId,expectedVersion:1,expectedStateVersion:stateVersion})).status,409);
+stateVersion=3;
+const reloaded=await handler(new Request("https://example.test/functions/v1/synthetic-encounter-gated?patient_id=PT-001"));
+assert.equal(reloaded.status,200);
+const saved=await reloaded.json();
+assert.equal(saved.stateVersion,3);
+assert.equal(saved.lastSigned.final_state_version,2);
+assert.equal(saved.lastSigned.patient.labs.eGFR.value,25,"signed snapshot must stay at approved historical version");
+console.log("Synthetic encounter review tests passed, including archived-state reload");
+

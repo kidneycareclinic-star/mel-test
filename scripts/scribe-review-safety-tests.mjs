@@ -4,6 +4,7 @@ import vm from "node:vm";
 import { stripTypeScriptTypes } from "node:module";
 
 const source = fs.readFileSync("supabase/functions/scribe-review/index.ts", "utf8")
+  .replace('import { jsonObject, patientState } from "./json-boundary.ts";', fs.readFileSync("supabase/functions/_shared/json-boundary.ts","utf8").replace(/^export /gm,""))
   .replace('import postgres from "npm:postgres@3.4.7";', "const postgres = globalThis.__mockPostgres;")
   .replace('import { clinician, patientAccess, authFailure } from "./clinician-auth.ts";',
     'const { clinician, patientAccess, authFailure } = globalThis.__mockAuth;');
@@ -15,6 +16,7 @@ let state = "pending";
 let proposedField = "eGFR";
 let savedMetadata;
 let canonicalType;
+let serializedBp=false;
 
 const tx = {
   async unsafe(query, params) {
@@ -22,7 +24,7 @@ const tx = {
     if (/select \* from ehr.proposed_observation/.test(query)) return [{
       id: proposalId, status: state, field: proposedField,
       value_numeric: proposedField === "eGFR" ? 30 : null,
-      value_json: proposedField === "bloodPressure" ? { systolic: 128, diastolic: 74 } : null,
+      value_json: proposedField === "bloodPressure" ? (serializedBp?JSON.stringify({ systolic: 128, diastolic: 74 }):{ systolic: 128, diastolic: 74 }) : null,
       unit: "mL/min/1.73m²", display_label: "eGFR", observed_at: "2026-09-28T00:00:00Z"
     }];
     if (/^insert|^update/i.test(query)) {
@@ -93,4 +95,10 @@ const bloodPressure = await review([{ proposalId, decision: "accepted" }]);
 assert.equal(bloodPressure.status, 200);
 assert.equal(canonicalType, "BloodPressure", "accepted BP must match the Patient State reducer's observation type");
 
-console.log("Scribe review safety tests passed");
+serializedBp=true;
+const serializedBloodPressure=await review([{proposalId,decision:"edited",editedValue:{systolic:126,diastolic:72}}]);
+assert.equal(serializedBloodPressure.status,200);
+assert.deepEqual(JSON.parse(savedMetadata[5]),{systolic:128,diastolic:74});
+assert.deepEqual(JSON.parse(savedMetadata[6]),{systolic:126,diastolic:72});
+console.log("Scribe review safety tests passed, including serialized JSONB blood pressure edits");
+

@@ -6,6 +6,7 @@ on:
       - agentic-harness-tabs
       - clinician-gateway-cutover
       - astra-ultrafast-gateway
+      - encounter-state-v4
   pull_request:
     branches:
       - main
@@ -42,5 +43,8 @@ jobs:
         run: node scripts/clinician-auth-tests.mjs
       - name: Clinician sign-in UI
         run: node scripts/clinician-auth-ui-tests.mjs
+      - name: Encounter State v4 safety
+        run: node scripts/encounter-state-v4-tests.mjs
       - name: Astra gateway safety
         run: node scripts/astra-gateway-tests.mjs
+

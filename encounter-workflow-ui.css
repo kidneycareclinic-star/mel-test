@@ -5,3 +5,12 @@
 #encounterLastSigned { margin:8px 0 16px; }
 #encounterLastSigned[hidden] { display:none; }
 #encounterLastSigned pre { white-space:pre-wrap; overflow-wrap:anywhere; max-height:240px; overflow:auto; }
+
+
+.encounter-review-card { padding:12px; margin:10px 0; border:1px solid #b7d7cf; border-radius:8px; }
+.encounter-review-card textarea { width:100%; min-height:140px; padding:10px; box-sizing:border-box; font:inherit; }
+.encounter-review-card button { margin:8px 8px 0 0; }
+.encounter-final-view { padding:12px; }
+.encounter-final-view pre,#encounterAstraReview pre { white-space:pre-wrap; overflow-wrap:anywhere; max-height:320px; overflow:auto; }
+.encounter-observation-table { width:100%; border-collapse:collapse; font-size:.85rem; }
+.encounter-observation-table th,.encounter-observation-table td { padding:7px; text-align:left; border-bottom:1px solid #d7e5df; overflow-wrap:anywhere; }

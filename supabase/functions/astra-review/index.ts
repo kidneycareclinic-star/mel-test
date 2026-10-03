@@ -1,3 +1,4 @@
+import { jsonObject, patientState } from "./json-boundary.ts";
 import postgres from "postgres";
 import { clinician, patientAccess, authFailure, AccessError } from "./clinician-auth.ts";
 
@@ -154,6 +155,8 @@ Deno.serve(async (req: Request) => {
   const body = await req.json().catch(() => null);
   const externalId = String(body?.patientId || "");
   const workspace = String(body?.workspace || "ckd").toLowerCase();
+  const encounterId=body?.encounterId||null;
+  if(encounterId!==null&&!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(encounterId))return reply({error:"invalid_encounter"},400,origin);
   const testApprovalPath = body?.testApprovalPath === true;
   if (!/^PT-\d{3}$/.test(externalId)) return reply({ apiVersion: API_VERSION, error: "invalid_patient" }, 400, origin);
   if (!["ckd", "dialysis", "hospital"].includes(workspace)) return reply({ apiVersion: API_VERSION, error: "invalid_workspace" }, 400, origin);
@@ -183,16 +186,20 @@ Deno.serve(async (req: Request) => {
     if (!patient.length || patient[0].synthetic !== true) throw new AccessError(404, "synthetic_patient_not_found");
     const patientId = String(patient[0].id);
 
+    if(encounterId){
+      const encounter=await sql.unsafe("select id from ehr.synthetic_encounter where id=$1::uuid and patient_id=$2::uuid and clinician_principal_id=$3::uuid and status='draft'",[encounterId,patientId,person.id]);
+      if(!encounter.length)throw new AccessError(409,"encounter_draft_not_found");
+    }
     const states = await sql.unsafe(
       "select state_version,state::text as state_text from ehr.patient_state where patient_id=$1::uuid order by state_version desc limit 1",
       [patientId]
     );
     if (!states.length) throw new AccessError(404, "patient_state_not_found");
     const stateVersion = Number(states[0].state_version);
-    const state = JSON.parse(String(states[0].state_text));
+    const state = patientState(states[0].state_text,externalId);
     const context = buildContext(externalId, workspace, stateVersion, state);
 
-    const inputSnapshot = { patientId: externalId, stateVersion, workspace, synthetic: true, serviceTierRequested: SERVICE_TIER, testApprovalPath };
+    const inputSnapshot = { encounterId, patientId: externalId, stateVersion, workspace, synthetic: true, serviceTierRequested: SERVICE_TIER, testApprovalPath };
     const started = await sql`
       insert into ehr.agent_run(
         patient_id,agent_name,agent_version,run_type,status,input_snapshot,model_provider,model_name
@@ -300,8 +307,15 @@ Deno.serve(async (req: Request) => {
       store: false
     };
 
-    const result = await sql.begin(async (tx: any) => {
+    let result:any;
+    try { result = await sql.begin(async (tx: any) => {
       const completedOutput = { review, telemetry };
+      if(encounterId){
+        await tx.unsafe("select id from ehr.patient where id=$1::uuid for update",[patientId]);
+        const e=await tx.unsafe("select id from ehr.synthetic_encounter where id=$1::uuid and patient_id=$2::uuid and clinician_principal_id=$3::uuid and status='draft' for update",[encounterId,patientId,person.id]);
+        if(!e.length)throw new AccessError(409,"encounter_draft_not_found");
+        await tx.unsafe("insert into ehr.encounter_review(patient_id,encounter_id,run_id,base_state_version,generated_content) values($1::uuid,$2::uuid,$3::uuid,$4,$5::jsonb)",[patientId,encounterId,runId,stateVersion,JSON.stringify(completedOutput)]);
+      }
       const completed = await tx`
         update ehr.agent_run
         set status='completed',
@@ -313,7 +327,7 @@ Deno.serve(async (req: Request) => {
         returning completed_at
       `;
 
-      const completedEventPayload = { runId, workspace, stateVersion, ...telemetry };
+      const completedEventPayload = { encounterId, runId, workspace, stateVersion, ...telemetry };
       const event = await tx`
         insert into ehr.event(patient_id,event_type,actor_type,actor_id,source,status,payload)
         values(
@@ -336,6 +350,7 @@ Deno.serve(async (req: Request) => {
           workspace: review.proposal.workspace,
           agentType: "astra-ultrafast",
           reason: review.proposal.reason.trim().slice(0, 500),
+          encounterId,
           baseStateVersion: stateVersion,
           externalExecution: false,
           testOnly: testApprovalPath
@@ -373,6 +388,10 @@ Deno.serve(async (req: Request) => {
       };
     });
 
+    } catch(error) {
+      await markFailed(runId,patientId,"encounter_review_save_failed",null,requestId,latencyMs);
+      throw error;
+    }
     return reply({
       apiVersion: API_VERSION,
       mode: "astra-review",
@@ -390,3 +409,4 @@ Deno.serve(async (req: Request) => {
     return reply({ apiVersion: API_VERSION, error: denied?.code || String((error as any)?.message || error) }, denied?.status || 400, origin);
   }
 });
+
