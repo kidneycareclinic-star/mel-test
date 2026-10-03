@@ -369,7 +369,7 @@ begin
 
   return v_next_version;
 end;
-$function$
+$function$;
 
 
 revoke execute on function ehr.reduce_patient_state(uuid,uuid,text) from public,anon,authenticated;
