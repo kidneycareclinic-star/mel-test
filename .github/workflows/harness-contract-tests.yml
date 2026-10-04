@@ -108,3 +108,6 @@ jobs:
 
       - name: Consolidated encounter review DOM
         run: DOM_TEST_MODULE="$RUNNER_TEMP/jsonb-driver/node_modules/jsdom/lib/api.js" node scripts/encounter-coordinator-ui-tests.mjs
+
+      - name: Automatic transcription handoff DOM
+        run: DOM_TEST_MODULE="$RUNNER_TEMP/jsonb-driver/node_modules/jsdom/lib/api.js" node scripts/encounter-coordinator-audio-ui-tests.mjs

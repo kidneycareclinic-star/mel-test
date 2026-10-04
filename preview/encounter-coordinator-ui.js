@@ -49,7 +49,7 @@
     if(result.draft&&result.draft.sources?.some(function(source){return source.kind!=='lab-trend'&&source.kind!=='attachment'&&source.text?.trim();})){await prepare(id,{encounterId:result.draft.id,version:result.draft.version});return;}
     review.replaceChildren();s.run=null;finalize.disabled=true;retry.hidden=true;message('Chart assembled. Save a reviewed transcript, dictation or typed source; the coordinator will prepare the encounter automatically.');
   }catch(e){if(active()===id){message(e.message,true);finalize.disabled=true;retry.hidden=false;}}}
-  async function prepare(id,saved){var s=state(id);if(s.busy){s.pending=saved;return;}s.busy=true;finalize.disabled=true;retry.hidden=true;message('Preparing the encounter · sources saved, note writer working…');
+  async function prepare(id,saved){if(active()!==id)return;var s=state(id);if(s.busy){s.pending=saved;return;}s.busy=true;finalize.disabled=true;retry.hidden=true;message('Preparing the encounter · sources saved, note writer working…');
     try{await window.PRECHART_WORKSPACE_API?.whenSourcesReady?.();var result=await request(id,{action:'prepare',encounterId:saved.encounterId,expectedVersion:saved.version,preferences:window.NOTE_DRAFTING.preferences()});if(active()!==id)return;if(result.preparation.status==='preparing'){later(id);return;}renderPacket(id,Object.assign({},result.preparation,{current:result.current}));}
     catch(e){if(active()===id){message(e.message,true);retry.hidden=false;finalize.disabled=true;}}
     finally{s.busy=false;if(active()===id&&s.run?.current&&!s.dirty)finalize.disabled=false;if(s.pending){var next=s.pending;s.pending=null;prepare(id,next);}}
