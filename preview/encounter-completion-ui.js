@@ -3,7 +3,7 @@
   var anchor=document.querySelector(".prechart-panel");
   if(!anchor)return;
   var panel=document.createElement("section");panel.className="panel completion-launcher";
-  panel.innerHTML='<div class="panel-head"><div><h2>Visit completion</h2><div class="micro">Final note, patient instructions, simulated orders, and follow-up</div></div><button class="small-btn" type="button">Open visit package</button></div>';
+  panel.innerHTML='<div class="panel-head"><div><h2>Visit completion</h2><div class="micro">SOAP note, patient instructions, simulated orders, and follow-up</div></div><button class="small-btn" type="button">Open visit package</button></div>';
   anchor.after(panel);
   var dialog=document.createElement("dialog");dialog.id="encounterCompletionDialog";
   dialog.setAttribute("aria-labelledby","completionDialogTitle");
@@ -64,12 +64,14 @@
     var p=payload.package,approved=p.status==="approved";
     node(body,"p","Based on signed Patient State v"+p.source_state_version+" · package "+p.status+" · revision "+p.version).className="completion-source";
     if(approved)node(body,"p","Approved by "+p.approved_by_id+" on "+new Date(p.approved_at).toLocaleString());
-    var note=field(body,"Final nephrology note","textarea",p.note_text);note.id="completionNote";note.maxLength=60000;note.readOnly=approved;
+    node(body,"p","SOAP draft: review the history, examination, assessment and plan. Missing information is marked Not documented; complete it from the encounter before approval.");
+    var note=field(body,"Final nephrology note · SOAP","textarea",p.note_text);note.id="completionNote";note.maxLength=60000;note.readOnly=approved;
     var instructions=field(body,"Patient instructions · review for clarity","textarea",p.patient_instructions);instructions.id="completionInstructions";instructions.maxLength=40000;instructions.readOnly=approved;
     // An error leaves payload unchanged, so retain the physician's local edits.
     if(unsaved&&unsaved._version===p.version&&unsaved._encounter===p.encounter_id){note.value=unsaved.noteText;instructions.value=unsaved.patientInstructions;}
     editorRevision=p.version;editorEncounter=p.encounter_id;
     if(!approved){
+      button(actions,"Apply SOAP draft",function(){withBusy(async function(){await saveEdits();payload=await request("format-soap");message("SOAP draft applied. Prior text is retained in visit history; any physician edits are also retained verbatim below the new draft. Review before approving.");});});
       button(actions,"Save package draft",function(){withBusy(async function(){await saveEdits();message("Visit package draft saved.");});});
       button(actions,"Approve visit package",function(){withBusy(async function(){await saveEdits();payload=await request("approve");message("Visit package approved. The final note and instructions are saved; orders remain simulated.");});});
     }
