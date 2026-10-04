@@ -95,6 +95,7 @@
         "<div class='workspace-review-decision'><strong>"+esc(payload.status==="executed"?"Approved and executed":"Rejected")+"</strong>"+
         "<span>"+(payload.status==="executed"?"Open loop created · Patient State v"+esc(payload.stateVersion):"No Patient State change")+"</span></div>";
       if(window.PATIENT_AUDIT_UI&&PATIENT_AUDIT_UI.refresh) PATIENT_AUDIT_UI.refresh();
+      if(window.ENCOUNTER_WORKFLOW_UI?.refresh) ENCOUNTER_WORKFLOW_UI.refresh();
     }catch(error){
       status.textContent="error";
       result.innerHTML="<div class='micro workspace-review-error'>"+esc(error&&error.message?error.message:error)+"</div>";
@@ -124,7 +125,7 @@
           "Authorization":"Bearer "+c.anonJwt
         },
         cache:"no-store",
-        body:JSON.stringify({patientId:patient.id,workspace:workspace,testApprovalPath:testApprovalPath===true})
+        body:JSON.stringify({patientId:patient.id,workspace:workspace,encounterId:window.ENCOUNTER_WORKFLOW_UI?.currentId(patient.id)||null,testApprovalPath:testApprovalPath===true})
       });
       var payload=await res.json().catch(function(){return {};});
       if(!res.ok) throw new Error(payload.error||("Astra review HTTP "+res.status));
@@ -156,6 +157,7 @@
         proposal.querySelector(".workspace-reject-btn").addEventListener("click",function(){decide(proposal.dataset.tool,"rejected");});
       }
       if(window.PATIENT_AUDIT_UI&&PATIENT_AUDIT_UI.refresh) PATIENT_AUDIT_UI.refresh();
+      if(window.ENCOUNTER_WORKFLOW_UI?.refresh) ENCOUNTER_WORKFLOW_UI.refresh();
     }catch(error){
       status.textContent="Astra · error";
       result.innerHTML="<div class='micro workspace-review-error'>"+esc(error&&error.message?error.message:error)+"</div>";
@@ -210,11 +212,13 @@
         });
       }
       if(window.PATIENT_AUDIT_UI&&PATIENT_AUDIT_UI.refresh) PATIENT_AUDIT_UI.refresh();
+      if(window.ENCOUNTER_WORKFLOW_UI?.refresh) ENCOUNTER_WORKFLOW_UI.refresh();
     }catch(error){
       status.textContent="error";
       result.innerHTML="<div class='micro workspace-review-error'>"+esc(error&&error.message?error.message:error)+"</div>";
     }
   }
   ensurePanel();
-  window.WORKSPACE_REVIEW_AGENTS={run:run,runAstra:runAstra};
+  window.WORKSPACE_REVIEW_AGENTS={run:run,runAstra:runAstra,decide:decide};
 })();
+

@@ -1,3 +1,4 @@
+import { jsonObject, patientState } from "./json-boundary.ts";
 import postgres from "npm:postgres@3.4.7";
 import { clinician, patientAccess, authFailure } from "./clinician-auth.ts";
 
@@ -118,6 +119,11 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    for(const rows of [eventRows,observationRows,toolRows,agentRows])for(const row of rows){
+      for(const key of ['payload','raw_payload','value_json','input','output','input_snapshot']){
+        if(row[key]!=null)row[key]=jsonObject(row[key],key);
+      }
+    }
     const observationsByEvent = new Map<string, any[]>();
     for (const row of observationRows) {
       const key = String(row.source_event_id);
@@ -284,3 +290,4 @@ Deno.serve(async (req: Request) => {
     return response({ error: String(error?.message || error) }, 400, origin);
   }
 });
+

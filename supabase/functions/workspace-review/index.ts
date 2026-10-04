@@ -1,9 +1,10 @@
+import { jsonObject, patientState } from "./json-boundary.ts";
 import postgres from "npm:postgres@3.4.7";
 import { clinician, patientAccess, authFailure, AccessError } from "./clinician-auth.ts";
 const dbUrl=Deno.env.get("SUPABASE_DB_URL");
 if(!dbUrl) throw new Error("SUPABASE_DB_URL is not configured");
 const sql=postgres(dbUrl,{prepare:false,max:1});
-const API_VERSION="workspace-review-v5-clinician-gated";
+const API_VERSION="workspace-review-v6-state-v4";
 
 function allowed(origin:string|null){
   if(!origin) return null;
@@ -50,6 +51,7 @@ Deno.serve(async(req:Request)=>{
       if(!["low","moderate"].includes(risk))throw new AccessError(403,"risk_not_enabled");
       const tool=String(proposed[0].tool_name);
       if(!["create_open_loop","prepare_followup_lab_order","prepare_followup_appointment"].includes(tool))throw new AccessError(403,"tool_not_enabled");
+      proposed[0].input=jsonObject(proposed[0].input,"tool_input");
       const assignedWorkspace=tool==="create_open_loop"?String(proposed[0].input?.workspace||"office"):"office";
       await patientAccess(sql,person,externalId,assignedWorkspace,
         risk==="low"?"tool.approve.low":"tool.prepare");
@@ -58,14 +60,14 @@ Deno.serve(async(req:Request)=>{
       await patientAccess(sql,person,externalId,assignedWorkspace,mode==="prepare"?"tool.prepare":"agent.review");
     }
     const result=await sql.begin(async(tx:any)=>{
-      const p=await tx.unsafe("select id,display_name,synthetic from ehr.patient where external_id=$1 limit 1",[externalId]);
+      const p=await tx.unsafe("select id,display_name,synthetic from ehr.patient where external_id=$1 limit 1 for update",[externalId]);
       if(!p.length||p[0].synthetic!==true) throw new Error("synthetic_patient_not_found");
       const patientId=p[0].id;
 
       const st=await tx.unsafe("select state_version,state::text as state_text from ehr.patient_state where patient_id=$1 order by state_version desc limit 1",[patientId]);
       if(!st.length) throw new Error("patient_state_not_found");
       const stateVersion=Number(st[0].state_version);
-      const state=JSON.parse(String(st[0].state_text));
+      const state=patientState(st[0].state_text,externalId);
 
       if(mode==="prepare"){
         const toolName=String(body?.toolName||"");
@@ -128,14 +130,20 @@ Deno.serve(async(req:Request)=>{
         );
         if(!rows.length) throw new Error("tool_call_not_pending");
         const tc=rows[0];
+        tc.input=jsonObject(tc.input,"tool_input");
+        if(tc.input.encounterId){
+          const e=await tx.unsafe("select id from ehr.synthetic_encounter where id=$1::uuid and patient_id=$2::uuid and clinician_principal_id=$3::uuid and status='draft' for update",[tc.input.encounterId,patientId,person.id]);
+          if(!e.length)throw new AccessError(409,"encounter_draft_not_found");
+        }
         const proposedBaseVersion=Number(tc.input?.baseStateVersion||0);
-        if(proposedBaseVersion>0 && proposedBaseVersion!==stateVersion){
-          throw new AccessError(409,"stale_agent_proposal");
+        if(decision==="approved" && proposedBaseVersion>0 && proposedBaseVersion!==stateVersion){
+          const fresh=tc.agent_run_id?await tx.unsafe("select ehr.review_source_current($1::uuid,$2::bigint,$3::uuid) as current",[patientId,proposedBaseVersion,tc.agent_run_id]):[];
+          if(fresh[0]?.current!==true)throw new AccessError(409,"stale_agent_proposal");
         }
 
         const decisionEvent=await tx.unsafe(
-          "insert into ehr.event(patient_id,event_type,actor_type,actor_id,source,status,payload) values($1,$2,'physician',$5,'workspace-review','recorded',jsonb_build_object('toolCallId',$3::text,'decision',$4::text)) returning id",
-          [patientId,decision==="approved"?"PHYSICIAN_APPROVAL_GRANTED":"PHYSICIAN_APPROVAL_REJECTED",toolCallId,decision,person.externalId]
+          "insert into ehr.event(patient_id,event_type,actor_type,actor_id,source,status,payload) values($1,$2,'physician',$5,'workspace-review','recorded',jsonb_build_object('toolCallId',$3::text,'decision',$4::text,'encounterId',$6::text)) returning id",
+          [patientId,decision==="approved"?"PHYSICIAN_APPROVAL_GRANTED":"PHYSICIAN_APPROVAL_REJECTED",toolCallId,decision,person.externalId,tc.input.encounterId||null]
         );
 
         await tx.unsafe(
@@ -150,8 +158,8 @@ Deno.serve(async(req:Request)=>{
 
         const input=tc.input||{};
         const executedEvent=await tx.unsafe(
-          "insert into ehr.event(patient_id,event_type,actor_type,source,status,payload) values($1,'TOOL_ACTION_EXECUTED','system','workspace-review','executed',jsonb_build_object('toolCallId',$2::text,'toolName',$3::text,'externalExecution',false)) returning id",
-          [patientId,toolCallId,tc.tool_name]
+          "insert into ehr.event(patient_id,event_type,actor_type,source,status,payload) values($1,'TOOL_ACTION_EXECUTED','system','workspace-review','executed',jsonb_build_object('toolCallId',$2::text,'toolName',$3::text,'externalExecution',false,'encounterId',$4::text)) returning id",
+          [patientId,toolCallId,tc.tool_name,tc.input.encounterId||null]
         );
 
         let loopLabel="";
@@ -186,7 +194,7 @@ Deno.serve(async(req:Request)=>{
 
         const reduced=await tx.unsafe(
           "select ehr.reduce_patient_state($1,$2,$3) as state_version",
-          [patientId,executedEvent[0].id,"patient-state-reducer-v1"]
+          [patientId,executedEvent[0].id,"patient-state-reducer-v4"]
         );
         const nextVersion=Number(reduced[0].state_version);
         const next=await tx.unsafe(
@@ -200,7 +208,7 @@ Deno.serve(async(req:Request)=>{
           status:"executed",
           openLoopId:loop[0].id,
           stateVersion:nextVersion,
-          patient:JSON.parse(String(next[0].state_text))
+          patient:patientState(next[0].state_text,externalId)
         };
       }
 
@@ -267,3 +275,4 @@ Deno.serve(async(req:Request)=>{
     return reply({apiVersion:API_VERSION,error:denied?.code||String(error?.message||error)},denied?.status||400,origin);
   }
 });
+

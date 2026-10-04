@@ -195,5 +195,6 @@
     }
   }
   ensurePanel();
-  window.SCRIBE_REVIEW_UI={refresh:refresh};
+  window.SCRIBE_REVIEW_UI={refresh:refresh,applyBackendPatient:applyBackendPatient};
 })();
+

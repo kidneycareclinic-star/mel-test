@@ -1,3 +1,4 @@
+import { jsonObject, patientState } from "./json-boundary.ts";
 import postgres from "npm:postgres@3.4.7";
 import { clinician, patientAccess, authFailure } from "./clinician-auth.ts";
 
@@ -45,7 +46,7 @@ Deno.serve(async(req:Request)=>{
     const person=await clinician(req,sql);
     await patientAccess(sql,person,patientExternalId,"office","scribe.review");
     const result=await sql.begin(async(tx:any)=>{
-      const p=await tx.unsafe("select id,synthetic from ehr.patient where external_id=$1 limit 1",[patientExternalId]);
+      const p=await tx.unsafe("select id,synthetic from ehr.patient where external_id=$1 limit 1 for update",[patientExternalId]);
       if(!p.length||p[0].synthetic!==true) throw new Error("synthetic_patient_not_found");
       const patientId=p[0].id;
       if(encounterId){
@@ -61,8 +62,8 @@ Deno.serve(async(req:Request)=>{
       const ev=await tx.unsafe([
         "insert into ehr.event(patient_id,event_type,actor_type,source,status,payload,provenance_id)",
         "values($1,'SCRIBE_EXTRACTION_PROPOSED','ambient_scribe','ambient-scribe','proposed',",
-        "jsonb_build_object('recordCount',$2::int,'writerVersion',$3::text),$4) returning id"
-      ].join(" "),[patientId,records.length,WRITER_VERSION,provenanceId]);
+        "jsonb_build_object('recordCount',$2::int,'writerVersion',$3::text,'encounterId',$5::uuid),$4) returning id"
+      ].join(" "),[patientId,records.length,WRITER_VERSION,provenanceId,encounterId]);
       const eventId=ev[0].id;
       const proposals:any[]=[];
       for(const input of records){
@@ -83,7 +84,10 @@ Deno.serve(async(req:Request)=>{
         else if(field==="bloodPressure"){jsonKind="bp";jsonA=num(input?.value?.systolic,"systolic");jsonB=num(input?.value?.diastolic,"diastolic");}
         else if(field==="weight"){jsonKind="weight";jsonA=num(input?.value?.amount,"weight");jsonUnit=String(input?.value?.reportedUnit||"unspecified");}
         const existing=await tx.unsafe("select id,status from ehr.proposed_observation where patient_id=$1 and client_record_id=$2 limit 1",[patientId,id]);
-        if(existing.length){proposals.push({id:existing[0].id,clientRecordId:id,status:existing[0].status,duplicate:true});continue;}
+        if(existing.length){
+          const old=await tx.unsafe("select encounter_id from ehr.proposed_observation where id=$1::uuid",[existing[0].id]);
+          if(String(old[0].encounter_id||"")!==String(encounterId||""))throw new Error("record_belongs_to_other_encounter");
+          proposals.push({id:existing[0].id,clientRecordId:id,status:existing[0].status,duplicate:true});continue;}
         const valueExpr=jsonKind==="bp" ? "jsonb_build_object('systolic',$5::numeric,'diastolic',$6::numeric)" : jsonKind==="weight" ? "jsonb_build_object('amount',$5::numeric,'reportedUnit',$7::text)" : "null::jsonb";
         const q=[
           "insert into ehr.proposed_observation(patient_id,provenance_id,source_event_id,client_record_id,field,display_label,observation_type,value_numeric,value_json,unit,source_text,observed_at,confidence,certainty,status,metadata,encounter_id)",
@@ -91,6 +95,7 @@ Deno.serve(async(req:Request)=>{
           "returning id,client_record_id,field,display_label,observation_type,value_numeric,value_json,unit,source_text,observed_at,status"
         ].join(" ");
         const rows=await tx.unsafe(q,[patientId,provenanceId,eventId,id,jsonA,jsonB,jsonUnit,field,String(input.displayLabel||field),type,numericValue,String(input.unit||""),String(input.sourceText||""),observedAt,WRITER_VERSION,encounterId]);
+        if(rows[0].value_json!=null)rows[0].value_json=jsonObject(rows[0].value_json,"observation");
         proposals.push(rows[0]);
       }
       return {provenanceId,eventId,proposals};
@@ -101,3 +106,4 @@ Deno.serve(async(req:Request)=>{
     return response({writerVersion:WRITER_VERSION,error:denied?.code||String(error?.message||error)},denied?.status||400,origin);
   }
 });
+

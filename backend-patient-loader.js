@@ -35,7 +35,10 @@
     }
 
     var backendPatients = payload.patients.map(function (entry) {
-      var patient = entry.patient;
+      var patient = typeof entry.patient === "string" ? JSON.parse(entry.patient) : entry.patient;
+      if (!patient || typeof patient !== "object" || Array.isArray(patient) || patient.id !== entry.externalId) {
+        throw new Error("Invalid backend patient state.");
+      }
       patient.backendSource = {
         type: "supabase-postgresql",
         stateVersion: entry.stateVersion,
@@ -66,3 +69,4 @@
     return null;
   });
 })();
+

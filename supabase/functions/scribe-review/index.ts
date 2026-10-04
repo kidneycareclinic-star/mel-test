@@ -1,10 +1,11 @@
+import { jsonObject, patientState } from "./json-boundary.ts";
 import postgres from "npm:postgres@3.4.7";
 import { clinician, patientAccess, authFailure } from "./clinician-auth.ts";
 
 const dbUrl=Deno.env.get("SUPABASE_DB_URL");
 if(!dbUrl) throw new Error("SUPABASE_DB_URL is not configured");
 const sql=postgres(dbUrl,{prepare:false,max:1});
-const API_VERSION="scribe-review-v4-encounter-linked";
+const API_VERSION="scribe-review-v5-state-v4";
 
 function originAllowed(origin:string|null){if(!origin)return null;if(origin==="https://kidneycareclinic-star.github.io")return origin;if(/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin))return origin;return null;}
 function response(body:unknown,status=200,origin:string|null=null){const h=new Headers({"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store"});const a=originAllowed(origin);if(a){h.set("Access-Control-Allow-Origin",a);h.set("Vary","Origin");}h.set("Access-Control-Allow-Methods","GET, POST, OPTIONS");h.set("Access-Control-Allow-Headers","authorization, apikey, content-type");return new Response(JSON.stringify(body),{status,headers:h});}
@@ -18,11 +19,14 @@ function num(v:unknown,name:string){
 }
 function uuid(v:unknown){return typeof v==="string"&&/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);}
 
-async function patientRow(tx:any,externalId:string){const rows=await tx.unsafe("select id,synthetic from ehr.patient where external_id=$1 limit 1",[externalId]);if(!rows.length||rows[0].synthetic!==true)throw new Error("synthetic_patient_not_found");return rows[0];}
-async function listPending(conn:any,patientId:string,encounterId:string|null=null){return await conn.unsafe([
+async function patientRow(tx:any,externalId:string){const rows=await tx.unsafe("select id,synthetic from ehr.patient where external_id=$1 limit 1 for update",[externalId]);if(!rows.length||rows[0].synthetic!==true)throw new Error("synthetic_patient_not_found");return rows[0];}
+async function listPending(conn:any,patientId:string,encounterId:string|null=null){const rows=await conn.unsafe([
   "select id,client_record_id,field,display_label,observation_type,value_numeric,value_json,unit,source_text,observed_at,confidence,certainty,status,created_at",
   "from ehr.proposed_observation where patient_id=$1 and status='pending' and ($2::uuid is null or encounter_id=$2::uuid) order by created_at,id"
-].join(" "),[patientId,encounterId]);}
+].join(" "),[patientId,encounterId]);
+  for(const row of rows)if(row.value_json!=null)row.value_json=jsonObject(row.value_json,"observation");
+  return rows;
+}
 
 Deno.serve(async(req:Request)=>{
   const origin=req.headers.get("origin");
@@ -79,12 +83,13 @@ Deno.serve(async(req:Request)=>{
         "where patient_id=$1 and id in ("+placeholders+") order by id for update"
       ].join(" "),[patientId,...ids]);
       const proposals=new Map(locked.map((row:any)=>[String(row.id),row]));
-      if(locked.length!==ids.length||locked.some((row:any)=>row.status!=="pending"||(encounterId&&String(row.encounter_id)!==encounterId)))throw new Error("review_queue_changed_refresh_and_retry");
+      if(locked.length!==ids.length||locked.some((row:any)=>row.status!=="pending"||(encounterId&&String(row.encounter_id)!==encounterId.toLowerCase())))throw new Error("review_queue_changed_refresh_and_retry");
       // Check edits before inserting the decision event, so a rejected batch leaves no trace.
       const checked=new Map<string,{valueNumeric:number|null,valueJson:any}>();
       for(const d of decisions){
         if(d.decision!=="edited")continue;
         const po:any=proposals.get(d.proposalId.toLowerCase());
+        if(po.value_json!=null)po.value_json=jsonObject(po.value_json,"observation");
         if(po.value_numeric!=null){checked.set(d.proposalId.toLowerCase(),{valueNumeric:num(d.editedValue,po.field),valueJson:null});}
         else if(po.field==="bloodPressure"){
           checked.set(d.proposalId.toLowerCase(),{valueNumeric:null,valueJson:{systolic:num(d?.editedValue?.systolic,"systolic"),diastolic:num(d?.editedValue?.diastolic,"diastolic")}});
@@ -97,8 +102,8 @@ Deno.serve(async(req:Request)=>{
       const ev=await tx.unsafe([
         "insert into ehr.event(patient_id,event_type,actor_type,actor_id,source,status,payload)",
         "values($1,'SCRIBE_REVIEW_DECIDED','physician',$5,'scribe-review','recorded',",
-        "jsonb_build_object('acceptedCount',$2::int,'rejectedCount',$3::int,'apiVersion',$4::text,'encounterId',$6::uuid)) returning id"
-      ].join(" "),[patientId,acceptedDecisions.length,rejectedDecisions.length,API_VERSION,person.externalId,encounterId]);
+        "jsonb_build_object('decisions',$7::text::jsonb,'acceptedCount',$2::int,'rejectedCount',$3::int,'apiVersion',$4::text,'encounterId',$6::uuid)) returning id"
+      ].join(" "),[patientId,acceptedDecisions.length,rejectedDecisions.length,API_VERSION,person.externalId,encounterId,JSON.stringify(decisions)]);
       const eventId=ev[0].id;
       let canonicalInserted=0;
       const outcomes:any[]=[];
@@ -115,7 +120,7 @@ Deno.serve(async(req:Request)=>{
           continue;
         }
         let valueNumeric=po.value_numeric==null?null:Number(po.value_numeric);
-        let valueJson=po.value_json||null;
+        let valueJson=po.value_json==null?null:jsonObject(po.value_json,"observation");
         if(decision==="edited"){
           const checkedValue=checked.get(proposalId.toLowerCase())!;
           valueNumeric=checkedValue.valueNumeric;
@@ -146,20 +151,20 @@ Deno.serve(async(req:Request)=>{
         canonicalInserted+=1;
         await tx.unsafe([
           "update ehr.proposed_observation set status=$2,decision_event_id=$3,accepted_observation_id=$4,reviewed_by_type='physician',reviewed_by_id=$8,reviewed_at=now(),",
-          "metadata=metadata||jsonb_build_object('decisionApi',$5::text,'originalValue',$6::jsonb,'reviewedValue',$7::jsonb) where id=$1::uuid"
-        ].join(" "),[proposalId,decision,eventId,obsId,API_VERSION,JSON.stringify(po.value_numeric==null?po.value_json:Number(po.value_numeric)),JSON.stringify(valueNumeric==null?valueJson:valueNumeric),person.externalId]);
+          "metadata=metadata||jsonb_build_object('decisionApi',$5::text,'originalValue',$6::text::jsonb,'reviewedValue',$7::text::jsonb) where id=$1::uuid"
+        ].join(" "),[proposalId,decision,eventId,obsId,API_VERSION,JSON.stringify(po.value_numeric==null?jsonObject(po.value_json,"observation"):Number(po.value_numeric)),JSON.stringify(valueNumeric==null?valueJson:valueNumeric),person.externalId]);
         outcomes.push({proposalId,status:decision,observationId:obsId});
       }
       let stateVersion:null|number=null;
       let patient:any=null;
       if(canonicalInserted>0){
-        const reduced=await tx.unsafe("select ehr.reduce_patient_state($1,$2,$3) as state_version",[patientId,eventId,"patient-state-reducer-v1"]);
+        const reduced=await tx.unsafe("select ehr.reduce_patient_state($1,$2,$3) as state_version",[patientId,eventId,"patient-state-reducer-v4"]);
         stateVersion=Number(reduced[0].state_version);
         const st=await tx.unsafe("select state::text as state_text from ehr.patient_state where patient_id=$1 and state_version=$2 limit 1",[patientId,stateVersion]);
-        patient=JSON.parse(String(st[0].state_text));
+        patient=patientState(st[0].state_text,patientExternalId);
       }else{
         const st=await tx.unsafe("select state_version,state::text as state_text from ehr.patient_state where patient_id=$1 order by state_version desc limit 1",[patientId]);
-        stateVersion=Number(st[0].state_version);patient=JSON.parse(String(st[0].state_text));
+        stateVersion=Number(st[0].state_version);patient=patientState(st[0].state_text,patientExternalId);
       }
       const pending=await listPending(tx,patientId,encounterId);
       return {eventId,canonicalInserted,stateVersion,patient,pending,outcomes};
@@ -172,3 +177,4 @@ Deno.serve(async(req:Request)=>{
     return response({apiVersion:API_VERSION,error:message},message.includes("refresh_and_retry")?409:400,origin);
   }
 });
+
