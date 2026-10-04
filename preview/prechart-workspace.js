@@ -1312,7 +1312,7 @@
     setVoiceStatus("dictation", "idle", false);
   });
 
-  addTypedSourceBtn.addEventListener("click", function () {
+  addTypedSourceBtn.addEventListener("click", async function () {
     var kind = typedSourceType.value;
     var label = typedSourceType.options[typedSourceType.selectedIndex].text;
     if (addTextSource(
@@ -1322,6 +1322,7 @@
       "Pre-chart workspace · physician entered/pasted text"
     )) {
       typedInput.value = "";
+      if(window.ENCOUNTER_COORDINATOR_UI?.active)await saveReviewedText(activePatientId(),voiceRuntimeStatus);
     }
   });
 
@@ -1422,6 +1423,7 @@
       if(activePatientId()===patientId)renderNarrative(activePatient());
     },
     stopVoice: stopVoiceCapture,
+    whenSourcesReady: function(){return scribeWriteQueue;},
     receiveTranscript: function(patientId,text){if(activePatientId()!==patientId)return false;ambientInput.value=String(text);ambientReviewedInput.value="";reviewAmbientTranscript();return true;},
     copyRawToReview: function(){reviewAmbientTranscript(true);},
     hydrateEncounterDraft: function (patientId, draft) {
