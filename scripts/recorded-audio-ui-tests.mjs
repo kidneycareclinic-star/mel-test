@@ -33,7 +33,7 @@ w.currentPatient=second;w.PRECHART_WORKSPACE_API.refreshNarrative(second);assert
 
 let grant;const originalGet=w.navigator.mediaDevices.getUserMedia;w.navigator.mediaDevices.getUserMedia=()=>new Promise(r=>grant=r);const beforeRecorder=rec;
 await click('recordAudioBtn');await click('closePrechartWorkspaceBtn');grant({getTracks:()=>[{stop:()=>tracksStopped++}]});await settle();assert.equal(rec,beforeRecorder,'closing while permission is pending must not start a late recording');
-const beforeRecognition=recognition;await click('startAmbientDemoBtn');w.PRECHART_WORKSPACE_API.stopVoice();grant({getTracks:()=>[{stop:()=>tracksStopped++}]});await settle();assert.equal(recognition,beforeRecognition,'canceling pending dictation permission must not start recognition');w.navigator.mediaDevices.getUserMedia=originalGet;
+const beforeRecognition=recognition;await click('startAmbientDemoBtn');await click('closePrechartWorkspaceBtn');grant({getTracks:()=>[{stop:()=>tracksStopped++}]});await settle();assert.equal(recognition,beforeRecognition,'canceling pending dictation permission must not start recognition');w.navigator.mediaDevices.getUserMedia=originalGet;
 w.dispatchEvent(new w.Event('pagehide'));dom.window.close();console.log('Recorded audio/browser DOM: local-only recording/playback, retry with retained audio, explicit transcript import, exact negations/numbers/repetitions, review edit retention, replay deduplication, interim exclusion, no live proposals and patient isolation passed.');
 
 const disabledDom=new JSDOM('<section id="ambientCaptureCard"><div class="ambient-transcript-grid"></div></section>',{url:'https://example.test',runScripts:'outside-only'});

@@ -591,7 +591,7 @@
   }
 
   function closeWorkspace() {
-    if (activeRecognition) stopVoiceCapture();
+    stopVoiceCapture();
     window.RECORDED_AUDIO_UI?.stop();
     var patientId = activePatientId();
     if (patientId) {
@@ -1132,6 +1132,7 @@
     setRuntimeStatus("Requesting microphone permission…", "warn");
 
     requestMicrophonePermission().then(function (permission) {
+      if(captureTicket!==pendingVoice || activePatientId()!==capturePatientId){permission.stream?.getTracks().forEach(function(t){t.stop();});return;}
       if (!permission.ok) {
         setVoiceStatus(mode, "permission denied", false);
         setRuntimeStatus(permission.reason, "error");
@@ -1193,6 +1194,7 @@
       };
 
       recognition.onend = function () {
+        if(activeRecognition!==recognition)return;
         if (activeRecognition === recognition) {
           releaseVoice();
           activeRecognition = null;

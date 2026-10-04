@@ -18,7 +18,7 @@
     if(recorder){stop();return;}if(busy)return;
     if(!navigator.mediaDevices?.getUserMedia||!window.MediaRecorder){message('Audio recording is unavailable in this browser. You can paste a transcript or use the browser preview.',true);return;}
     if(blob){message('A recording is ready. Transcribe or discard it before recording another clip.',true);return;}
-    var id=activeId();if(!id)return;var ticket=++generation;busy=true;controls();message('Requesting microphone access…');
+    var id=activeId();if(!id)return;var ticket=++generation;patientId=id;busy=true;controls();message('Requesting microphone access…');
     try{window.PRECHART_WORKSPACE_API?.stopVoice();var incoming=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true},video:false});
       if(ticket!==generation||id!==activeId()){incoming.getTracks().forEach(function(t){t.stop();});return;}stream=incoming;patientId=id;
       var mime=['audio/webm;codecs=opus','audio/mp4'].find(function(m){return MediaRecorder.isTypeSupported(m);});if(!mime)throw Error('No supported recording format is available. Use pasted text or browser preview.');
@@ -45,5 +45,5 @@
   box.querySelector('#copyRawReviewBtn').addEventListener('click',function(){window.PRECHART_WORKSPACE_API?.copyRawToReview();message('Raw text copied into the review draft. Review it before saving.');});
   window.addEventListener('scribe-patient-changed',function(){if(patientId&&patientId!==activeId())discard();});window.addEventListener('pagehide',discard);
   if(!transcriptionReady){transcribe.title='Recorded transcription is not enabled yet';message('Recording and playback are available. Recorded transcription is not enabled yet; enter or paste a transcript for review.');}
-  window.RECORDED_AUDIO_UI={start:start,stop:stop,isRecording:function(){return !!recorder;}};
+  window.RECORDED_AUDIO_UI={start:start,stop:stop,isRecording:function(){return !!recorder||busy&&!request;}};
 })();
