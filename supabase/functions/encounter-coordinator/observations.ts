@@ -8,13 +8,13 @@ function num(v:unknown,name:string){
   if(!Number.isFinite(n))throw new Error("invalid numeric value for "+name);
   return n;
 }
-function uuid(v:unknown){return typeof v==="string"&&/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);}
+function observationUuid(v:unknown){return typeof v==="string"&&/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);}
 
 
 export async function applyObservations(tx:any,patientId:string,encounterId:string,person:any,decisions:any[]) {
   if(!decisions.length)return {canonicalInserted:0,outcomes:[]};
   const rawIds=decisions.map((d:any)=>d?.proposalId);
-  if(rawIds.some((id:unknown)=>!uuid(id)))throw new Error('invalid_proposal_id');
+  if(rawIds.some((id:unknown)=>!observationUuid(id)))throw new Error('invalid_proposal_id');
   const ids=rawIds.map((id:string)=>id.toLowerCase());
   if(new Set(ids).size!==ids.length||decisions.some((d:any)=>!['accepted','edited','rejected'].includes(d.decision)))throw new Error('invalid_observation_decisions');
       // Lock every requested proposal before recording an event. A stale batch fails atomically.
