@@ -10,7 +10,7 @@
   var recorder=null,stream=null,blob=null,objectUrl=null,patientId=null,timer=null,busy=false,request=null,generation=0;
   function activeId(){try{return currentPatient?.id||window.currentPatient?.id||null;}catch(_){return window.currentPatient?.id||null;}}
   function message(text,error){status.textContent=text;status.classList.toggle('is-error',!!error);}
-  function controls(){record.textContent=recorder?.state==='recording'?'Stop recording':'Record audio';record.disabled=busy;transcribe.disabled=!transcriptionReady||busy||!blob||!!recorder;use.disabled=busy||!output.value||patientId!==activeId();}
+  function controls(){record.textContent=recorder?.state==='recording'?'Stop recording':window.SYNTHETIC_ENCOUNTER_COORDINATOR_ENABLED===true?'Record and transcribe':'Record audio';record.disabled=busy;transcribe.disabled=!transcriptionReady||busy||!blob||!!recorder;use.disabled=busy||!output.value||patientId!==activeId();}
   function release(){meter?.stop('Microphone stopped');if(stream)stream.getTracks().forEach(function(t){t.stop();});stream=null;if(timer)clearTimeout(timer);timer=null;}
   function stop(){if(busy&&!request&&!recorder){generation++;busy=false;controls();message('Recording canceled.');}if(recorder?.state==='recording')recorder.stop();release();}
   function discard(){generation++;if(request)request.abort();request=null;busy=false;stop();recorder=null;blob=null;patientId=null;output.value='';if(objectUrl)URL.revokeObjectURL(objectUrl);objectUrl=null;playback.removeAttribute('src');playback.hidden=true;controls();message('Recording discarded. Saved encounter sources are retained.');}
@@ -25,7 +25,7 @@
       var chunks=[],bytes=0;recorder=new MediaRecorder(stream,{mimeType:mime,audioBitsPerSecond:64000});var session=recorder;
       session.ondataavailable=function(e){if(ticket!==generation)return;if(e.data.size){chunks.push(e.data);bytes+=e.data.size;if(bytes>8*1024*1024){stop();message('Recording reached the 8 MB limit. Record a shorter clip.',true);}}};
       session.onerror=function(){if(ticket===generation){stop();message('Recording failed. Replay the captured clip if available, or record again.',true);}};
-      session.onstop=function(){release();if(ticket!==generation||id!==activeId())return;recorder=null;if(bytes&&bytes<=8*1024*1024){blob=new Blob(chunks,{type:mime});objectUrl=URL.createObjectURL(blob);playback.src=objectUrl;playback.hidden=false;message(transcriptionReady?'Recording ready. Replay it, then click Transcribe recording.':'Recording ready for local playback. Recorded transcription is not enabled yet; enter or paste text for review.');}else message('No usable audio was captured. Record a shorter clip.',true);controls();};
+      session.onstop=function(){release();if(ticket!==generation||id!==activeId())return;recorder=null;if(bytes&&bytes<=8*1024*1024){blob=new Blob(chunks,{type:mime});objectUrl=URL.createObjectURL(blob);playback.src=objectUrl;playback.hidden=false;message(transcriptionReady?'Recording ready. Replay it, then click Transcribe recording.':'Recording ready for local playback. Recorded transcription is not enabled yet; enter or paste text for review.');}else message('No usable audio was captured. Record a shorter clip.',true);controls();if(blob&&window.ENCOUNTER_COORDINATOR_UI?.active)transcribeRecording();};
       session.start(1000);meter?.start(stream,'Recording conversation');timer=setTimeout(function(){stop();},300000);message('Recording synthetic conversation · maximum 5 minutes.');
     }catch(error){release();recorder=null;message(error.message||'Microphone access failed.',true);}finally{if(ticket===generation){busy=false;controls();}}
   }
@@ -37,7 +37,7 @@
       var response=await fetch(cfg.baseUrl+'/functions/v1/audio-transcription-gated',{method:'POST',cache:'no-store',headers:{Authorization:'Bearer '+cfg.anonJwt},body:form,signal:request.signal});var result=await response.json().catch(function(){return {};});
       if(!response.ok)throw Error(({transcription_not_configured:'Server transcription is not configured. Your recording is retained for playback.',transcription_rate_limited:'Transcription is temporarily rate limited. Your recording is retained; retry later.',patient_access_denied:'Patient access was denied. Your recording is retained in this tab.',unsupported_audio:'The recorded audio format was not accepted.'})[result.error]||'Transcription failed. Your recording is retained; you can retry.');
       if(ticket!==generation||id!==activeId()||result.patientId!==id)return;
-      output.value=result.text;var hints=(result.reviewHints||[]).join('').trim();message('Transcription ready for review. Replay the audio to verify it.'+(hints?' Words to double-check: '+hints:' No token hints were returned; this does not confirm accuracy.'));
+      output.value=result.text;if(window.ENCOUNTER_COORDINATOR_UI?.active&&!document.getElementById('ambientReviewedInput')?.value.trim())window.PRECHART_WORKSPACE_API?.receiveTranscript(id,result.text);var hints=(result.reviewHints||[]).join('').trim();message('Transcription ready for review. Replay the audio to verify it.'+(hints?' Words to double-check: '+hints:' No token hints were returned; this does not confirm accuracy.'));
     }catch(error){if(ticket===generation)message(error.message||'Transcription failed; recording retained.',true);}finally{if(ticket===generation){busy=false;request=null;controls();}}
   }
   record.addEventListener('click',start);transcribe.addEventListener('click',transcribeRecording);box.querySelector('#discardAudioBtn').addEventListener('click',discard);
@@ -45,5 +45,6 @@
   box.querySelector('#copyRawReviewBtn').addEventListener('click',function(){window.PRECHART_WORKSPACE_API?.copyRawToReview();message('Raw text copied into the review draft. Review it before saving.');});
   window.addEventListener('scribe-patient-changed',function(){if(patientId&&patientId!==activeId())discard();});window.addEventListener('pagehide',discard);
   if(!transcriptionReady){transcribe.title='Recorded transcription is not enabled yet';message('Recording and playback are available. Recorded transcription is not enabled yet; enter or paste a transcript for review.');}
+  if(window.SYNTHETIC_ENCOUNTER_COORDINATOR_ENABLED===true){record.textContent='Record and transcribe';box.querySelector('p').textContent='Record up to 5 minutes of synthetic conversation. Stopping automatically sends this recording to OpenAI for transcription. Correct the resulting review text, then save it; the coordinator prepares the encounter. Audio stays in this tab.';}
   window.RECORDED_AUDIO_UI={start:start,stop:stop,isRecording:function(){return !!recorder||busy&&!request;}};
 })();

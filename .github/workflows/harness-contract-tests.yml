@@ -11,6 +11,7 @@ on:
       - follow-up-queue-v6
       - soap-scribe-v7
       - scribe-profile-v8
+      - encounter-coordinator-v9a
   pull_request:
     branches:
       - main
@@ -42,6 +43,7 @@ jobs:
           node --check recorded-audio-ui.js
           node --check microphone-meter.js
           node --check note-drafting-ui.js
+          node --check encounter-coordinator-ui.js
       - name: Harness contracts
         run: node scripts/harness-contract-tests.mjs
       - name: Scribe review safety
@@ -103,3 +105,6 @@ jobs:
 
       - name: Physician note profiles and preview DOM
         run: DOM_TEST_MODULE="$RUNNER_TEMP/jsonb-driver/node_modules/jsdom/lib/api.js" node scripts/note-drafting-ui-tests.mjs
+
+      - name: Consolidated encounter review DOM
+        run: DOM_TEST_MODULE="$RUNNER_TEMP/jsonb-driver/node_modules/jsdom/lib/api.js" node scripts/encounter-coordinator-ui-tests.mjs
