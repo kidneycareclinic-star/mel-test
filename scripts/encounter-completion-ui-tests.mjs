@@ -14,6 +14,7 @@ const packages=new Map(encounterIds.map((id,i)=>[id,{id:"package-"+i,encounter_i
 const items=new Map(encounterIds.map(id=>[id,[]]));let addFailure=false,saveStale=false,requests=[];
 function view(id){return structuredClone({encounters:encounterIds.map((e,i)=>({id:e,signed_at:"2026-10-04T13:55:28Z",final_state_version:i+2,completion_status:packages.get(e).status})),selectedEncounter:{id,sourceStateVersion:packages.get(id).source_state_version},package:packages.get(id),items:items.get(id),history:[]});}
 w.fetch=async(url,options)=>{
+  if(url.includes('/note-drafting-gated')){const input=JSON.parse(options.body);return {ok:true,json:async()=>({patientId:input.patientId,encounterId:input.encounterId,sourceVersion:input.expectedVersion,noteText:'Custom reviewed note',reviewFlags:[]})};}
   const values=options.body?JSON.parse(options.body):null;requests.push(values||{action:"get"});
   const id=values?.encounterId||new URL(url).searchParams.get("encounter_id")||encounterIds[0];
   const p=packages.get(id);let status=200,error;
@@ -32,6 +33,7 @@ w.fetch=async(url,options)=>{
   }
   return {ok:status===200,status,json:async()=>status===200?view(id):{error}};
 };
+w.eval(fs.readFileSync("note-drafting-ui.js","utf8"));
 w.eval(fs.readFileSync("encounter-completion-ui.js","utf8"));
 async function settle(){for(let i=0;i<100;i++){await new Promise(r=>setTimeout(r,5));if(!d.querySelector("#completionClose")?.disabled)return;}throw Error("UI remained busy");}
 function button(label){const b=Array.from(d.querySelectorAll("button")).find(b=>b.textContent===label);assert.ok(b,"Missing button "+label);return b;}
@@ -41,6 +43,8 @@ assert.equal(d.querySelector(".identity-actions #openVisitCompletionBtn").textCo
 await click("Visit completion");assert.equal(d.querySelector("#completionNote").value,"Saved note 0");
 d.querySelector("#completionNote").value="Physician edited note";
 await click("Save package draft");assert.equal(packages.get(encounterIds[0]).note_text,"Physician edited note");
+await click("Generate with my template");assert.ok(d.querySelector('.note-draft-preview'));assert.equal(d.querySelector('#completionNote').value,'Physician edited note','generation cannot silently replace clinician note');
+await click("Apply reviewed draft to note");assert.equal(d.querySelector('#completionNote').value,'Custom reviewed note');await click("Save package draft");assert.equal(packages.get(encounterIds[0]).note_text,'Custom reviewed note');
 await click("Apply SOAP draft");assert.ok(d.querySelector("#completionNote").value.includes("P — PLAN"));
 field("Order or follow-up label").value='<img src=x onerror="alert(1)">';
 field("Details entered by physician").value="Synthetic details to retain on failure";

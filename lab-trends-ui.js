@@ -491,6 +491,7 @@
   }
 
   function renderPrechartNote(patient) {
+    window.PRECHART_WORKSPACE_API?.refreshNarrative(patient);
     var box = document.querySelector("#prechartNote");
     if (!box) return;
 

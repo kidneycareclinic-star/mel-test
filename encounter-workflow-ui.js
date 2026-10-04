@@ -148,6 +148,7 @@
       if (activePatient()?.id !== id) return;
       if(result.patient && Number(activePatient()?.backendSource?.stateVersion)!==Number(result.stateVersion))window.SCRIBE_REVIEW_UI?.applyBackendPatient(result);
       renderSigned(result.lastSigned);
+      window.PRECHART_WORKSPACE_API?.receiveSavedEncounter(id,result);
       renderReview(result.draftDetail,result.draft?.id);
       if (result.draft) {
         var priorDraft=drafts.get(id);
@@ -174,6 +175,7 @@
       noteText: local.note || "", sources: local.sources
     });
     drafts.set(patientId, { id: result.encounterId, version: result.version });
+    window.PRECHART_WORKSPACE_API?.markSaved(patientId,local.note||"");
     setStatus("Encounter draft v" + result.version + " saved. Structured observations now link to this encounter.");
     if (window.SCRIBE_REVIEW_UI?.refresh) SCRIBE_REVIEW_UI.refresh();
     return result;
@@ -209,5 +211,10 @@
   document.getElementById("encounterRefreshBtn").addEventListener("click", function () { withBusy(refresh); });
   var open = document.getElementById("openPrechartWorkspaceBtn");
   if (open) open.addEventListener("click", function () { window.setTimeout(refresh, 0); });
-  window.ENCOUNTER_WORKFLOW_UI = { currentId: currentId, refresh: refresh };
+  window.ENCOUNTER_WORKFLOW_UI = { currentId: currentId, refresh: refresh, saveDraft: async function(patientId) {
+    if(busy)throw new Error("An encounter request is already in progress. Retry saving the reviewed text.");
+    if(activePatient()?.id!==patientId)throw new Error("The selected patient changed. Reopen its workspace before saving.");
+    busy=true;
+    try{return await saveDraft(patientId);}finally{busy=false;}
+  } };
 })();
