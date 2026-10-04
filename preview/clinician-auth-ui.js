@@ -5,6 +5,7 @@
   // Legacy anon JWT is a public API key only. Never use it as a clinician credential.
   var publicKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV4Y3F2anBzbWR4emh1anNia216Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA1NjE1NDAsImV4cCI6MjEwNjEzNzU0MH0.qjhZBxmU2odQ2U2eEISxZNrHQp4EUkqCsfcD5ZceE5U";
   var accessToken = null;
+  var signedInUserId = null;
   var invitationToken = null;
   var resolveReady;
   var ready = new Promise(function (resolve) { resolveReady = resolve; });
@@ -84,6 +85,7 @@
       throw new Error("This account has no active synthetic clinician assignment.");
     }
     accessToken = session.access_token;
+    signedInUserId = session.user?.id || null;
     window.CLINICIAN_AUTH.initialCensus = census;
     document.documentElement.classList.add("clinician-authenticated");
     document.getElementById("clinicianSignIn").hidden = true;
@@ -93,6 +95,7 @@
   async function signOut() {
     var token = accessToken;
     accessToken = null;
+    signedInUserId = null;
     document.documentElement.classList.remove("clinician-authenticated");
     if (token) {
       try {
@@ -107,6 +110,7 @@
 
   window.CLINICIAN_AUTH = {
     ready: ready,
+    userId: function () { return signedInUserId; },
     accessToken: function () { return accessToken; },
     isSignedIn: function () { return !!accessToken; },
     signOut: signOut
@@ -153,3 +157,4 @@
   });
   document.getElementById("clinicianSignOut").addEventListener("click", signOut);
 })();
+

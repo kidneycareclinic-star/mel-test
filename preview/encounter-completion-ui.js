@@ -3,7 +3,7 @@
   var anchor=document.querySelector(".prechart-panel");
   if(!anchor)return;
   var panel=document.createElement("section");panel.className="panel completion-launcher";
-  panel.innerHTML='<div class="panel-head"><div><h2>Visit completion</h2><div class="micro">SOAP note, patient instructions, simulated orders, and follow-up</div></div><button class="small-btn" type="button">Open visit package</button></div>';
+  panel.innerHTML='<div class="panel-head"><div><h2>Visit completion</h2><div class="micro">Configurable note, patient instructions, simulated orders, and follow-up</div></div><button class="small-btn" type="button">Open visit package</button></div>';
   anchor.after(panel);
   var dialog=document.createElement("dialog");dialog.id="encounterCompletionDialog";
   dialog.setAttribute("aria-labelledby","completionDialogTitle");
@@ -41,12 +41,12 @@
     if(!result.ok)throw new Error(errorText(data.error)||"Visit package request failed (HTTP "+result.status+").");
     return data;
   }
-  async function withBusy(action){
+  async function withBusy(action,keepPreview){
     if(busy)return;
     busy=true;var ticket=sequence,priorPayload=payload,success=false;
     dialog.querySelectorAll("button,select,input,textarea").forEach(function(n){n.disabled=true;});
     try{await action();success=true;}catch(error){if(ticket===sequence)message(error.message||"Visit package unavailable.",true);}
-    finally{busy=false;if(ticket===sequence){if(success&&payload!==priorPayload)render();dialog.querySelectorAll("button,select,input,textarea").forEach(function(n){n.disabled=false;});}}
+    finally{busy=false;if(ticket===sequence){if(success&&payload!==priorPayload&&!keepPreview)render();dialog.querySelectorAll("button,select,input,textarea").forEach(function(n){n.disabled=n.dataset.keepDisabled==="true";});}}
   }
   async function load(encounterId){var ticket=sequence;var data=await request(null,null,encounterId);if(ticket!==sequence)return;payload=data;render();message(data.package?"Saved "+data.package.status+" package · revision "+data.package.version:"Choose a signed visit and create its package.");}
   function edited(){var p=payload?.package;if(!p||p.status!=="draft")return null;var note=dialog.querySelector("#completionNote"),instructions=dialog.querySelector("#completionInstructions");if(!note||!instructions)return null;return {noteText:note.value,patientInstructions:instructions.value};}
@@ -64,13 +64,26 @@
     var p=payload.package,approved=p.status==="approved";
     node(body,"p","Based on signed Patient State v"+p.source_state_version+" · package "+p.status+" · revision "+p.version).className="completion-source";
     if(approved)node(body,"p","Approved by "+p.approved_by_id+" on "+new Date(p.approved_at).toLocaleString());
-    node(body,"p","SOAP draft: review the history, examination, assessment and plan. Missing information is marked Not documented; complete it from the encounter before approval.");
-    var note=field(body,"Final nephrology note · SOAP","textarea",p.note_text);note.id="completionNote";note.maxLength=60000;note.readOnly=approved;
+    node(body,"p","Clinical draft: review the history, examination, assessment and plan. Missing information is marked Not documented; complete it from the encounter before approval.");
+    var note=field(body,"Final nephrology note · editable","textarea",p.note_text);note.id="completionNote";note.maxLength=60000;note.readOnly=approved;
     var instructions=field(body,"Patient instructions · review for clarity","textarea",p.patient_instructions);instructions.id="completionInstructions";instructions.maxLength=40000;instructions.readOnly=approved;
     // An error leaves payload unchanged, so retain the physician's local edits.
     if(unsaved&&unsaved._version===p.version&&unsaved._encounter===p.encounter_id){note.value=unsaved.noteText;instructions.value=unsaved.patientInstructions;}
     editorRevision=p.version;editorEncounter=p.encounter_id;
     if(!approved){
+      window.NOTE_DRAFTING?.mount(body);
+      var generateWithTemplate=button(actions,"Generate with my template",function(){withBusy(async function(){
+        await saveEdits();var patientId=contextId,encounterId=payload.selectedEncounter.id,version=payload.package.version,oldNote=dialog.querySelector("#completionNote").value;
+        message("Drafting your selected template from this signed encounter…");
+        var result=await window.NOTE_DRAFTING.generate(patientId,"completion",encounterId,version);
+        if(contextId!==patientId||payload.selectedEncounter.id!==encounterId||payload.package.version!==version)throw Error("The package changed. Refresh and generate again.");
+        window.NOTE_DRAFTING.preview(body,result,function(text){
+          var editor=dialog.querySelector("#completionNote");
+          if(contextId!==patientId||payload.selectedEncounter.id!==encounterId||payload.package.version!==version||editor.value!==oldNote){message("The note changed. Generate again before applying.",true);return false;}
+          editor.value=text;message("Reviewed draft applied. Save package draft to keep it, then review before approval.");
+        });message("Draft ready for review. Your saved note remains available until you apply and save the new draft.");
+      },true);});
+      if(!window.NOTE_DRAFTING?.enabled()){generateWithTemplate.disabled=true;generateWithTemplate.dataset.keepDisabled="true";node(body,"p","Draft generation is not enabled yet. You can remember preferences, edit the note, or use the SOAP draft action.");}
       button(actions,"Apply SOAP draft",function(){withBusy(async function(){await saveEdits();payload=await request("format-soap");message("SOAP draft applied. Prior text is retained in visit history; any physician edits are also retained verbatim below the new draft. Review before approving.");});});
       button(actions,"Save package draft",function(){withBusy(async function(){await saveEdits();message("Visit package draft saved.");});});
       button(actions,"Approve visit package",function(){withBusy(async function(){await saveEdits();payload=await request("approve");message("Visit package approved. The final note and instructions are saved; orders remain simulated.");});});

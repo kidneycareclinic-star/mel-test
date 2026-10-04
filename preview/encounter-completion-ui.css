@@ -22,3 +22,6 @@
 #completionBody details { margin:14px 0; }
 #completionBody summary { cursor:pointer; font-weight:600; }
 @media(max-width:600px) { .completion-shell { padding:14px; } #encounterCompletionDialog { width:96vw; max-height:94vh; } }
+
+#encounterCompletionDialog .note-drafting-profile textarea,#encounterCompletionDialog .note-drafting-profile select,#encounterCompletionDialog .note-draft-preview textarea { color:#163b36; background:#fff; border-color:#a5c6bd; }
+#encounterCompletionDialog .note-drafting-profile,#encounterCompletionDialog .note-draft-preview { border-color:#b7d7cf; }
