@@ -8,6 +8,7 @@ w.MediaRecorder=Recording;w.URL.createObjectURL=()=> 'blob:synthetic';w.URL.revo
 class Recognition{constructor(){recognition=this;}start(){this.onstart();}stop(){this.onend();}}
 w.SpeechRecognition=Recognition;w.SUPABASE_DEMO_BACKEND={baseUrl:'https://synthetic.test',anonJwt:'ci-session'};
 w.fetch=async(url,options)=>{posts.push({url,options});if(fail)return {ok:false,json:async()=>({error:'transcription_provider_failed'})};return {ok:true,json:async()=>({patientId:options.body.get('patientId'),text:'I do not take two tablets. Potassium four point nine.\nNo no swelling.',reviewHints:[' nine']})};};
+w.SYNTHETIC_AUDIO_TRANSCRIPTION_ENABLED=true;
 w.eval(fs.readFileSync('prechart-workspace.js','utf8'));w.eval(fs.readFileSync('recorded-audio-ui.js','utf8'));w.PRECHART_WORKSPACE_API.open();
 const raw=d.getElementById('ambientTranscriptInput'),review=d.getElementById('ambientReviewedInput');
 async function settle(){await new Promise(r=>setTimeout(r,15));}async function click(id){d.getElementById(id).click();await settle();}
@@ -20,3 +21,9 @@ recognition.onresult({resultIndex:0,results:[r1,interim]});assert.equal(raw.valu
 await click('recordAudioBtn');assert.equal(rec.state,'recording');const second=w.PATIENTS[1];w.currentPatient=second;w.PRECHART_WORKSPACE_API.refresh();assert.equal(rec.state,'inactive','patient switch must stop recording');assert.equal(raw.value,'');assert.equal(review.value,'');assert.equal(d.getElementById('useRecordedTranscriptBtn').disabled,true);w.currentPatient=first;w.PRECHART_WORKSPACE_API.refresh();assert.equal(raw.value,'No no swelling.');assert.equal(review.value,'Keep my reviewed correction');
 const exactRaw=raw.value,exactReviewed=review.value;await click('addAmbientSourceBtn');const source=w.PRECHART_WORKSPACE_API.getPatientState(first.id).sources.find(s=>s.kind==='ambient-transcript');assert.equal(source.rawText,exactRaw);assert.equal(source.text,exactReviewed);
 w.dispatchEvent(new w.Event('pagehide'));dom.window.close();console.log('Recorded audio/browser DOM: local-only recording/playback, retry with retained audio, explicit transcript import, exact negations/numbers/repetitions, review edit retention, replay deduplication, interim exclusion, no live proposals and patient isolation passed.');
+
+const disabledDom=new JSDOM('<section id="ambientCaptureCard"><div class="ambient-transcript-grid"></div></section>',{url:'https://example.test',runScripts:'outside-only'});
+disabledDom.window.eval(fs.readFileSync('recorded-audio-ui.js','utf8'));
+assert.equal(disabledDom.window.document.getElementById('transcribeAudioBtn').disabled,true);
+assert.match(disabledDom.window.document.getElementById('recordAudioStatus').textContent,/not enabled/);
+disabledDom.window.close();console.log('Published default keeps external audio transcription disabled pending authorization.');
