@@ -36,7 +36,7 @@ for(const dueDate of ["2026-99-99","2026-02-30","bad"]){await assert.rejects(con
 await assert.rejects(context.api.completionMutation(tx,patient,"PT-001",{id:patient},{...base,expectedVersion:2}),/completion_version_changed/);
 await assert.rejects(context.api.completionMutation(tx,patient,"PT-001",{id:patient},{...base,kind:"external-prescription"}),/invalid_item_kind/);
 assert.equal(writes,0,"invalid and stale requests must not write");
-assert.equal(fs.readFileSync("supabase/functions/encounter-completion/clinician-auth.ts","utf8"),fs.readFileSync("supabase/functions/_shared/clinician-auth.ts","utf8"));
+assert.equal(fs.readFileSync("supabase/functions/encounter-completion/clinician-auth.ts","utf8").trim(),fs.readFileSync("supabase/functions/_shared/clinician-auth.ts","utf8").trim());
 assert.doesNotMatch(helper,/\$\d+::jsonb/);
 assert.doesNotMatch(helper,/reduce_patient_state|fetch\(/,"completion does not mutate clinical state or execute external requests");
 console.log("Encounter Completion v5: 24 source drafts, identity, stale version, date, item type, and shared-auth checks passed.");

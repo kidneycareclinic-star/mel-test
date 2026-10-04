@@ -46,7 +46,7 @@
     busy=true;var ticket=sequence,priorPayload=payload,success=false;
     dialog.querySelectorAll("button,select,input,textarea").forEach(function(n){n.disabled=true;});
     try{await action();success=true;}catch(error){if(ticket===sequence)message(error.message||"Visit package unavailable.",true);}
-    finally{busy=false;if(ticket===sequence){if(success&&payload!==priorPayload)render();else dialog.querySelectorAll("button,select,input,textarea").forEach(function(n){n.disabled=false;});}}
+    finally{busy=false;if(ticket===sequence){if(success&&payload!==priorPayload)render();dialog.querySelectorAll("button,select,input,textarea").forEach(function(n){n.disabled=false;});}}
   }
   async function load(encounterId){var ticket=sequence;var data=await request(null,null,encounterId);if(ticket!==sequence)return;payload=data;render();message(data.package?"Saved "+data.package.status+" package · revision "+data.package.version:"Choose a signed visit and create its package.");}
   function edited(){var p=payload?.package;if(!p||p.status!=="draft")return null;var note=dialog.querySelector("#completionNote"),instructions=dialog.querySelector("#completionInstructions");if(!note||!instructions)return null;return {noteText:note.value,patientInstructions:instructions.value};}
