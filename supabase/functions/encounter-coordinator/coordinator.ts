@@ -58,7 +58,7 @@ export async function generatePacket(run:any,key:string) {
   const text=(output.output||[]).filter((m:any)=>m.type==='message').flatMap((m:any)=>m.content||[]).filter((c:any)=>c.type==='output_text').map((c:any)=>c.text).join('');
   let value:any;try{value=JSON.parse(text);}catch(_){coordinatorFail('note_drafting_invalid_output',502);}
   const draft=validateDraft(value,prefs,source.context);
-  return {patientId:source.patient.id,encounterId:source.encounterId,sourceVersion:source.sourceVersion,stateVersion:source.stateVersion,...draft,patientInstructions:'No patient-specific instructions documented. Edit this section to record the instructions discussed during the visit.',sources:source.context.reviewedSources,chart:source.patient,observations:source.observations,reviews:source.reviews,tools:source.tools,preferences:prefs,model:output.model,reviewRequired:true,externalExecution:false};
+  return {patientId:source.patient.id,encounterId:source.encounterId,sourceVersion:source.sourceVersion,stateVersion:source.stateVersion,...draft,patientInstructions:'No patient-specific instructions documented.',sources:source.context.reviewedSources,chart:source.patient,observations:source.observations,reviews:source.reviews,tools:source.tools,preferences:prefs,model:output.model,reviewRequired:true,externalExecution:false};
 }
 export async function finishPreparation(tx:any,patientId:string,externalId:string,person:any,run:any,packet:any) {
   const source=await snapshot(tx,patientId,externalId,person,run.encounter_id,true);

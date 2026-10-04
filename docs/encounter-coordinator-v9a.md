@@ -1,6 +1,6 @@
 # Encounter coordinator v9A
 
-Status: implementation under validation on October 4, 2026; deployment not yet confirmed. Synthetic patients only.
+Status: deployed for synthetic testing on October 4, 2026. The private migration and authenticated coordinator endpoint are active; the enabled preview completed its Pages deployment. Synthetic patients only.
 
 The main patient view now reuses the existing ambient/dictation capture controls and presents one linked physician review packet. Stopping recorded capture starts the existing approved transcription endpoint, then places the result in the review text area when that area has no physician correction. The physician corrects and saves the transcript. That save persists the source and automatically starts preparation; typed physician sources and dictation use the same preparation trigger. Initial patient selection assembles chart context. The normal path no longer requires opening separate note, Astra and completion views.
 
@@ -31,3 +31,15 @@ Preparation statuses survive reload. The provider request executes in the reques
 The real-driver suite uses PostgreSQL 17 and the deployed Postgres.js 3.4.7, the actual v9 migration, SQL handlers, patient reducer and audit trigger. It tests preparation idempotency/read-only clinical behavior, durable edits, empty-observation visits, numeric observation edits, ownership/assignment, post-provider source/permission races, stale packets, expiry, replay and a deliberately induced late completion failure to prove rollback. DOM tests exercise main-view capture, automatic preparation, inline decisions, saved edit reload, explicit finalization and patient-switch isolation. Provider output is mocked; these tests do not establish transcription fidelity or clinical note accuracy.
 
 A clinician must evaluate actual synthetic recordings and generated notes in the deployed preview. No real PHI, real prescriptions/lab release, guideline-derived new care, patient-message dispatch or cellphone delivery is introduced. Phone provider/verified recipient configuration belongs to v9C. There is no notification outbox or delivery claim in this increment. Full specification: `docs/agent-led-encounter-v9.md`.
+
+## Deployment record
+
+- Preview: https://kidneycareclinic-star.github.io/mel-test/preview/
+- Preview commit: `041ac4d2a7879dcc744743d910860e340f1cf80c`; Pages run `37243164512` succeeded.
+- Coordinator: `encounter-coordinator-gated`, JWT gateway enabled with additional verified clinician/assignment checks. Six deployed source files were compared with the prepared source.
+- Migration: `encounter_coordinator_v9a`; all three new tables have RLS enabled and no anonymous/authenticated direct read/write grants.
+- Runtime validation: contract and real PostgreSQL/DOM jobs passed in run `37243001509`. The automatic transcription handoff test also passed. Provider responses and browser capture are mocked in CI.
+- Deployment verification found no changes to existing encounter/completion content hashes or the 30 existing Patient State snapshots; no clinical encounter was signed by deployment.
+- There was no signed-in clinician generation or physical microphone trial in this environment. Actual synthetic conversation fidelity and clinical output still require physician evaluation in the preview.
+
+To try the normal path, select a synthetic patient, use Ambient and Record and transcribe, stop, correct and save the reviewed transcript, review/edit the automatically prepared packet, and choose Finalize reviewed encounter. The exact signed note and approved instructions remain visible in the main patient view. Previous signed encounters remain accessible under Saved pre-charting text and prior encounter.
