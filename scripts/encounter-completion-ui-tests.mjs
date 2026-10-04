@@ -33,7 +33,7 @@ w.fetch=async(url,options)=>{
   }
   return {ok:status===200,status,json:async()=>status===200?view(id):{error}};
 };
-w.SYNTHETIC_NOTE_DRAFTING_ENABLED=true;w.eval(fs.readFileSync("note-drafting-ui.js","utf8"));
+w.eval(fs.readFileSync("index.html","utf8").match(/<script id="syntheticNoteDraftingConfig">([^<]+)<\/script>/)[1]);assert.equal(w.SYNTHETIC_NOTE_DRAFTING_ENABLED,true);w.eval(fs.readFileSync("note-drafting-ui.js","utf8"));
 w.eval(fs.readFileSync("encounter-completion-ui.js","utf8"));
 async function settle(){for(let i=0;i<100;i++){await new Promise(r=>setTimeout(r,5));if(!d.querySelector("#completionClose")?.disabled)return;}throw Error("UI remained busy");}
 function button(label){const b=Array.from(d.querySelectorAll("button")).find(b=>b.textContent===label);assert.ok(b,"Missing button "+label);return b;}

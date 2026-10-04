@@ -17,7 +17,7 @@ vm.runInNewContext(stripTypeScriptTypes(code),{postgres:()=>sql,patientState:(v,
   if(stale)version++;
   return new Response(JSON.stringify({status:incomplete?'incomplete':'completed',model:'gpt-6-astra',output:[{type:'message',content:[{type:'output_text',text:JSON.stringify(value)}]}]}),{status:providerStatus});
 },Headers,Request,Response,URL,Number,JSON,Uint8Array,TextDecoder,AbortSignal,Set});
-assert.match(fs.readFileSync('index.html','utf8'),/SYNTHETIC_NOTE_DRAFTING_ENABLED=false/);
+assert.match(fs.readFileSync('index.html','utf8'),/SYNTHETIC_NOTE_DRAFTING_ENABLED=true/);
 const prefs={template:'soap',detail:'standard',headings:[],instructions:''};
 async function post(id='PT-001',changes={},headers={}){mode=changes.mode||'prechart';const r=await handler(new Request('https://example.test/draft',{method:'POST',headers:{authorization:'Bearer ci','content-type':'application/json',origin:'https://kidneycareclinic-star.github.io',...headers},body:JSON.stringify({patientId:id,encounterId,expectedVersion:version,mode,preferences:prefs,...changes})}));return {status:r.status,body:await r.json()};}
 for(let i=1;i<=24;i++){const result=await post('PT-'+String(i).padStart(3,'0'));assert.equal(result.status,200,JSON.stringify(result));assert.equal(result.body.applied,false);assert.equal(result.body.reviewRequired,true);assert.match(result.body.noteText,/SUBJECTIVE\nNo swelling/);}
