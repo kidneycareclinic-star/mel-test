@@ -8,7 +8,8 @@ w.MediaRecorder=Recording;w.URL.createObjectURL=()=> 'blob:synthetic';w.URL.revo
 class Recognition{constructor(){recognition=this;}start(){this.onstart();}stop(){this.onend();}}
 w.SpeechRecognition=Recognition;w.SUPABASE_DEMO_BACKEND={baseUrl:'https://synthetic.test',anonJwt:'ci-session'};
 w.fetch=async(url,options)=>{posts.push({url,options});if(fail)return {ok:false,json:async()=>({error:'transcription_provider_failed'})};return {ok:true,json:async()=>({patientId:options.body.get('patientId'),text:'I do not take two tablets. Potassium four point nine.\nNo no swelling.',reviewHints:[' nine']})};};
-w.SYNTHETIC_AUDIO_TRANSCRIPTION_ENABLED=true;
+w.eval(d.getElementById('syntheticAudioTranscriptionConfig').textContent);
+assert.equal(w.SYNTHETIC_AUDIO_TRANSCRIPTION_ENABLED,true,'approved preview must enable recorded transcription before the UI loads');
 w.eval(fs.readFileSync('prechart-workspace.js','utf8'));w.eval(fs.readFileSync('recorded-audio-ui.js','utf8'));w.PRECHART_WORKSPACE_API.open();
 const raw=d.getElementById('ambientTranscriptInput'),review=d.getElementById('ambientReviewedInput');
 async function settle(){await new Promise(r=>setTimeout(r,15));}async function click(id){d.getElementById(id).click();await settle();}

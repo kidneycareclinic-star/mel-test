@@ -1,6 +1,6 @@
 # SOAP note and transcription review v7
 
-Deployment status: the SOAP completion backend is deployed. Local recording/review and the SOAP editor changes are implemented and tested in PR #7, but the preview is not updated: automatic approval review rejected moving the shared main branch because it requires specific end-user authorization. Automatic approval review rejected deployment of audio-transcription-gated because recorded audio would be sent to OpenAI without explicit end-user authorization for that payload/destination. The prepared preview keeps Transcribe recording disabled by default. The tested endpoint remains source-only pending authorization; no workaround or alternate external-audio route is used.
+Deployment authorization: the clinician explicitly approved publication of the public main preview and activation of recorded-audio transcription to OpenAI on 2026-10-04. The approved preview enables transcription, while the standalone recording module defaults to disabled if its explicit configuration is absent. Recording alone stays local; the clinician must click Transcribe recording to send synthetic audio. Deployment metadata and verified check results are recorded in PR #7.
 
 The completed visit note now uses Subjective, Objective, Assessment and Plan. It no longer embeds the pre-chart workspace scaffolding. Explicitly sectioned physician notes are organized without rewriting their clinical wording; reviewed dictation/transcript sources within a workspace are retained as encounter narrative, without assigning speaker roles. Vitals include the BP already recorded in the signed longitudinal/office context. Laboratories keep their values, units and any supplied dates. Missing history, ROS, examination, allergies and plan decisions are marked Not documented, with no invented normal findings or management.
 
@@ -25,5 +25,5 @@ The provider response and browser microphone are mocked in automated tests. Thes
 1. Refresh the preview. Open Visit completion for the current signed encounter.
 2. For an existing draft, click Apply SOAP draft, review/fill the missing sections, then Save package draft. Approved packages remain fixed.
 3. Open Pre-charting → Ambient transcription. Record a short synthetic conversation, stop, and replay.
-4. Recorded transcription is currently disabled pending explicit authorization to send synthetic audio to OpenAI. Enter or paste text for review; after authorization/deployment, click Transcribe recording. Compare with playback, then Use recorded text for review.
+4. Click Transcribe recording to send this synthetic clip to OpenAI. Compare the returned text with playback, then Use recorded text for review.
 5. Correct the review pane. Save reviewed transcript only after confirming wording, numbers, units and negations. Review any proposed observations separately before signing an encounter.
