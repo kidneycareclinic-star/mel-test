@@ -8,6 +8,7 @@ on:
       - astra-ultrafast-gateway
       - encounter-state-v4
       - encounter-completion-v5
+      - follow-up-queue-v6
   pull_request:
     branches:
       - main
@@ -35,6 +36,7 @@ jobs:
           node --check activity-audit-ui.js
           node --check patient-state.js
           node --check encounter-completion-ui.js
+          node --check follow-up-queue-ui.js
       - name: Harness contracts
         run: node scripts/harness-contract-tests.mjs
       - name: Scribe review safety
@@ -51,6 +53,8 @@ jobs:
         run: node scripts/astra-gateway-tests.mjs
       - name: Visit completion safety
         run: node scripts/encounter-completion-tests.mjs
+      - name: Follow-up queue safety
+        run: node scripts/follow-up-queue-tests.mjs
 
   jsonb-driver:
     runs-on: ubuntu-latest
@@ -80,3 +84,5 @@ jobs:
         run: POSTGRES_DRIVER_PATH="$RUNNER_TEMP/jsonb-driver/node_modules/postgres/src/index.js" node scripts/encounter-jsonb-driver-tests.mjs
       - name: Visit completion DOM regression
         run: DOM_TEST_MODULE="$RUNNER_TEMP/jsonb-driver/node_modules/jsdom/lib/api.js" node scripts/encounter-completion-ui-tests.mjs
+      - name: Follow-up queue DOM regression
+        run: DOM_TEST_MODULE="$RUNNER_TEMP/jsonb-driver/node_modules/jsdom/lib/api.js" node scripts/follow-up-queue-ui-tests.mjs

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import { pathToFileURL } from "node:url";
 const {JSDOM}=await import(pathToFileURL(process.env.DOM_TEST_MODULE).href);
-const dom=new JSDOM('<!doctype html><html><body><section class="prechart-panel"></section></body></html>',{url:"https://example.test/preview/",runScripts:"outside-only"});
+const dom=new JSDOM('<!doctype html><html><body><div class="identity-actions"></div><section class="prechart-panel"></section></body></html>',{url:"https://example.test/preview/",runScripts:"outside-only"});
 const w=dom.window,d=w.document;
 w.currentPatient={id:"PT-001"};
 w.SUPABASE_DEMO_BACKEND={baseUrl:"https://synthetic.test",anonJwt:"synthetic-test-session"};
@@ -36,7 +36,8 @@ async function settle(){for(let i=0;i<100;i++){await new Promise(r=>setTimeout(r
 function button(label){const b=Array.from(d.querySelectorAll("button")).find(b=>b.textContent===label);assert.ok(b,"Missing button "+label);return b;}
 async function click(label){button(label).click();await settle();}
 function field(label){const l=Array.from(d.querySelectorAll("label")).find(l=>l.firstChild?.textContent===label);assert.ok(l,"Missing field "+label);return l.querySelector("input,textarea,select");}
-await click("Open visit package");assert.equal(d.querySelector("#completionNote").value,"Saved note 0");
+assert.equal(d.querySelector(".identity-actions #openVisitCompletionBtn").textContent,"Visit completion");
+await click("Visit completion");assert.equal(d.querySelector("#completionNote").value,"Saved note 0");
 d.querySelector("#completionNote").value="Physician edited note";
 await click("Save package draft");assert.equal(packages.get(encounterIds[0]).note_text,"Physician edited note");
 field("Order or follow-up label").value='<img src=x onerror="alert(1)">';
@@ -61,6 +62,8 @@ await click("Refresh package");assert.equal(d.querySelector("#completionNote").v
 d.querySelector("#completionNote").value="Saved on close";
 await click("×");assert.equal(packages.get(encounterIds[1]).note_text,"Saved on close");
 assert.equal(d.querySelector("dialog").open,false);
+await w.ENCOUNTER_COMPLETION_UI.open(encounterIds[1]);await settle();
+assert.equal(selector.value,encounterIds[1],"queue navigation must select the requested signed visit");
 assert.ok(requests.some(r=>r.action==="approve")&&requests.some(r=>r.action==="resolve-item"));
 dom.window.close();
 console.log("Visit completion DOM: edits, failed-request retention, current revisions, approval, simulation tracking, stale refresh, visit isolation, and safe rendering passed.");

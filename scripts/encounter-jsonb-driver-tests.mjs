@@ -4,6 +4,7 @@ import fs from "node:fs";
 import vm from "node:vm";
 import { stripTypeScriptTypes } from "node:module";
 import { pathToFileURL } from "node:url";
+import { testFollowUpQueue } from "./follow-up-queue-driver-tests.mjs";
 
 const target = new URL(process.env.ENCOUNTER_TEST_DB_URL || "http://missing");
 assert.ok(["localhost", "127.0.0.1"].includes(target.hostname) && target.pathname === "/encounter_jsonb_test",
@@ -165,6 +166,7 @@ try {
   const [{canRead,canWrite}]=await sql`select has_table_privilege('authenticated','ehr.encounter_completion','select') as "canRead",has_table_privilege('anon','ehr.encounter_completion_item','insert') as "canWrite"`;
   assert.equal(canRead,false);assert.equal(canWrite,false);
   console.log("Encounter Completion v5: 24 real-driver packages, draft edits, item approvals/rejections, package signoff, completion/cancellation, stale/replay/access guards, frozen snapshots, immutable history and private-table grants passed.");
+  await testFollowUpQueue(sql,principal,target,post);
 } finally {
   if (createdSchema) await sql.unsafe("drop schema ehr cascade; drop schema iam cascade;");
   await sql.end();
