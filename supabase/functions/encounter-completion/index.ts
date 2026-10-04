@@ -5,7 +5,7 @@ import { completionView, completionMutation, fail } from "./completion.ts";
 const url=Deno.env.get("SUPABASE_DB_URL");
 if(!url)throw new Error("SUPABASE_DB_URL is not configured");
 const sql=postgres(url,{prepare:false,max:1});
-const VERSION="encounter-completion-v5";
+const VERSION="encounter-completion-v7";
 function allowed(origin:string|null) {return origin==="https://kidneycareclinic-star.github.io"||!!origin&&/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);}
 function response(body:unknown,status=200,origin:string|null=null) {
   const headers=new Headers({"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store"});
@@ -24,7 +24,7 @@ Deno.serve(async(req:Request)=> {
     const body=req.method==="POST"?await req.json().catch(()=>null):null;
     const externalId=req.method==="GET"?query.get("patient_id"):body?.patientId;
     if(typeof externalId!=="string"||!/^PT-\d{3}$/.test(externalId))fail("invalid_patient",400);
-    if(req.method==="POST"&&!["create","save","add-item","decide-item","resolve-item","approve"].includes(body?.action))fail("invalid_completion_action",400);
+    if(req.method==="POST"&&!["create","save","format-soap","add-item","decide-item","resolve-item","approve"].includes(body?.action))fail("invalid_completion_action",400);
     const person=await clinician(req,sql);
     const permission=req.method==="GET"?"patient.read":["decide-item","resolve-item","approve"].includes(body.action)?"encounter.sign":"encounter.draft";
     const patientId=await patientAccess(sql,person,externalId,"office",permission);

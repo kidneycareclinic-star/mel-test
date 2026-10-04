@@ -22,7 +22,8 @@ w.fetch=async(url,options)=>{
     if(values.action==="save"){
       if(saveStale){status=409;error="completion_version_changed";}
       else{p.note_text=values.noteText;p.patient_instructions=values.patientInstructions;p.version++;}
-    }else if(values.action==="add-item"){
+    }else if(values.action==="format-soap"){p.note_text="S — SUBJECTIVE\n"+p.note_text+"\nO — OBJECTIVE\nA — ASSESSMENT\nP — PLAN";p.version++;}
+    else if(values.action==="add-item"){
       if(addFailure){status=500;error="completion_unavailable";}
       else{items.get(id).push({id:"item-1",kind:values.kind,label:values.label,details:values.details,due_date:values.dueDate,status:"pending",simulated:true});p.version++;}
     }else if(values.action==="decide-item"){items.get(id)[0].status=values.decision;p.version++;}
@@ -40,6 +41,7 @@ assert.equal(d.querySelector(".identity-actions #openVisitCompletionBtn").textCo
 await click("Visit completion");assert.equal(d.querySelector("#completionNote").value,"Saved note 0");
 d.querySelector("#completionNote").value="Physician edited note";
 await click("Save package draft");assert.equal(packages.get(encounterIds[0]).note_text,"Physician edited note");
+await click("Apply SOAP draft");assert.ok(d.querySelector("#completionNote").value.includes("P — PLAN"));
 field("Order or follow-up label").value='<img src=x onerror="alert(1)">';
 field("Details entered by physician").value="Synthetic details to retain on failure";
 d.querySelector("#completionNote").value="Edited before add failure";
