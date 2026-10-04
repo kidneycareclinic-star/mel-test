@@ -15,3 +15,10 @@ const prechart=fs.readFileSync('prechart-workspace.js','utf8');const preserve=pr
 for(const file of ['index.html','prechart-workspace.js','prechart-workspace.css','recorded-audio-ui.js','encounter-completion-ui.js'])assert.equal(fs.readFileSync(file,'utf8'),fs.readFileSync('preview/'+file,'utf8'));
 assert.equal(fs.readFileSync('supabase/functions/audio-transcription/clinician-auth.ts','utf8').trim(),fs.readFileSync('supabase/functions/_shared/clinician-auth.ts','utf8').trim());
 console.log('SOAP/scribe: sectioned clinical source, BP fallback, exact negations/numbers, missing-data honesty, reviewed plan items, visit narrative isolation, verbatim copying and retained physician corrections passed.');
+
+const numeric=prechart.slice(prechart.indexOf('  function normalizeClinicalTranscript('),prechart.indexOf('  function parseAmbientStructuredData('));const nc={};vm.createContext(nc);vm.runInContext(numeric+'\nglobalThis.api={normalizeClinicalTranscript,lastMatch};',nc);
+assert.equal(nc.api.normalizeClinicalTranscript('Potassium 4.9'),'Potassium 4.9');
+assert.equal(nc.api.lastMatch('Potassium 4,9',/Potassium (\d+(?:\.\d+)?)/i),null);
+assert.equal(nc.api.lastMatch('Potassium 4.9, potassium 5.9',/Potassium (\d+(?:\.\d+)?)/i),null);
+assert.equal(nc.api.normalizeClinicalTranscript('one one tablet'),'one one tablet');
+console.log('Clinical numeric parsing: decimals preserved; comma ambiguity and repeated values not guessed.');

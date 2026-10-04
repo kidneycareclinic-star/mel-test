@@ -477,7 +477,7 @@
     } else {
       structured.forEach(function(record) {
         lines.push("- " + record.displayLabel + ": " + extractionValueText(record) +
-          " [ambient scribe · synthetic auto-applied]");
+          " [physician-reviewed scribe value]");
       });
     }
 
@@ -768,73 +768,6 @@
     return record;
   }
 
-  function spokenNumberValue(phrase) {
-    var ones = {
-      zero:0, one:1, two:2, three:3, four:4, five:5, six:6, seven:7, eight:8, nine:9,
-      ten:10, eleven:11, twelve:12, thirteen:13, fourteen:14, fifteen:15, sixteen:16,
-      seventeen:17, eighteen:18, nineteen:19
-    };
-    var tens = {
-      twenty:20, thirty:30, forty:40, fifty:50, sixty:60, seventy:70, eighty:80, ninety:90
-    };
-    var tokens = String(phrase || "").toLowerCase().replace(/-/g, " ").split(/\s+/).filter(Boolean)
-      .filter(function(token){ return token !== "and"; });
-    if (!tokens.length) return null;
-
-    var pointIndex = tokens.indexOf("point");
-    var integerTokens = pointIndex >= 0 ? tokens.slice(0, pointIndex) : tokens.slice();
-    var decimalTokens = pointIndex >= 0 ? tokens.slice(pointIndex + 1) : [];
-
-    function parseInteger(parts) {
-      if (!parts.length) return 0;
-
-      if (parts.length === 2 && ones[parts[0]] >= 1 && ones[parts[0]] <= 9 && tens[parts[1]] != null) {
-        return ones[parts[0]] * 100 + tens[parts[1]];
-      }
-      if (parts.length === 3 && ones[parts[0]] >= 1 && ones[parts[0]] <= 9 &&
-          tens[parts[1]] != null && ones[parts[2]] != null && ones[parts[2]] < 10) {
-        return ones[parts[0]] * 100 + tens[parts[1]] + ones[parts[2]];
-      }
-
-      var total = 0;
-      var current = 0;
-      for (var i = 0; i < parts.length; i += 1) {
-        var token = parts[i];
-        if (ones[token] != null) current += ones[token];
-        else if (tens[token] != null) current += tens[token];
-        else if (token === "hundred") {
-          current = (current || 1) * 100;
-        } else {
-          return null;
-        }
-      }
-      return total + current;
-    }
-
-    var integer = parseInteger(integerTokens);
-    if (integer == null) return null;
-    if (pointIndex < 0) return integer;
-
-    if (!decimalTokens.length) return null;
-    var digits = "";
-    for (var j = 0; j < decimalTokens.length; j += 1) {
-      var d = ones[decimalTokens[j]];
-      if (d == null || d > 9) return null;
-      digits += String(d);
-    }
-    return Number(String(integer) + "." + digits);
-  }
-
-  function normalizeSpokenNumbers(text) {
-    var numberWord =
-      "(?:zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|point|and)";
-    var re = new RegExp("\\b" + numberWord + "(?:[\\s-]+" + numberWord + ")*\\b", "gi");
-    return String(text || "").replace(re, function(match) {
-      var value = spokenNumberValue(match);
-      return value == null ? match : String(value);
-    });
-  }
-
   function normalizeClinicalTranscript(raw) {
     var text = String(raw || "");
     if (!text.trim()) return "";
@@ -863,7 +796,7 @@
 
     text = text
       .replace(/\s+([,.;:!?])/g, "$1")
-      .replace(/([,.;:!?])(?=[A-Za-z0-9])/g, "$1 ")
+      .replace(/([;:!?])(?=[A-Za-z])/g, "$1 ")
       .replace(/\s{2,}/g, " ")
       .trim();
 
@@ -880,7 +813,7 @@
       match = current;
       if (current[0] === "") re.lastIndex += 1;
     }
-    if(count!==1||!match||/\bwas\b/i.test(match[0])||/^,\d/.test(text.slice(match.index+match[0].length)))return null;
+    if(count!==1||!match||/\bwas\b/i.test(match[0])||/^,\s*\d/.test(text.slice(match.index+match[0].length)))return null;
     return match;
   }
 
@@ -889,12 +822,14 @@
     if (!patient || !text || !text.trim()) return [];
 
     var normalized = normalizeClinicalTranscript(reviewedText || text);
-    var reviewedNormalized = normalizeClinicalTranscript(reviewedText || "");
     var extractedByField = new Map();
 
     function addLab(field, label, regex, unit) {
       var m = lastMatch(normalized, regex);
       if (!m) return;
+      var tail=normalized.slice(m.index+m[0].length,m.index+m[0].length+25);
+      var explicitUnit=/^\s*(mg\/dL|mg\/g|g\/g|mmol\/L|mEq\/L|g\/dL)\b/i.exec(tail);
+      if(explicitUnit&&explicitUnit[1].toLowerCase()!==unit.toLowerCase())return;
       var value = Number(m[1]);
       if (!Number.isFinite(value)) return;
       extractedByField.set(field, recordExtraction(patient, field, label, value, unit, m[0], "lab"));
@@ -1237,7 +1172,7 @@
 
   if (SpeechRecognitionCtor) {
     if (ambientMicSupport) ambientMicSupport.textContent = "browser speech recognition available";
-    setRuntimeStatus("Voice transcription supported. Choose Ambient or Dictation.", "ok");
+    setRuntimeStatus("Browser preview available. Record audio for playback and transcript review.", "ok");
   } else {
     if (ambientMicSupport) ambientMicSupport.textContent = "speech recognition unavailable in this browser";
     setRuntimeStatus("Speech recognition unavailable in this browser. Try current Chrome or Edge desktop.", "error");
