@@ -30,6 +30,14 @@ Local tests do not establish live PostgreSQL or browser behavior. This environme
 
 ## Browser acceptance
 
+### Signing correction
+
+The clinician browser attempt at 23:17 EDT on October 3 exposed a driver-boundary bug: Postgres.js 3.4.7 serialized pre-stringified JSON a second time when an unsafe-query parameter was inferred as JSONB. The source array became a JSON string, and `synthetic_encounter_sources_check` rejected the draft before signing. The failed transaction did not create a saved or signed PT-001 encounter. SQL-only database assertions and mocked driver tests did not exercise this protocol boundary.
+
+Serialized JSON parameters now use `$N::text::jsonb` so Postgres.js sends JSON text and PostgreSQL parses it once. This covers draft/source provenance, reviewed Astra content, generated Astra content, and Scribe decision/original/reviewed metadata. Object-tagged `sql.json(...)` writes remain supported. Signing review guards and authorization remain in force.
+
+The new `encounter-jsonb-driver-tests.mjs` CI job uses the exact Postgres.js version and a disposable PostgreSQL service. It reproduces the old double-encoding, verifies arrays/objects/numbers/null, and executes the production draft create/update and signing handler for all 24 fixture patient IDs with the production source-array constraint. Authentication is mocked for that isolated driver test; existing clinician safety tests cover the access gates. The browser now explains pending-review and stale-state errors with the corresponding next step.
+
 1. Sign in at the synthetic preview and open one of the 24 patients.
 2. Add a synthetic pre-chart source and save an encounter draft.
 3. Submit explicit Scribe observations, edit one, accept another and reject another. Confirm that only accepted/edited observations appear in canonical state.

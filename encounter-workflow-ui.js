@@ -112,6 +112,17 @@
   }
   function currentId(patientId) { return drafts.get(patientId)?.id || null; }
   function config() { return window.SUPABASE_DEMO_BACKEND || null; }
+  function requestError(code) {
+    var messages = {
+      physician_review_required: "Review the encounter-linked observations, Astra narrative, and pending actions before signing. If none are linked, save a draft first, then generate and review new content.",
+      patient_state_changed_refresh_and_review: "Patient State changed. Click Refresh encounter, review the current content, then sign again.",
+      encounter_version_changed: "The encounter draft changed. Click Refresh encounter, check the draft, then retry.",
+      prechart_note_and_source_required: "Add a pre-chart source and a nonempty note before signing.",
+      patient_state_update_required: "Save a draft, then approve an encounter-linked observation or Astra review before signing.",
+      encounter_unavailable: "The encounter could not be saved or signed because of a server error. Your encounter is not confirmed as signed."
+    };
+    return messages[code] || code;
+  }
   async function request(method, patientId, body) {
     var cfg = config();
     if (!cfg || !cfg.anonJwt) throw new Error("Sign in as a clinician first.");
@@ -125,7 +136,7 @@
       cache: "no-store"
     });
     var payload = await result.json().catch(function () { return {}; });
-    if (!result.ok) throw new Error(payload.error || "Encounter request failed (HTTP " + result.status + ").");
+    if (!result.ok) throw new Error(requestError(payload.error) || "Encounter request failed (HTTP " + result.status + ").");
     return payload;
   }
   async function refresh() {
@@ -200,4 +211,3 @@
   if (open) open.addEventListener("click", function () { window.setTimeout(refresh, 0); });
   window.ENCOUNTER_WORKFLOW_UI = { currentId: currentId, refresh: refresh };
 })();
-

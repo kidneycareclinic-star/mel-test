@@ -102,7 +102,7 @@ Deno.serve(async(req:Request)=>{
       const ev=await tx.unsafe([
         "insert into ehr.event(patient_id,event_type,actor_type,actor_id,source,status,payload)",
         "values($1,'SCRIBE_REVIEW_DECIDED','physician',$5,'scribe-review','recorded',",
-        "jsonb_build_object('decisions',$7::jsonb,'acceptedCount',$2::int,'rejectedCount',$3::int,'apiVersion',$4::text,'encounterId',$6::uuid)) returning id"
+        "jsonb_build_object('decisions',$7::text::jsonb,'acceptedCount',$2::int,'rejectedCount',$3::int,'apiVersion',$4::text,'encounterId',$6::uuid)) returning id"
       ].join(" "),[patientId,acceptedDecisions.length,rejectedDecisions.length,API_VERSION,person.externalId,encounterId,JSON.stringify(decisions)]);
       const eventId=ev[0].id;
       let canonicalInserted=0;
@@ -151,7 +151,7 @@ Deno.serve(async(req:Request)=>{
         canonicalInserted+=1;
         await tx.unsafe([
           "update ehr.proposed_observation set status=$2,decision_event_id=$3,accepted_observation_id=$4,reviewed_by_type='physician',reviewed_by_id=$8,reviewed_at=now(),",
-          "metadata=metadata||jsonb_build_object('decisionApi',$5::text,'originalValue',$6::jsonb,'reviewedValue',$7::jsonb) where id=$1::uuid"
+          "metadata=metadata||jsonb_build_object('decisionApi',$5::text,'originalValue',$6::text::jsonb,'reviewedValue',$7::text::jsonb) where id=$1::uuid"
         ].join(" "),[proposalId,decision,eventId,obsId,API_VERSION,JSON.stringify(po.value_numeric==null?jsonObject(po.value_json,"observation"):Number(po.value_numeric)),JSON.stringify(valueNumeric==null?valueJson:valueNumeric),person.externalId]);
         outcomes.push({proposalId,status:decision,observationId:obsId});
       }

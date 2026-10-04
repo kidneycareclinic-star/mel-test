@@ -6,7 +6,7 @@ import { clinician, patientAccess, authFailure } from "./clinician-auth.ts";
 const dbUrl = Deno.env.get("SUPABASE_DB_URL");
 if (!dbUrl) throw new Error("SUPABASE_DB_URL is not configured");
 const sql = postgres(dbUrl, { prepare:false, max:1 });
-const VERSION = "synthetic-encounter-v4";
+const VERSION = "synthetic-encounter-v4.1";
 const kinds = new Set(["ambient-transcript","physician-dictation","typed-note","outside-note","referral","patient-message","other","attachment","lab-trend"]);
 const uuid = (value:unknown) => typeof value === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 function allowed(origin:string|null){return origin === "https://kidneycareclinic-star.github.io" || !!origin && /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);}
@@ -60,16 +60,18 @@ async function save(tx:any,patientId:string,person:any,body:any){
   if(!state.length)fail("patient_state_not_found",404);
   let encounterId=draft?.id;
   const version=draft?draft.version+1:1;
+  // JSON text must enter the protocol as text before PostgreSQL parses JSONB.
+  // A direct JSONB parameter makes Postgres.js serialize this string again.
   if(!draft){
-    const rows=await tx.unsafe("insert into ehr.synthetic_encounter(patient_id,clinician_principal_id,note_text,sources,base_state_version) values($1::uuid,$2::uuid,$3,$4::jsonb,$5) returning id::text",[patientId,person.id,body.noteText,JSON.stringify(sources),state[0].state_version]);
+    const rows=await tx.unsafe("insert into ehr.synthetic_encounter(patient_id,clinician_principal_id,note_text,sources,base_state_version) values($1::uuid,$2::uuid,$3,$4::text::jsonb,$5) returning id::text",[patientId,person.id,body.noteText,JSON.stringify(sources),state[0].state_version]);
     encounterId=rows[0].id;
   } else {
-    await tx.unsafe("update ehr.synthetic_encounter set note_text=$2,sources=$3::jsonb,version=version+1,updated_at=now() where id=$1::uuid",[encounterId,body.noteText,JSON.stringify(sources)]);
+    await tx.unsafe("update ehr.synthetic_encounter set note_text=$2,sources=$3::text::jsonb,version=version+1,updated_at=now() where id=$1::uuid",[encounterId,body.noteText,JSON.stringify(sources)]);
   }
   const prov=await tx.unsafe([
     "insert into ehr.provenance(patient_id,source_kind,source_label,source_system,actor_type,actor_id,certainty,raw_payload)",
     "values($1::uuid,'encounter-prechart','Clinician-reviewed pre-chart source snapshot','mel-test','physician',$2,'known',",
-    "jsonb_build_object('encounterId',$3::uuid,'version',$4::int,'noteText',$5::text,'sources',$6::jsonb,'synthetic',true)) returning id"
+    "jsonb_build_object('encounterId',$3::uuid,'version',$4::int,'noteText',$5::text,'sources',$6::text::jsonb,'synthetic',true)) returning id"
   ].join(" "),[patientId,person.externalId,encounterId,version,body.noteText,JSON.stringify(sources)]);
   const ev=await tx.unsafe([
     "insert into ehr.event(patient_id,event_type,actor_type,actor_id,source,status,provenance_id,payload)",
@@ -102,7 +104,7 @@ async function sign(tx:any,patientId:string,person:any,body:any){
   const prov=await tx.unsafe([
     "insert into ehr.provenance(patient_id,source_kind,source_label,source_system,actor_type,actor_id,certainty,raw_payload)",
     "values($1::uuid,'signed-encounter','Physician-signed synthetic encounter','mel-test','physician',$2,'known',",
-    "jsonb_build_object('encounterId',$3::uuid,'noteText',$4::text,'sources',$5::jsonb,'stateVersion',$6::bigint,'synthetic',true)) returning id"
+    "jsonb_build_object('encounterId',$3::uuid,'noteText',$4::text,'sources',$5::text::jsonb,'stateVersion',$6::bigint,'synthetic',true)) returning id"
   ].join(" "),[patientId,person.externalId,e.id,e.note_text,JSON.stringify(e.sources),state[0].state_version]);
   const ev=await tx.unsafe([
     "insert into ehr.event(patient_id,event_type,actor_type,actor_id,source,status,causation_id,provenance_id,payload)",
@@ -154,4 +156,3 @@ Deno.serve(async (req:Request) => {
     return response({apiVersion:VERSION,error:"encounter_unavailable"},500,origin);
   }
 });
-

@@ -22,7 +22,7 @@ export async function reviewAstra(tx:any, patientId:string, externalId:string, p
     reviewed={...jsonObject(generated.review,"astra_review"),summary:body.summary.trim()};
   }
   const ev=await tx.unsafe("insert into ehr.event(patient_id,event_type,actor_type,actor_id,source,status,payload) values($1::uuid,'ASTRA_REVIEW_DECIDED','physician',$2,'synthetic-encounter','recorded',jsonb_build_object('encounterId',$3::uuid,'reviewId',$4::uuid,'runId',$5::uuid,'decision',$6::text)) returning id",[patientId,person.externalId,body.encounterId,body.reviewId,r.run_id,body.decision]);
-  await tx.unsafe("update ehr.encounter_review set status=$2,reviewed_content=$3::jsonb,decision_event_id=$4::uuid,reviewed_by_id=$5,reviewed_at=now() where id=$1::uuid",[body.reviewId,body.decision,reviewed===null?null:JSON.stringify(reviewed),ev[0].id,person.externalId]);
+  await tx.unsafe("update ehr.encounter_review set status=$2,reviewed_content=$3::text::jsonb,decision_event_id=$4::uuid,reviewed_by_id=$5,reviewed_at=now() where id=$1::uuid",[body.reviewId,body.decision,reviewed===null?null:JSON.stringify(reviewed),ev[0].id,person.externalId]);
   let stateVersion=Number(state[0].state_version);
   if(reviewed){
     const reduced=await tx.unsafe("select ehr.reduce_patient_state($1::uuid,$2::uuid,'patient-state-reducer-v4') as state_version",[patientId,ev[0].id]);

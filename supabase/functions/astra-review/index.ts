@@ -314,7 +314,7 @@ Deno.serve(async (req: Request) => {
         await tx.unsafe("select id from ehr.patient where id=$1::uuid for update",[patientId]);
         const e=await tx.unsafe("select id from ehr.synthetic_encounter where id=$1::uuid and patient_id=$2::uuid and clinician_principal_id=$3::uuid and status='draft' for update",[encounterId,patientId,person.id]);
         if(!e.length)throw new AccessError(409,"encounter_draft_not_found");
-        await tx.unsafe("insert into ehr.encounter_review(patient_id,encounter_id,run_id,base_state_version,generated_content) values($1::uuid,$2::uuid,$3::uuid,$4,$5::jsonb)",[patientId,encounterId,runId,stateVersion,JSON.stringify(completedOutput)]);
+        await tx.unsafe("insert into ehr.encounter_review(patient_id,encounter_id,run_id,base_state_version,generated_content) values($1::uuid,$2::uuid,$3::uuid,$4,$5::text::jsonb)",[patientId,encounterId,runId,stateVersion,JSON.stringify(completedOutput)]);
       }
       const completed = await tx`
         update ehr.agent_run

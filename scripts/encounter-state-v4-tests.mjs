@@ -9,6 +9,11 @@ const context={console};
 vm.createContext(context);
 vm.runInContext(stripTypeScriptTypes(shared+"\n"+helper),context);
 const {jsonObject,patientState,reviewAstra}=context;
+// Serialized JSON must be inferred as text by the real driver, then parsed by
+// PostgreSQL. A direct JSONB parameter double-encodes the already serialized text.
+for (const file of ["synthetic-encounter/index.ts", "synthetic-encounter/encounter-review.ts", "scribe-review/index.ts", "astra-review/index.ts"]) {
+  assert.doesNotMatch(fs.readFileSync("supabase/functions/"+file,"utf8"), /\$\d+::jsonb/, file+" must not bind JSON text as JSONB");
+}
 assert.equal(jsonObject('{"systolic":128,"diastolic":74}').systolic,128);
 for(const bad of [null,[],1,"null",JSON.stringify('{"id":"PT-001"}')])assert.throws(()=>jsonObject(bad));
 assert.throws(()=>patientState({id:"PT-002"},"PT-001"),/identity_mismatch/);
