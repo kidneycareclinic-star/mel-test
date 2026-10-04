@@ -103,7 +103,7 @@ try {
   await sql.unsafe("create role anon; create role authenticated;");
   await sql.unsafe(fs.readFileSync("supabase/sql/encounter-completion-v5.sql","utf8"));
   let allow=true,currentPrincipal=principal;
-  const completionSource=fs.readFileSync("supabase/functions/encounter-completion/index.ts","utf8").replace(/^import .*$/gm,"")
+  const completionSource=fs.readFileSync("supabase/functions/encounter-completion/soap.ts","utf8").replace(/^export /gm,"")+"\n"+fs.readFileSync("supabase/functions/encounter-completion/index.ts","utf8").replace(/^import .*$/gm,"")
     +"\n"+fs.readFileSync("supabase/functions/encounter-completion/json-boundary.ts","utf8").replace(/^export /gm,"")
     +"\n"+fs.readFileSync("supabase/functions/encounter-completion/completion.ts","utf8").replace(/^import .*$/gm,"").replace(/^export /gm,"");
   vm.runInNewContext(stripTypeScriptTypes(completionSource),{
@@ -123,6 +123,7 @@ try {
     assert.equal((await post({...requestBase,action:"create"})).status,404);currentPrincipal=principal;
     let result=await post({...requestBase,action:"create"});assert.equal(result.status,200,JSON.stringify(result.body));
     let view=result.body;assert.equal(view.package.source_state_version,"2");
+    assert.ok(view.package.note_text.includes("S — SUBJECTIVE")&&view.package.note_text.includes("P — PLAN"));
     const original=structuredClone(view.package.generated_content);
     async function mutate(action,fields={}){
       const response=await post({...requestBase,expectedVersion:view.package.version,action,...fields});
@@ -141,6 +142,7 @@ try {
     assert.equal((await mutate("resolve-item",{itemId:itemIds[3],decision:"completed",completionNote:"Too early"})).status,409);
     assert.equal((await mutate("approve")).status,200);
     assert.equal(view.package.status,"approved");
+    assert.equal((await mutate("format-soap")).status,409);
     assert.equal((await mutate("save",{noteText:"Cannot rewrite approval",patientInstructions:"No"})).status,409);
     assert.equal((await mutate("add-item",{kind:"lab",label:"Late order"})).status,409);
     assert.equal((await mutate("resolve-item",{itemId:itemIds[3],decision:"completed",completionNote:"Synthetic follow-up completed"})).status,200);

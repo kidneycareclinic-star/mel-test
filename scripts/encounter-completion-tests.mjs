@@ -6,7 +6,7 @@ import { stripTypeScriptTypes } from "node:module";
 const helper=fs.readFileSync("supabase/functions/encounter-completion/completion.ts","utf8").replace(/^import .*$/gm,"").replace(/^export /gm,"");
 const boundary=fs.readFileSync("supabase/functions/encounter-completion/json-boundary.ts","utf8").replace(/^export /gm,"");
 const context={console,Date,Number,JSON,Set};vm.createContext(context);
-vm.runInContext(stripTypeScriptTypes(boundary+"\n"+helper+"\nglobalThis.api={buildContent,completionMutation};"),context);
+vm.runInContext(stripTypeScriptTypes(fs.readFileSync("supabase/functions/encounter-completion/soap.ts","utf8").replace(/^export /gm,"")+"\n"+boundary+"\n"+helper+"\nglobalThis.api={buildContent,completionMutation};"),context);
 const fixtures={window:{}};vm.createContext(fixtures);
 vm.runInContext(fs.readFileSync("data.js","utf8").replace("patients.splice(backendOwnedIndex, 1)","void backendOwnedIndex")+"\nglobalThis.fixtures=patients;",fixtures);
 assert.equal(fixtures.fixtures.length,24);

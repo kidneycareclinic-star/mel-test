@@ -4,17 +4,17 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Nephrology Agentic Harness — Synthetic Demo</title>
-<link rel="stylesheet" href="style.css?v=follow-up-queue-v6-20261004" />
-<link rel="stylesheet" href="census-status.css?v=follow-up-queue-v6-20261004" />
-<link rel="stylesheet" href="prechart-workspace.css?v=follow-up-queue-v6-20261004" />
-<link rel="stylesheet" href="activity-audit-ui.css?v=follow-up-queue-v6-20261004" />
-<link rel="stylesheet" href="scribe-review-ui.css?v=follow-up-queue-v6-20261004" />
-<link rel="stylesheet" href="workspace-review-ui.css?v=follow-up-queue-v6-20261004" />
-<link rel="stylesheet" href="workflow-prep-ui.css?v=follow-up-queue-v6-20261004" />
-<link rel="stylesheet" href="clinician-auth-ui.css?v=follow-up-queue-v6-20261004" />
-<link rel="stylesheet" href="encounter-workflow-ui.css?v=follow-up-queue-v6-20261004" />
-<link rel="stylesheet" href="encounter-completion-ui.css?v=follow-up-queue-v6-20261004" />
-<link rel="stylesheet" href="follow-up-queue-ui.css?v=follow-up-queue-v6-20261004" />
+<link rel="stylesheet" href="style.css?v=soap-scribe-v7-20261004" />
+<link rel="stylesheet" href="census-status.css?v=soap-scribe-v7-20261004" />
+<link rel="stylesheet" href="prechart-workspace.css?v=soap-scribe-v7-20261004" />
+<link rel="stylesheet" href="activity-audit-ui.css?v=soap-scribe-v7-20261004" />
+<link rel="stylesheet" href="scribe-review-ui.css?v=soap-scribe-v7-20261004" />
+<link rel="stylesheet" href="workspace-review-ui.css?v=soap-scribe-v7-20261004" />
+<link rel="stylesheet" href="workflow-prep-ui.css?v=soap-scribe-v7-20261004" />
+<link rel="stylesheet" href="clinician-auth-ui.css?v=soap-scribe-v7-20261004" />
+<link rel="stylesheet" href="encounter-workflow-ui.css?v=soap-scribe-v7-20261004" />
+<link rel="stylesheet" href="encounter-completion-ui.css?v=soap-scribe-v7-20261004" />
+<link rel="stylesheet" href="follow-up-queue-ui.css?v=soap-scribe-v7-20261004" />
 </head>
 <body>
   <section id="clinicianSignIn" aria-label="Synthetic clinician sign-in">
@@ -252,7 +252,7 @@
             <div class="prechart-section-head">
               <div>
                 <h3>Ambient transcription</h3>
-                <div class="micro">Live microphone transcription for synthetic-patient testing only</div>
+                <div class="micro">Recorded audio with playback and physician transcript review</div>
               </div>
               <span id="ambientStatus" class="prechart-source-status">idle</span>
             </div>
@@ -270,13 +270,13 @@
               <div class="ambient-transcript-pane reviewed">
                 <div class="ambient-transcript-pane-head">
                   <strong>Reviewed transcript</strong>
-                  <span id="ambientReviewStatus">conservative local review · no new clinical facts</span>
+                  <span id="ambientReviewStatus">Physician review required · original wording preserved</span>
                 </div>
-                <textarea id="ambientReviewedInput" class="prechart-large-input reviewed-transcript-input" placeholder="Reviewed transcript will appear here automatically and remains editable before saving…"></textarea>
+                <textarea id="ambientReviewedInput" class="prechart-large-input reviewed-transcript-input" placeholder="Copy the raw transcript for review, then correct errors against the audio before saving…"></textarea>
               </div>
             </div>
             <div class="prechart-inline-actions">
-              <button id="startAmbientDemoBtn" class="small-btn voice-start-btn" type="button">Start ambient mic</button>
+              <button id="startAmbientDemoBtn" class="small-btn voice-start-btn" type="button">Start browser preview</button>
               <button id="reviewAmbientBtn" class="small-btn" type="button">Review transcript</button>
               <button id="addAmbientSourceBtn" class="small-btn" type="button">Save reviewed transcript</button>
               <span id="ambientMicSupport" class="voice-support-note">checking microphone support…</span>
@@ -414,26 +414,27 @@
     <div id="provBody" class="prov-body"></div>
   </aside>
 
-  <script src="theme.js?v=follow-up-queue-v6-20261004"></script>
-  <script src="data.js?v=follow-up-queue-v6-20261004"></script>
-  <script src="clinician-auth-ui.js?v=follow-up-queue-v6-20261004"></script>
-  <script src="backend-patient-loader.js?v=follow-up-queue-v6-20261004"></script>
-  <script src="open-loop.js?v=follow-up-queue-v6-20261004"></script>
-  <script src="patient-state.js?v=follow-up-queue-v6-20261004"></script>
-  <script src="judgment-fabric.js?v=follow-up-queue-v6-20261004"></script>
-  <script src="agent.js?v=follow-up-queue-v6-20261004"></script>
-  <script src="app.js?v=follow-up-queue-v6-20261004"></script>
-  <script src="lab-trends-ui.js?v=follow-up-queue-v6-20261004"></script>
-  <script src="kidney-protection-ui.js?v=follow-up-queue-v6-20261004"></script>
-  <script src="prechart-workspace.js?v=follow-up-queue-v6-20261004"></script>
-  <script src="scribe-review-ui.js?v=follow-up-queue-v6-20261004"></script>
-  <script src="encounter-workflow-ui.js?v=follow-up-queue-v6-20261004"></script>
-  <script src="activity-audit-ui.js?v=follow-up-queue-v6-20261004"></script>
-  <script src="workspace-review-ui.js?v=follow-up-queue-v6-20261004"></script>
-  <script src="workflow-prep-ui.js?v=follow-up-queue-v6-20261004"></script>
-  <script src="mobile-ui.js?v=follow-up-queue-v6-20261004"></script>
-  <script src="encounter-completion-ui.js?v=follow-up-queue-v6-20261004"></script>
-  <script src="follow-up-queue-ui.js?v=follow-up-queue-v6-20261004"></script>
+  <script src="theme.js?v=soap-scribe-v7-20261004"></script>
+  <script src="data.js?v=soap-scribe-v7-20261004"></script>
+  <script src="clinician-auth-ui.js?v=soap-scribe-v7-20261004"></script>
+  <script src="backend-patient-loader.js?v=soap-scribe-v7-20261004"></script>
+  <script src="open-loop.js?v=soap-scribe-v7-20261004"></script>
+  <script src="patient-state.js?v=soap-scribe-v7-20261004"></script>
+  <script src="judgment-fabric.js?v=soap-scribe-v7-20261004"></script>
+  <script src="agent.js?v=soap-scribe-v7-20261004"></script>
+  <script src="app.js?v=soap-scribe-v7-20261004"></script>
+  <script src="lab-trends-ui.js?v=soap-scribe-v7-20261004"></script>
+  <script src="kidney-protection-ui.js?v=soap-scribe-v7-20261004"></script>
+  <script src="prechart-workspace.js?v=soap-scribe-v7-20261004"></script>
+  <script src="recorded-audio-ui.js?v=soap-scribe-v7-20261004"></script>
+  <script src="scribe-review-ui.js?v=soap-scribe-v7-20261004"></script>
+  <script src="encounter-workflow-ui.js?v=soap-scribe-v7-20261004"></script>
+  <script src="activity-audit-ui.js?v=soap-scribe-v7-20261004"></script>
+  <script src="workspace-review-ui.js?v=soap-scribe-v7-20261004"></script>
+  <script src="workflow-prep-ui.js?v=soap-scribe-v7-20261004"></script>
+  <script src="mobile-ui.js?v=soap-scribe-v7-20261004"></script>
+  <script src="encounter-completion-ui.js?v=soap-scribe-v7-20261004"></script>
+  <script src="follow-up-queue-ui.js?v=soap-scribe-v7-20261004"></script>
 </body>
 </html>
 

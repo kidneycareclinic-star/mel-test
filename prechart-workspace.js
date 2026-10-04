@@ -504,6 +504,13 @@
     var patient = activePatient();
     if (!patient) return;
 
+    if (typeof voiceDrafts !== "undefined" && voiceDrafts && voiceDraftPatient!==patient.id) {
+      if(voiceDraftPatient)voiceDrafts.set(voiceDraftPatient,{raw:ambientInput.value,reviewed:ambientReviewedInput.value,dictation:dictationInput.value});
+      if(activeRecognition)stopVoiceCapture();
+      voiceDraftPatient=patient.id;var draft=voiceDrafts.get(patient.id)||{};
+      ambientInput.value=draft.raw||"";ambientReviewedInput.value=draft.reviewed||"";dictationInput.value=draft.dictation||"";
+      window.dispatchEvent(new CustomEvent("scribe-patient-changed",{detail:{patientId:patient.id}}));
+    }
     ensureLabSources(patient);
     var state = getState(patient.id);
     state.note = buildOrganizedNote(patient, state);
@@ -515,6 +522,13 @@
     var patient = activePatient();
     if (!patient) return;
 
+    if (typeof voiceDrafts !== "undefined" && voiceDrafts && voiceDraftPatient!==patient.id) {
+      if(voiceDraftPatient)voiceDrafts.set(voiceDraftPatient,{raw:ambientInput.value,reviewed:ambientReviewedInput.value,dictation:dictationInput.value});
+      if(activeRecognition)stopVoiceCapture();
+      voiceDraftPatient=patient.id;var draft=voiceDrafts.get(patient.id)||{};
+      ambientInput.value=draft.raw||"";ambientReviewedInput.value=draft.reviewed||"";dictationInput.value=draft.dictation||"";
+      window.dispatchEvent(new CustomEvent("scribe-patient-changed",{detail:{patientId:patient.id}}));
+    }
     ensureLabSources(patient);
     var state = getState(patient.id);
 
@@ -546,6 +560,7 @@
 
   function closeWorkspace() {
     if (activeRecognition) stopVoiceCapture();
+    window.RECORDED_AUDIO_UI?.stop();
     var patientId = activePatientId();
     if (patientId) {
       getState(patientId).note = noteEditor.value;
@@ -844,7 +859,7 @@
       .replace(/\bheart\s*rate\b/gi, "heart rate")
       .replace(/\bblood\s*pressure\b/gi, "blood pressure");
 
-    text = normalizeSpokenNumbers(text);
+    // Spoken numbers stay verbatim. Propose digits only after physician review.
 
     text = text
       .replace(/\s+([,.;:!?])/g, "$1")
@@ -859,11 +874,13 @@
     var flags = regex.flags.indexOf("g") >= 0 ? regex.flags : regex.flags + "g";
     var re = new RegExp(regex.source, flags);
     var match = null;
-    var current = null;
+    var current = null,count=0;
     while ((current = re.exec(text)) !== null) {
+      count++;
       match = current;
       if (current[0] === "") re.lastIndex += 1;
     }
+    if(count!==1||!match||/\bwas\b/i.test(match[0])||/^,\d/.test(text.slice(match.index+match[0].length)))return null;
     return match;
   }
 
@@ -871,7 +888,7 @@
     var patient = activePatient();
     if (!patient || !text || !text.trim()) return [];
 
-    var normalized = normalizeClinicalTranscript(text).replace(/,/g, "");
+    var normalized = normalizeClinicalTranscript(reviewedText || text);
     var reviewedNormalized = normalizeClinicalTranscript(reviewedText || "");
     var extractedByField = new Map();
 
@@ -968,7 +985,7 @@
         patient,
         extracted,
         String(text || "").trim(),
-        reviewedNormalized
+        String(reviewedText || text)
       );
     }
     return extracted;
@@ -1031,47 +1048,15 @@
 
 
   function conservativeTranscriptReview(raw) {
-    var text = normalizeClinicalTranscript(raw);
-    if (!text) return "";
-
-    text = text
-      .replace(/\b(?:um+|uh+|erm+|hmm+)\b/gi, " ")
-      .replace(/\b(?:you know|I mean|sort of|kind of)\b/gi, " ")
-      .replace(/\b(\w+)(?:\s+\1\b)+/gi, "$1")
-      .replace(/\s+([,.;:?])/g, "$1")
-      .replace(/([,.;:?])(?=[A-Za-z0-9])/g, "$1 ")
-      .replace(/\s{2,}/g, " ")
-      .trim();
-
-    text = text
-      .replace(/\be\s*gfr\b/gi, "eGFR")
-      .replace(/\bu\s*a\s*c\s*r\b/gi, "UACR")
-      .replace(/\bu\s*p\s*c\s*r\b/gi, "UPCR")
-      .replace(/\bhco\s*3\b/gi, "HCO3");
-
-    var sentences = text
-      .split(/(?<=[.!?])\s+/)
-      .map(function (sentence) { return sentence.trim(); })
-      .filter(Boolean)
-      .map(function (sentence) {
-        if (!sentence) return sentence;
-        var first = sentence.charAt(0).toUpperCase() + sentence.slice(1);
-        return /[.!?]$/.test(first) ? first : first + ".";
-      });
-
-    return sentences.join(" ");
+    // Preserve exact words, negations, numbers, repetitions and line breaks.
+    return String(raw || "");
   }
 
-  function reviewAmbientTranscript() {
+  function reviewAmbientTranscript(force) {
     if (!ambientReviewedInput) return "";
-    var reviewed = conservativeTranscriptReview(ambientInput.value);
-    ambientReviewedInput.value = reviewed;
-    if (ambientReviewStatus) {
-      ambientReviewStatus.textContent = reviewed
-        ? "reviewed locally · fillers/repetition/punctuation normalized · facts unchanged"
-        : "nothing to review";
-    }
-    return reviewed;
+    if (!ambientReviewedInput.value || force === true) ambientReviewedInput.value = conservativeTranscriptReview(ambientInput.value);
+    if (ambientReviewStatus) ambientReviewStatus.textContent = "Physician review required · wording preserved · verify against audio";
+    return ambientReviewedInput.value;
   }
 
   function setRuntimeStatus(text, tone) {
@@ -1111,6 +1096,7 @@
   var activeRecognition = null;
   var activeVoiceMode = null;
   var finalTextByMode = { ambient: "", dictation: "" };
+  var voiceDraftPatient=null,voiceDrafts=new Map();
 
   function voiceConfig(mode) {
     if (mode === "dictation") {
@@ -1126,8 +1112,8 @@
       input: ambientInput,
       status: ambientStatus,
       button: startAmbientDemoBtn,
-      activeText: "Stop ambient mic",
-      idleText: "Start ambient mic"
+      activeText: "Stop browser preview",
+      idleText: "Start browser preview"
     };
   }
 
@@ -1167,6 +1153,7 @@
       stopVoiceCapture();
     }
 
+    var capturePatientId=activePatientId();
     setRuntimeStatus("Requesting microphone permission…", "warn");
 
     requestMicrophonePermission().then(function (permission) {
@@ -1176,6 +1163,7 @@
         return;
       }
 
+      if (activePatientId() !== capturePatientId) return;
       var cfg = voiceConfig(mode);
       finalTextByMode[mode] = cfg.input.value.trim();
       var recognition = new SpeechRecognitionCtor();
@@ -1186,6 +1174,7 @@
       recognition.interimResults = true;
       recognition.lang = navigator.language || "en-US";
 
+      var captureBase=cfg.input.value.trim();
       recognition.onstart = function () {
         setVoiceStatus(mode, "listening", true);
         setRuntimeStatus((mode === "dictation" ? "Dictation" : "Ambient") + " microphone is live. Speak now.", "live");
@@ -1197,23 +1186,24 @@
       };
 
       recognition.onresult = function (event) {
+        if (activeRecognition !== recognition || activePatientId() !== capturePatientId) return;
         var finalChunk = "";
         var interimChunk = "";
-        for (var i = event.resultIndex; i < event.results.length; i += 1) {
+        // Rebuild this recognition session so replayed final results cannot duplicate words.
+        for (var i = 0; i < event.results.length; i += 1) {
           var transcript = event.results[i][0] ? event.results[i][0].transcript : "";
           if (event.results[i].isFinal) finalChunk += transcript + " ";
           else interimChunk += transcript + " ";
         }
 
         if (finalChunk.trim()) {
-          finalTextByMode[mode] = [finalTextByMode[mode], finalChunk.trim()]
+          finalTextByMode[mode] = [captureBase, finalChunk.trim()]
             .filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
-          if (mode === "ambient") {
-            parseAmbientStructuredData(finalTextByMode.ambient, reviewAmbientTranscript());
-          }
+
         }
+        finalTextByMode[mode]=[captureBase,finalChunk.trim()].filter(Boolean).join(" ");
         appendTranscriptText(mode, "", interimChunk.trim());
-        if (mode === "ambient") reviewAmbientTranscript();
+
         setRuntimeStatus("Receiving transcript…", "ok");
       };
 
@@ -1228,6 +1218,8 @@
           activeRecognition = null;
           activeVoiceMode = null;
         }
+        if (activePatientId() !== capturePatientId) return;
+        cfg.input.value=finalTextByMode[mode]||captureBase;
         setVoiceStatus(mode, "stopped", false);
         setRuntimeStatus("Voice capture stopped. Review and save the transcript.", "ok");
       };
@@ -1256,7 +1248,7 @@
   if (ambientModeBtn) {
     ambientModeBtn.addEventListener("click", function () {
       focusVoiceMode("ambient");
-      startVoiceCapture("ambient");
+      if(window.RECORDED_AUDIO_UI)window.RECORDED_AUDIO_UI.start();else startVoiceCapture("ambient");
     });
   }
 
@@ -1286,13 +1278,15 @@
     var reviewedTranscript = ambientReviewedInput && ambientReviewedInput.value.trim()
       ? ambientReviewedInput.value.trim()
       : reviewAmbientTranscript();
+    if (activeRecognition || window.RECORDED_AUDIO_UI?.isRecording()) { setRuntimeStatus("Stop recording before reviewing and saving the transcript.","warn"); return; }
+    if (!reviewedTranscript.trim()) return;
     parseAmbientStructuredData(rawTranscript, reviewedTranscript);
 
     if (reviewedTranscript && addTextSource(
       "ambient-transcript",
       "Ambient transcript · reviewed",
       reviewedTranscript,
-      "Pre-chart workspace · reviewed from raw browser ambient transcript · synthetic test"
+      "Pre-chart workspace · physician-reviewed transcript · synthetic test"
     )) {
       var patientId = activePatientId();
       if (patientId) {
@@ -1300,7 +1294,7 @@
         var latest = state.sources[state.sources.length - 1];
         if (latest && latest.kind === "ambient-transcript") {
           latest.rawText = rawTranscript;
-          latest.reviewMethod = "conservative-local-review";
+          latest.reviewMethod = "physician-reviewed-verbatim-v7";
         }
       }
       ambientInput.value = "";
@@ -1403,6 +1397,9 @@
   window.PRECHART_WORKSPACE_API = {
     open: openWorkspace,
     refresh: renderWorkspace,
+    stopVoice: stopVoiceCapture,
+    receiveTranscript: function(patientId,text){if(activePatientId()!==patientId)return false;ambientInput.value=String(text);ambientReviewedInput.value="";reviewAmbientTranscript();return true;},
+    copyRawToReview: function(){reviewAmbientTranscript(true);},
     hydrateEncounterDraft: function (patientId, draft) {
       if (!draft || !Array.isArray(draft.sources)) return false;
       var state = getState(patientId);
@@ -1452,3 +1449,4 @@
     }
   };
 })();
+

@@ -1,4 +1,5 @@
 import { jsonObject, patientState } from "./json-boundary.ts";
+import { soapNote } from "./soap.ts";
 
 export function fail(code:string,status=409):never { throw Object.assign(new Error(code),{status}); }
 export const uuid=(value:unknown) => typeof value==="string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
@@ -15,29 +16,20 @@ function date(value:unknown):string|null {
   return value;
 }
 function readable(value:any):string {return value==null?"Not documented":typeof value==="object"?String(value.name||value.label||JSON.stringify(value)):String(value);}
-export function buildContent(source:any,externalId:string) {
+export function buildContent(source:any,externalId:string,approvedItems:any[]=[]) {
   const patient=patientState(source.state_text,externalId);
-  const summary=patient.approvedEncounterReview?.encounterId===source.id?patient.approvedEncounterReview?.content?.summary:null;
-  const approvedSummary=typeof summary==="string"?summary:"No separate Astra narrative was approved for this encounter.";
-  const labs=Object.entries(patient.labs||{}).map(([name,value]:[string,any])=>name+": "+readable(value.value)+" "+(value.unit||"")).join("\n");
-  const meds=(patient.meds||[]).map(readable).join("\n")||"No medications documented in this snapshot.";
-  const bp=patient.vitals?.bp||patient.bp;
-  const bloodPressure=bp&&typeof bp==="object"?readable(bp.systolic)+"/"+readable(bp.diastolic):readable(bp);
-  const note=["NEPHROLOGY VISIT NOTE",readable(patient.name||patient.displayName)+" · "+externalId,
-    "Encounter signed: "+new Date(source.signed_at).toISOString(),
-    "HISTORY AND SOURCE NOTE",source.note_text||"", "PHYSICIAN-APPROVED ASSESSMENT AND PLAN",approvedSummary,
-    "REVIEWED CLINICAL DATA","Blood pressure: "+bloodPressure,labs,"MEDICATIONS RECORDED AT THIS VISIT",meds].join("\n\n");
+  const soap=soapNote(source,patient,externalId,approvedItems);
+  const meds=(patient.meds||[]).map(readable).join("\n")||"Not documented.";
   const instructions=["YOUR KIDNEY VISIT", "Patient: "+readable(patient.name||patient.displayName)+" · "+externalId,
-    "Your visit record", "Kidney filtering blood test (eGFR): "+readable(patient.labs?.eGFR?.value)+" "+(patient.labs?.eGFR?.unit||""),
-    "Blood pressure: "+bloodPressure,
-    "What was reviewed",approvedSummary,
+    "Kidney filtering blood test (eGFR): "+readable(patient.labs?.eGFR?.value)+" "+(patient.labs?.eGFR?.unit||""),
+    "Blood pressure in your visit record: "+soap.bloodPressure,
     "Medication list recorded at this visit",meds,
-    "Questions to confirm with your clinician", "Which next steps should I follow? When should I have tests or return for my next visit?"].join("\n\n");
-  return {noteText:note,patientInstructions:instructions,generator:"signed-snapshot-template-v5",externalExecution:false};
+    "Your clinician will confirm medication instructions, any tests and your return visit after reviewing this draft."].join("\n\n");
+  return {noteText:soap.noteText,patientInstructions:instructions,generator:"signed-soap-template-v7",externalExecution:false};
 }
 export async function signedSource(tx:any,patientId:string,externalId:string,person:any,encounterId:string,lock=false) {
   if(!uuid(encounterId))fail("invalid_encounter_id",400);
-  const rows=await tx.unsafe("select e.id,e.note_text,e.signed_at,e.signed_event_id,e.final_state_version,coalesce(a.resulting_state,s.state)::text as state_text from ehr.synthetic_encounter e join ehr.patient_state s on s.patient_id=e.patient_id and s.state_version=e.final_state_version left join ehr.patient_state_audit a on a.patient_id=e.patient_id and a.resulting_version=e.final_state_version where e.id=$1::uuid and e.patient_id=$2::uuid and e.clinician_principal_id=$3::uuid and e.status='signed'"+(lock?" for update of e":""),[encounterId,patientId,person.id]);
+  const rows=await tx.unsafe("select e.id,e.note_text,e.sources,e.signed_at,e.signed_event_id,e.final_state_version,coalesce(a.resulting_state,s.state)::text as state_text from ehr.synthetic_encounter e join ehr.patient_state s on s.patient_id=e.patient_id and s.state_version=e.final_state_version left join ehr.patient_state_audit a on a.patient_id=e.patient_id and a.resulting_version=e.final_state_version where e.id=$1::uuid and e.patient_id=$2::uuid and e.clinician_principal_id=$3::uuid and e.status='signed'"+(lock?" for update of e":""),[encounterId,patientId,person.id]);
   if(!rows.length)fail("signed_encounter_required",404);
   patientState(rows[0].state_text,externalId);
   return rows[0];
@@ -88,7 +80,16 @@ export async function completionMutation(tx:any,patientId:string,externalId:stri
   if(!Number.isSafeInteger(body.expectedVersion)||body.expectedVersion!==row.version)fail("completion_version_changed");
   const before=await snapshot(tx,row);
   let action:string;
-  if(body.action==="save") {
+  if(body.action==="format-soap") {
+    if(row.status!=="draft")fail("approved_completion_is_immutable");
+    const generated=buildContent(source,externalId,before.items);
+    const original=jsonObject(row.generated_content,"generated_completion");
+    const editedNote=row.note_text!==original.noteText&&row.note_text!==generated.noteText;
+    const note=generated.noteText+(editedNote?"\n\nPHYSICIAN NOTE RETAINED VERBATIM\n"+row.note_text:"");
+    text(note,60000);
+    await tx.unsafe("update ehr.encounter_completion set note_text=$2,version=version+1,updated_at=now() where id=$1::uuid",[row.id,note]);
+    action="SOAP_DRAFT_APPLIED";
+  } else if(body.action==="save") {
     if(row.status!=="draft")fail("approved_completion_is_immutable");
     const note=text(body.noteText,60000),instructions=text(body.patientInstructions,40000);
     await tx.unsafe("update ehr.encounter_completion set note_text=$2,patient_instructions=$3,version=version+1,updated_at=now() where id=$1::uuid",[row.id,note,instructions]);
