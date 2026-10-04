@@ -1384,8 +1384,9 @@
 
   if(window.NOTE_DRAFTING){
     var noteCard=noteEditor.closest(".prechart-note-editor-card");window.NOTE_DRAFTING.mount(noteCard);
-    var generate=document.createElement("button");generate.type="button";generate.className="small-btn";generate.id="generatePrechartNoteBtn";generate.textContent="Generate with my template";noteCard.appendChild(generate);
+    var generate=document.createElement("button");generate.type="button";generate.className="small-btn";generate.id="generatePrechartNoteBtn";generate.textContent="Generate with my template";generate.disabled=!window.NOTE_DRAFTING.enabled();noteCard.appendChild(generate);
     var draftStatus=document.createElement("p");draftStatus.id="prechartDraftStatus";draftStatus.setAttribute("role","status");noteCard.appendChild(draftStatus);
+    if(!window.NOTE_DRAFTING.enabled())draftStatus.textContent="Draft generation is not enabled yet. You can remember preferences and continue editing or organizing this note.";
     generate.addEventListener("click",async function(){
       if(generate.disabled)return;if(activeRecognition||window.RECORDED_AUDIO_UI?.isRecording()){draftStatus.textContent="Stop recording and save reviewed text before generating a note.";return;}
       var patientId=activePatientId(),state=getState(patientId),snapshot=JSON.stringify({note:state.note,sources:state.sources});generate.disabled=true;draftStatus.textContent="Saving the encounter source and drafting your selected template…";

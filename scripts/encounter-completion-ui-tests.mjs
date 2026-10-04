@@ -33,7 +33,7 @@ w.fetch=async(url,options)=>{
   }
   return {ok:status===200,status,json:async()=>status===200?view(id):{error}};
 };
-w.eval(fs.readFileSync("note-drafting-ui.js","utf8"));
+w.SYNTHETIC_NOTE_DRAFTING_ENABLED=true;w.eval(fs.readFileSync("note-drafting-ui.js","utf8"));
 w.eval(fs.readFileSync("encounter-completion-ui.js","utf8"));
 async function settle(){for(let i=0;i<100;i++){await new Promise(r=>setTimeout(r,5));if(!d.querySelector("#completionClose")?.disabled)return;}throw Error("UI remained busy");}
 function button(label){const b=Array.from(d.querySelectorAll("button")).find(b=>b.textContent===label);assert.ok(b,"Missing button "+label);return b;}
@@ -71,5 +71,6 @@ assert.equal(d.querySelector("dialog").open,false);
 await w.ENCOUNTER_COMPLETION_UI.open(encounterIds[1]);await settle();
 assert.equal(selector.value,encounterIds[1],"queue navigation must select the requested signed visit");
 assert.ok(requests.some(r=>r.action==="approve")&&requests.some(r=>r.action==="resolve-item"));
+w.SYNTHETIC_NOTE_DRAFTING_ENABLED=false;await click("Refresh package");assert.equal(button("Generate with my template").disabled,true,"disabled generation must remain disabled after withBusy renders new controls");
 dom.window.close();
 console.log("Visit completion DOM: edits, failed-request retention, current revisions, approval, simulation tracking, stale refresh, visit isolation, and safe rendering passed.");

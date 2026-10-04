@@ -46,7 +46,7 @@
     busy=true;var ticket=sequence,priorPayload=payload,success=false;
     dialog.querySelectorAll("button,select,input,textarea").forEach(function(n){n.disabled=true;});
     try{await action();success=true;}catch(error){if(ticket===sequence)message(error.message||"Visit package unavailable.",true);}
-    finally{busy=false;if(ticket===sequence){if(success&&payload!==priorPayload&&!keepPreview)render();dialog.querySelectorAll("button,select,input,textarea").forEach(function(n){n.disabled=false;});}}
+    finally{busy=false;if(ticket===sequence){if(success&&payload!==priorPayload&&!keepPreview)render();dialog.querySelectorAll("button,select,input,textarea").forEach(function(n){n.disabled=n.dataset.keepDisabled==="true";});}}
   }
   async function load(encounterId){var ticket=sequence;var data=await request(null,null,encounterId);if(ticket!==sequence)return;payload=data;render();message(data.package?"Saved "+data.package.status+" package · revision "+data.package.version:"Choose a signed visit and create its package.");}
   function edited(){var p=payload?.package;if(!p||p.status!=="draft")return null;var note=dialog.querySelector("#completionNote"),instructions=dialog.querySelector("#completionInstructions");if(!note||!instructions)return null;return {noteText:note.value,patientInstructions:instructions.value};}
@@ -72,7 +72,7 @@
     editorRevision=p.version;editorEncounter=p.encounter_id;
     if(!approved){
       window.NOTE_DRAFTING?.mount(body);
-      button(actions,"Generate with my template",function(){withBusy(async function(){
+      var generateWithTemplate=button(actions,"Generate with my template",function(){withBusy(async function(){
         await saveEdits();var patientId=contextId,encounterId=payload.selectedEncounter.id,version=payload.package.version,oldNote=dialog.querySelector("#completionNote").value;
         message("Drafting your selected template from this signed encounter…");
         var result=await window.NOTE_DRAFTING.generate(patientId,"completion",encounterId,version);
@@ -83,6 +83,7 @@
           editor.value=text;message("Reviewed draft applied. Save package draft to keep it, then review before approval.");
         });message("Draft ready for review. Your saved note remains available until you apply and save the new draft.");
       },true);});
+      if(!window.NOTE_DRAFTING?.enabled()){generateWithTemplate.disabled=true;generateWithTemplate.dataset.keepDisabled="true";node(body,"p","Draft generation is not enabled yet. You can remember preferences, edit the note, or use the SOAP draft action.");}
       button(actions,"Apply SOAP draft",function(){withBusy(async function(){await saveEdits();payload=await request("format-soap");message("SOAP draft applied. Prior text is retained in visit history; any physician edits are also retained verbatim below the new draft. Review before approving.");});});
       button(actions,"Save package draft",function(){withBusy(async function(){await saveEdits();message("Visit package draft saved.");});});
       button(actions,"Approve visit package",function(){withBusy(async function(){await saveEdits();payload=await request("approve");message("Visit package approved. The final note and instructions are saved; orders remain simulated.");});});

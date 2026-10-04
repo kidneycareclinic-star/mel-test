@@ -12,7 +12,9 @@
     section.querySelector('button').addEventListener('click',function(){refreshOwner();var status=section.querySelector('.note-profile-status');if(!owner){status.textContent='Sign in before remembering your preferences.';return;}try{localStorage.setItem('physician-note-profile-v8:'+owner,JSON.stringify(profile));status.textContent='Preferences remembered for your account on this browser. Patient notes and audio are not stored here.';}catch(_){status.textContent='Browser storage unavailable. Preferences remain available for this session.';}});
     return section;
   }
+  function enabled(){return window.SYNTHETIC_NOTE_DRAFTING_ENABLED===true;}
   async function generate(patientId,mode,encounterId,version){
+    if(!enabled())throw Error("Note generation is not enabled yet. Your existing text is retained.");
     var cfg=window.SUPABASE_DEMO_BACKEND;if(!cfg?.anonJwt)throw Error('Sign in as a clinician first.');
     var response=await fetch(cfg.baseUrl+'/functions/v1/note-drafting-gated',{method:'POST',cache:'no-store',headers:{Authorization:'Bearer '+cfg.anonJwt,'Content-Type':'application/json'},body:JSON.stringify({patientId:patientId,mode:mode,encounterId:encounterId,expectedVersion:version,preferences:preferences()}),signal:AbortSignal.timeout(70000)});
     var result=await response.json().catch(function(){return {};});if(!response.ok)throw Error(({invalid_note_preferences:'Check custom headings and writing instructions.',draft_version_changed:'The saved draft changed. Refresh and generate again.',note_drafting_not_configured:'Note drafting is not configured. Your existing text is retained.',note_drafting_provider_failed:'Note drafting failed. Your existing text is retained; you can retry.',note_drafting_invalid_output:'The generated draft could not be verified against its source. Your existing text is retained.',note_drafting_rate_limited:'Note drafting is temporarily rate limited. Your existing text is retained.',signed_encounter_required:'Choose a signed encounter for the visit note.',encounter_draft_required:'Save an encounter draft before generating a note.'})[result.error]||'Note drafting unavailable. Your existing text is retained.');
@@ -26,5 +28,5 @@
     var apply=document.createElement('button');apply.type='button';apply.className='small-btn';apply.textContent='Apply reviewed draft to note';apply.addEventListener('click',function(){if(!editor.value.trim())return;if(onApply(editor.value)===false)return;pane.remove();});pane.appendChild(apply);
     var discard=document.createElement('button');discard.type='button';discard.className='small-btn';discard.textContent='Discard generated draft';discard.addEventListener('click',function(){pane.remove();});pane.appendChild(discard);parent.appendChild(pane);return pane;
   }
-  window.NOTE_DRAFTING={mount:mount,preferences:preferences,generate:generate,preview:preview};
+  window.NOTE_DRAFTING={enabled:enabled,mount:mount,preferences:preferences,generate:generate,preview:preview};
 })();
