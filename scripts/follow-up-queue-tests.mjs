@@ -1,0 +1,16 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import vm from 'node:vm';
+import {stripTypeScriptTypes} from 'node:module';
+const source=fs.readFileSync('supabase/functions/follow-up-queue/queue.ts','utf8');
+const context={URLSearchParams,Date,Number};vm.createContext(context);
+vm.runInContext(stripTypeScriptTypes(source.replace(/^export /gm,'')+'\nglobalThis.queueOptions=options;'),context);
+const options=query=>context.queueOptions(new URLSearchParams(query));
+assert.equal(options('today=2026-10-04').page,0);
+assert.equal(options('today=2024-02-29&page=1000&patient_id=PT-024&status=all&kind=follow-up&due=no-date').today,'2024-02-29');
+for(const query of ['today=2026-02-29','today=2026-02-30','today=2026-99-99','today=not-date','status=pending','kind=external-order','due=late','page=-1','page=1.5','page=1001','patient_id=PT-001%27%20OR%20true'])assert.throws(()=>options(query),/invalid_queue_(date|filter)/);
+assert.doesNotMatch(source,/\b(insert|update|delete)\s+(into|from|ehr\.)/i);
+assert.doesNotMatch(source,/fetch\(|reduce_patient_state/);
+assert.equal(fs.readFileSync('supabase/functions/follow-up-queue/clinician-auth.ts','utf8').trim(),fs.readFileSync('supabase/functions/_shared/clinician-auth.ts','utf8').trim());
+for(const file of ['encounter-completion-ui.js','follow-up-queue-ui.js','follow-up-queue-ui.css'])assert.equal(fs.readFileSync(file,'utf8'),fs.readFileSync('preview/'+file,'utf8'));
+console.log('Follow-up queue: calendar dates, filter bounds, injection rejection, read-only query, shared auth and preview parity passed.');

@@ -105,8 +105,10 @@
   // Capture local editors before an action so errors cannot discard text.
   var originalEdited=edited;
   edited=function(){var result=originalEdited();if(result){result._version=editorRevision;result._encounter=editorEncounter;}return result;};
-  function open(){if(busy)return;var patient=activePatient();if(!patient)return;sequence++;contextId=patient.id;payload=null;editorRevision=null;editorEncounter=null;body.replaceChildren();message("Loading signed visits…");if(!dialog.open)dialog.showModal();withBusy(function(){return load();});}
+  function open(encounterId){if(busy)return;var patient=activePatient();if(!patient)return;sequence++;contextId=patient.id;payload=null;editorRevision=null;editorEncounter=null;body.replaceChildren();message("Loading signed visits…");if(!dialog.open)dialog.showModal();withBusy(function(){return load(typeof encounterId==='string'?encounterId:undefined);});}
   panel.querySelector("button").addEventListener("click",open);
+  var identityActions=document.querySelector(".identity-actions");
+  if(identityActions){var shortcut=document.createElement("button");shortcut.type="button";shortcut.className="small-btn";shortcut.id="openVisitCompletionBtn";shortcut.textContent="Visit completion";shortcut.addEventListener("click",open);identityActions.prepend(shortcut);}
   function close(){withBusy(async function(){await saveEdits();dialog.close();});}
   dialog.querySelector("#completionClose").addEventListener("click",close);
   dialog.addEventListener("cancel",function(event){event.preventDefault();if(!busy)close();});
