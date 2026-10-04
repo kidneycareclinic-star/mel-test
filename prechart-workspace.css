@@ -710,3 +710,25 @@
 .recorded-audio audio { width:100%; margin:12px 0; }
 .recorded-audio label { display:block; }
 .recorded-audio .is-error { color:#8d3017; }
+
+/* Live microphone feedback and physician-selected documentation. */
+.microphone-meter { display:flex; align-items:center; gap:10px; padding:12px; margin:10px 0; border:1px solid var(--border,#d6e0e9); border-radius:10px; background:var(--panel,#f4f7fa); flex-wrap:wrap; }
+.mic-record-dot { width:9px; height:9px; border-radius:50%; background:#8594a3; flex-shrink:0; }
+.microphone-meter.is-recording .mic-record-dot { background:#dc3d4b; box-shadow:0 0 0 4px #dc3d4b20; }
+.mic-level-bars { height:38px; display:flex; align-items:center; gap:3px; }
+.mic-level-bars i { display:block; width:4px; border-radius:3px; background:#8193a5; }
+.microphone-meter.is-recording .mic-level-bars i { background:var(--accent,#237eaa); }
+.mic-level-state { font-size:12px; flex:1; min-width:145px; }
+.microphone-meter time { font-variant-numeric:tabular-nums; font-size:13px; }
+.prechart-narrative { padding:0 18px; }
+.prechart-narrative pre { white-space:pre-wrap; overflow-wrap:anywhere; font:inherit; font-size:13px; line-height:1.65; max-height:420px; overflow:auto; padding:12px; border:1px solid var(--border,#d6e0e9); border-radius:8px; }
+.note-drafting-profile,.note-draft-preview { padding:14px; margin:12px 0; border:1px solid var(--border,#d6e0e9); border-radius:10px; }
+.note-drafting-profile h4,.note-draft-preview h4 { margin:0 0 10px; }
+.note-profile-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.note-drafting-profile label { display:block; font-size:12px; margin:8px 0; }
+.note-drafting-profile textarea,.note-drafting-profile select,.note-draft-preview textarea { display:block; width:100%; box-sizing:border-box; margin:6px 0; padding:9px; color:inherit; background:var(--panel,#fff); border:1px solid var(--border,#ccd8e3); border-radius:7px; font:inherit; }
+.note-draft-preview textarea { line-height:1.6; resize:vertical; min-height:260px; }
+.note-draft-preview button { margin:8px 8px 0 0; }
+.note-profile-status,.audio-save-destination,.note-draft-preview p { font-size:12px; line-height:1.6; }
+@media (max-width:600px) { .note-profile-grid { grid-template-columns:1fr; } .mic-level-bars { gap:2px; } }
+.note-drafting-profile label[hidden] { display:none; }

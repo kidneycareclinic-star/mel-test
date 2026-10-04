@@ -13,6 +13,7 @@
   var patientStore = new Map();
   var fileUrlStore = new Map();
   var sourceSequence = 0;
+  var mainLoadedPatients=new Set(),savedEncounterNotes=new Map();
 
   var ambientInput = document.getElementById("ambientTranscriptInput");
   var ambientStatus = document.getElementById("ambientStatus");
@@ -179,6 +180,8 @@
       patientStore.set(patientId, {
         sources: [],
         note: "",
+        savedNote: null,
+        noteHistory: [],
         createdAt: new Date().toISOString()
       });
     }
@@ -191,6 +194,31 @@
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;");
+  }
+
+  function renderNarrative(patient) {
+    var box=document.getElementById("prechartNarrative");if(!box)return;
+    box.replaceChildren();if(!patient)return;
+    var state=patientStore.get(patient.id);
+    var label=document.createElement("p");label.className="micro";
+    var hasNarrative=state&&(state.sources.some(function(s){return s.kind!=="lab-trend";})||(state.note.trim()&&state.note!==buildOrganizedNote(patient,state)));
+    var signed=savedEncounterNotes.get(patient.id);
+    if(!hasNarrative&&signed){label.textContent="Latest signed encounter · "+new Date(signed.signed_at).toLocaleString();box.appendChild(label);var savedText=document.createElement("pre");savedText.textContent=signed.note_text;box.appendChild(savedText);return;}
+    if(!hasNarrative){
+      label.textContent="Reviewed scribe text and dictation appear here after saving them in the workspace.";box.appendChild(label);return;
+    }
+    label.textContent=state.savedNote===state.note?(state.savedStatus==="signed"?"Reviewed text · signed encounter":"Reviewed text · saved in encounter draft"):"Pre-charting text · changes in this tab; save the encounter draft to keep them";box.appendChild(label);
+    var text=document.createElement("pre");text.textContent=state.note;box.appendChild(text);
+  }
+  function markSaved(patientId,note) {
+    var state=getState(patientId);state.savedNote=note;state.savedStatus="draft";
+    if(activePatientId()===patientId)renderNarrative(activePatient());
+  }
+  async function saveReviewedText(patientId,statusElement) {
+    if(!window.ENCOUNTER_WORKFLOW_UI?.saveDraft){statusElement.textContent="Added to Pre-charting on the main patient screen. Save the encounter draft to keep it after reload.";return;}
+    var note=getState(patientId).note;
+    try{await window.ENCOUNTER_WORKFLOW_UI.saveDraft(patientId);markSaved(patientId,note);if(activePatientId()===patientId)statusElement.textContent="Reviewed text saved to the encounter draft and shown in Pre-charting on the main patient screen. Audio stays in this tab.";}
+    catch(error){if(activePatientId()===patientId)statusElement.textContent="Text is visible in Pre-charting, but encounter save failed: "+error.message+" Retry Save encounter draft before leaving.";}
   }
 
   function humanBytes(bytes) {
@@ -260,7 +288,8 @@
     var patient = activePatient();
     if (!patient || !text || !text.trim()) return false;
 
-    getState(patient.id).sources.push({
+    var state=getState(patient.id);
+    state.sources.push({
       id: newId("text"),
       kind: kind,
       title: title,
@@ -270,6 +299,7 @@
       createdAt: new Date().toISOString()
     });
 
+    state.note=state.note.trim()?state.note+"\n\n"+title.toUpperCase()+"\n"+text.trim():text.trim();
     renderWorkspace();
     return true;
   }
@@ -506,7 +536,7 @@
 
     if (typeof voiceDrafts !== "undefined" && voiceDrafts && voiceDraftPatient!==patient.id) {
       if(voiceDraftPatient)voiceDrafts.set(voiceDraftPatient,{raw:ambientInput.value,reviewed:ambientReviewedInput.value,dictation:dictationInput.value});
-      if(activeRecognition)stopVoiceCapture();
+      stopVoiceCapture();
       voiceDraftPatient=patient.id;var draft=voiceDrafts.get(patient.id)||{};
       ambientInput.value=draft.raw||"";ambientReviewedInput.value=draft.reviewed||"";dictationInput.value=draft.dictation||"";
       window.dispatchEvent(new CustomEvent("scribe-patient-changed",{detail:{patientId:patient.id}}));
@@ -515,6 +545,7 @@
     var state = getState(patient.id);
     state.note = buildOrganizedNote(patient, state);
     noteEditor.value = state.note;
+    renderNarrative(patient);
     renderAgentSummaries(state);
   }
 
@@ -524,7 +555,7 @@
 
     if (typeof voiceDrafts !== "undefined" && voiceDrafts && voiceDraftPatient!==patient.id) {
       if(voiceDraftPatient)voiceDrafts.set(voiceDraftPatient,{raw:ambientInput.value,reviewed:ambientReviewedInput.value,dictation:dictationInput.value});
-      if(activeRecognition)stopVoiceCapture();
+      stopVoiceCapture();
       voiceDraftPatient=patient.id;var draft=voiceDrafts.get(patient.id)||{};
       ambientInput.value=draft.raw||"";ambientReviewedInput.value=draft.reviewed||"";dictationInput.value=draft.dictation||"";
       window.dispatchEvent(new CustomEvent("scribe-patient-changed",{detail:{patientId:patient.id}}));
@@ -547,6 +578,7 @@
       state.note = buildOrganizedNote(patient, state);
     }
     noteEditor.value = state.note || "";
+    renderNarrative(patient);
   }
 
   function openWorkspace() {
@@ -559,7 +591,7 @@
   }
 
   function closeWorkspace() {
-    if (activeRecognition) stopVoiceCapture();
+    stopVoiceCapture();
     window.RECORDED_AUDIO_UI?.stop();
     var patientId = activePatientId();
     if (patientId) {
@@ -1017,8 +1049,7 @@
       return Promise.resolve({ ok: false, reason: "Microphone permission API unavailable in this browser." });
     }
     return navigator.mediaDevices.getUserMedia({ audio: true }).then(function (stream) {
-      stream.getTracks().forEach(function (track) { track.stop(); });
-      return { ok: true };
+      return { ok: true, stream: stream };
     }).catch(function (error) {
       return {
         ok: false,
@@ -1029,6 +1060,12 @@
 
   var SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition || null;
   var activeRecognition = null;
+  var pendingVoice=0,voiceStream=null,voiceMeter=null;
+  var ambientMeter=window.MICROPHONE_METER?.mount(ambientCaptureCard),dictationMeter=window.MICROPHONE_METER?.mount(dictationCaptureCard);
+  if(ambientMeter)ambientCaptureCard.querySelector(".prechart-section-head").after(ambientMeter.element);
+  if(dictationMeter)dictationCaptureCard.querySelector(".prechart-section-head").after(dictationMeter.element);
+  function releaseVoice() {if(voiceMeter)voiceMeter.stop("Microphone stopped");voiceMeter=null;if(voiceStream)voiceStream.getTracks().forEach(function(t){t.stop();});voiceStream=null;}
+
   var activeVoiceMode = null;
   var finalTextByMode = { ambient: "", dictation: "" };
   var voiceDraftPatient=null,voiceDrafts=new Map();
@@ -1068,6 +1105,7 @@
   }
 
   function stopVoiceCapture() {
+    pendingVoice++;releaseVoice();
     if (activeRecognition) {
       try { activeRecognition.stop(); } catch (_) {}
     }
@@ -1088,17 +1126,21 @@
       stopVoiceCapture();
     }
 
+    if(window.RECORDED_AUDIO_UI?.isRecording())window.RECORDED_AUDIO_UI.stop();
+    var captureTicket=++pendingVoice;
     var capturePatientId=activePatientId();
     setRuntimeStatus("Requesting microphone permission…", "warn");
 
     requestMicrophonePermission().then(function (permission) {
+      if(captureTicket!==pendingVoice || activePatientId()!==capturePatientId){permission.stream?.getTracks().forEach(function(t){t.stop();});return;}
       if (!permission.ok) {
         setVoiceStatus(mode, "permission denied", false);
         setRuntimeStatus(permission.reason, "error");
         return;
       }
 
-      if (activePatientId() !== capturePatientId) return;
+      if (activePatientId() !== capturePatientId || captureTicket!==pendingVoice) {permission.stream.getTracks().forEach(function(t){t.stop();});return;}
+      releaseVoice();voiceStream=permission.stream;voiceMeter=mode==="dictation"?dictationMeter:ambientMeter;
       var cfg = voiceConfig(mode);
       finalTextByMode[mode] = cfg.input.value.trim();
       var recognition = new SpeechRecognitionCtor();
@@ -1111,6 +1153,8 @@
 
       var captureBase=cfg.input.value.trim();
       recognition.onstart = function () {
+        if(activeRecognition!==recognition||captureTicket!==pendingVoice)return;
+        voiceMeter?.start(voiceStream,mode==="dictation"?"Dictating":"Browser speech preview");
         setVoiceStatus(mode, "listening", true);
         setRuntimeStatus((mode === "dictation" ? "Dictation" : "Ambient") + " microphone is live. Speak now.", "live");
         cfg.input.focus();
@@ -1143,13 +1187,16 @@
       };
 
       recognition.onerror = function (event) {
+        if(activeRecognition!==recognition)return;releaseVoice();
         var label = event && event.error ? event.error : "microphone error";
         setVoiceStatus(mode, label, false);
         setRuntimeStatus("Speech recognition error: " + label, "error");
       };
 
       recognition.onend = function () {
+        if(activeRecognition!==recognition)return;
         if (activeRecognition === recognition) {
+          releaseVoice();
           activeRecognition = null;
           activeVoiceMode = null;
         }
@@ -1162,6 +1209,7 @@
       try {
         recognition.start();
       } catch (_) {
+        releaseVoice();
         setVoiceStatus(mode, "unable to start", false);
         setRuntimeStatus("Unable to start speech recognition in this browser session.", "error");
         activeRecognition = null;
@@ -1208,14 +1256,15 @@
     startVoiceCapture("dictation");
   });
 
-  addAmbientSourceBtn.addEventListener("click", function () {
+  addAmbientSourceBtn.addEventListener("click", async function () {
     var rawTranscript = ambientInput.value.trim();
     var reviewedTranscript = ambientReviewedInput && ambientReviewedInput.value.trim()
       ? ambientReviewedInput.value.trim()
       : reviewAmbientTranscript();
     if (activeRecognition || window.RECORDED_AUDIO_UI?.isRecording()) { setRuntimeStatus("Stop recording before reviewing and saving the transcript.","warn"); return; }
     if (!reviewedTranscript.trim()) return;
-    parseAmbientStructuredData(rawTranscript, reviewedTranscript);
+    // Persist text first so observation proposals can link to a new draft.
+
 
     if (reviewedTranscript && addTextSource(
       "ambient-transcript",
@@ -1236,11 +1285,14 @@
       if (ambientReviewedInput) ambientReviewedInput.value = "";
       finalTextByMode.ambient = "";
       setVoiceStatus("ambient", "saved", false);
-      if (ambientReviewStatus) ambientReviewStatus.textContent = "saved reviewed transcript";
+      if (ambientReviewStatus) await saveReviewedText(patientId,ambientReviewStatus);
+      if(activePatientId()===patientId)parseAmbientStructuredData(rawTranscript,reviewedTranscript);
     }
   });
 
-  addDictationSourceBtn.addEventListener("click", function () {
+  addDictationSourceBtn.addEventListener("click", async function () {
+    if(activeRecognition || window.RECORDED_AUDIO_UI?.isRecording()){setRuntimeStatus("Stop recording before saving dictation.","warn");return;}
+    var patientId=activePatientId();
     if (addTextSource(
       "physician-dictation",
       "Physician dictation",
@@ -1250,6 +1302,7 @@
       dictationInput.value = "";
       finalTextByMode.dictation = "";
       setVoiceStatus("dictation", "saved", false);
+      await saveReviewedText(patientId,dictationStatus);
     }
   });
 
@@ -1314,7 +1367,7 @@
 
   noteEditor.addEventListener("input", function () {
     var patientId = activePatientId();
-    if (patientId) getState(patientId).note = noteEditor.value;
+    if (patientId) {getState(patientId).note = noteEditor.value;renderNarrative(activePatient());}
   });
 
   copyBtn.addEventListener("click", function () {
@@ -1329,9 +1382,45 @@
     }
   });
 
+  if(window.NOTE_DRAFTING){
+    var noteCard=noteEditor.closest(".prechart-note-editor-card");window.NOTE_DRAFTING.mount(noteCard);
+    var generate=document.createElement("button");generate.type="button";generate.className="small-btn";generate.id="generatePrechartNoteBtn";generate.textContent="Generate with my template";generate.disabled=!window.NOTE_DRAFTING.enabled();noteCard.appendChild(generate);
+    var draftStatus=document.createElement("p");draftStatus.id="prechartDraftStatus";draftStatus.setAttribute("role","status");noteCard.appendChild(draftStatus);
+    if(!window.NOTE_DRAFTING.enabled())draftStatus.textContent="Draft generation is not enabled yet. You can remember preferences and continue editing or organizing this note.";
+    generate.addEventListener("click",async function(){
+      if(generate.disabled)return;if(activeRecognition||window.RECORDED_AUDIO_UI?.isRecording()){draftStatus.textContent="Stop recording and save reviewed text before generating a note.";return;}
+      var patientId=activePatientId(),state=getState(patientId),snapshot=JSON.stringify({note:state.note,sources:state.sources});generate.disabled=true;draftStatus.textContent="Saving the encounter source and drafting your selected template…";
+      try{
+        var saved=await window.ENCOUNTER_WORKFLOW_UI.saveDraft(patientId);
+        var result=await window.NOTE_DRAFTING.generate(patientId,"prechart",saved.encounterId,saved.version);
+        if(activePatientId()!==patientId||snapshot!==JSON.stringify({note:state.note,sources:state.sources}))throw Error("The patient or source text changed. Generate again using the current text.");
+        var pane=window.NOTE_DRAFTING.preview(noteCard,result,function(text){
+          if(activePatientId()!==patientId||snapshot!==JSON.stringify({note:state.note,sources:state.sources})){draftStatus.textContent="The patient or note changed. Generate again before applying.";return false;}
+          state.noteHistory.push(state.note);state.note=text;renderWorkspace();draftStatus.textContent="Reviewed draft applied to Pre-charting. Save encounter draft to keep this version.";
+        });pane.dataset.patientId=patientId;draftStatus.textContent="Draft ready. Review and edit the preview, then apply it to your note.";
+      }catch(error){if(activePatientId()===patientId)draftStatus.textContent=error.message||"Note drafting failed; your source text is retained.";}
+      finally{generate.disabled=false;}
+    });
+    window.addEventListener("scribe-patient-changed",function(){noteCard.querySelector('.note-draft-preview')?.remove();draftStatus.textContent='';});
+  }
+  window.addEventListener("pagehide",stopVoiceCapture);
+
   window.PRECHART_WORKSPACE_API = {
     open: openWorkspace,
     refresh: renderWorkspace,
+    refreshNarrative: function(patient){
+      if(patient?.id===activePatientId()){
+        if(voiceDraftPatient!==patient.id)renderWorkspace();else renderNarrative(patient);
+        if(window.ENCOUNTER_WORKFLOW_UI && window.SUPABASE_DEMO_BACKEND?.anonJwt && !mainLoadedPatients.has(patient.id)){
+          mainLoadedPatients.add(patient.id);window.setTimeout(function(){if(activePatientId()===patient.id)window.ENCOUNTER_WORKFLOW_UI.refresh();},0);
+        }
+      }else renderNarrative(patient);
+    },
+    markSaved: markSaved,
+    receiveSavedEncounter: function(patientId,result){
+      if(result.lastSigned){savedEncounterNotes.set(patientId,result.lastSigned);var state=getState(patientId);if(!result.draft&&state.note===result.lastSigned.note_text){state.savedNote=state.note;state.savedStatus="signed";}}
+      if(activePatientId()===patientId)renderNarrative(activePatient());
+    },
     stopVoice: stopVoiceCapture,
     receiveTranscript: function(patientId,text){if(activePatientId()!==patientId)return false;ambientInput.value=String(text);ambientReviewedInput.value="";reviewAmbientTranscript();return true;},
     copyRawToReview: function(){reviewAmbientTranscript(true);},
@@ -1345,6 +1434,7 @@
       if (state.sources.some(function (s) { return s.kind !== "lab-trend"; }) ||
           (state.note.trim() && state.note !== generatedNote)) return false;
       state.note = String(draft.note_text || "");
+      state.savedNote=state.note;
       state.sources = draft.sources.map(function (source) {
         return {
           id:newId("saved"), kind:source.kind, title:source.title, text:source.text || "",

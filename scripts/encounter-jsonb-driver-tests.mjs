@@ -4,6 +4,7 @@ import fs from "node:fs";
 import vm from "node:vm";
 import { stripTypeScriptTypes } from "node:module";
 import { pathToFileURL } from "node:url";
+import { testNoteDrafting } from "./note-drafting-driver-tests.mjs";
 import { testFollowUpQueue } from "./follow-up-queue-driver-tests.mjs";
 
 const target = new URL(process.env.ENCOUNTER_TEST_DB_URL || "http://missing");
@@ -169,6 +170,7 @@ try {
   assert.equal(canRead,false);assert.equal(canWrite,false);
   console.log("Encounter Completion v5: 24 real-driver packages, draft edits, item approvals/rejections, package signoff, completion/cancellation, stale/replay/access guards, frozen snapshots, immutable history and private-table grants passed.");
   await testFollowUpQueue(sql,principal,target,post);
+  await testNoteDrafting(sql,principal,target);
 } finally {
   if (createdSchema) await sql.unsafe("drop schema ehr cascade; drop schema iam cascade;");
   await sql.end();

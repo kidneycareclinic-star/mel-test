@@ -4,17 +4,17 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Nephrology Agentic Harness — Synthetic Demo</title>
-<link rel="stylesheet" href="style.css?v=soap-scribe-v7-enabled-20261004" />
-<link rel="stylesheet" href="census-status.css?v=soap-scribe-v7-enabled-20261004" />
-<link rel="stylesheet" href="prechart-workspace.css?v=soap-scribe-v7-enabled-20261004" />
-<link rel="stylesheet" href="activity-audit-ui.css?v=soap-scribe-v7-enabled-20261004" />
-<link rel="stylesheet" href="scribe-review-ui.css?v=soap-scribe-v7-enabled-20261004" />
-<link rel="stylesheet" href="workspace-review-ui.css?v=soap-scribe-v7-enabled-20261004" />
-<link rel="stylesheet" href="workflow-prep-ui.css?v=soap-scribe-v7-enabled-20261004" />
-<link rel="stylesheet" href="clinician-auth-ui.css?v=soap-scribe-v7-enabled-20261004" />
-<link rel="stylesheet" href="encounter-workflow-ui.css?v=soap-scribe-v7-enabled-20261004" />
-<link rel="stylesheet" href="encounter-completion-ui.css?v=soap-scribe-v7-enabled-20261004" />
-<link rel="stylesheet" href="follow-up-queue-ui.css?v=soap-scribe-v7-enabled-20261004" />
+<link rel="stylesheet" href="style.css?v=scribe-profile-v8-enabled-20261004" />
+<link rel="stylesheet" href="census-status.css?v=scribe-profile-v8-enabled-20261004" />
+<link rel="stylesheet" href="prechart-workspace.css?v=scribe-profile-v8-enabled-20261004" />
+<link rel="stylesheet" href="activity-audit-ui.css?v=scribe-profile-v8-enabled-20261004" />
+<link rel="stylesheet" href="scribe-review-ui.css?v=scribe-profile-v8-enabled-20261004" />
+<link rel="stylesheet" href="workspace-review-ui.css?v=scribe-profile-v8-enabled-20261004" />
+<link rel="stylesheet" href="workflow-prep-ui.css?v=scribe-profile-v8-enabled-20261004" />
+<link rel="stylesheet" href="clinician-auth-ui.css?v=scribe-profile-v8-enabled-20261004" />
+<link rel="stylesheet" href="encounter-workflow-ui.css?v=scribe-profile-v8-enabled-20261004" />
+<link rel="stylesheet" href="encounter-completion-ui.css?v=scribe-profile-v8-enabled-20261004" />
+<link rel="stylesheet" href="follow-up-queue-ui.css?v=scribe-profile-v8-enabled-20261004" />
 </head>
 <body>
   <section id="clinicianSignIn" aria-label="Synthetic clinician sign-in">
@@ -144,9 +144,10 @@
           </div>
           <div class="prechart-head-actions">
             <button id="openPrechartWorkspaceBtn" class="small-btn prechart-open-btn" type="button">Open workspace</button>
-            <button id="clearPrechartBtn" class="small-btn" type="button">Clear</button>
+            <button id="clearPrechartBtn" class="small-btn" type="button">Clear lab trends</button>
           </div>
         </div>
+        <div id="prechartNarrative" class="prechart-narrative" aria-live="polite"></div>
         <div id="prechartNote" class="prechart-note"></div>
       </section>
 
@@ -414,28 +415,31 @@
     <div id="provBody" class="prov-body"></div>
   </aside>
 
-  <script src="theme.js?v=soap-scribe-v7-enabled-20261004"></script>
-  <script src="data.js?v=soap-scribe-v7-enabled-20261004"></script>
-  <script src="clinician-auth-ui.js?v=soap-scribe-v7-enabled-20261004"></script>
-  <script src="backend-patient-loader.js?v=soap-scribe-v7-enabled-20261004"></script>
-  <script src="open-loop.js?v=soap-scribe-v7-enabled-20261004"></script>
-  <script src="patient-state.js?v=soap-scribe-v7-enabled-20261004"></script>
-  <script src="judgment-fabric.js?v=soap-scribe-v7-enabled-20261004"></script>
-  <script src="agent.js?v=soap-scribe-v7-enabled-20261004"></script>
-  <script src="app.js?v=soap-scribe-v7-enabled-20261004"></script>
-  <script src="lab-trends-ui.js?v=soap-scribe-v7-enabled-20261004"></script>
-  <script src="kidney-protection-ui.js?v=soap-scribe-v7-enabled-20261004"></script>
-  <script src="prechart-workspace.js?v=soap-scribe-v7-enabled-20261004"></script>
+  <script src="theme.js?v=scribe-profile-v8-enabled-20261004"></script>
+  <script src="data.js?v=scribe-profile-v8-enabled-20261004"></script>
+  <script src="clinician-auth-ui.js?v=scribe-profile-v8-enabled-20261004"></script>
+  <script src="backend-patient-loader.js?v=scribe-profile-v8-enabled-20261004"></script>
+  <script src="open-loop.js?v=scribe-profile-v8-enabled-20261004"></script>
+  <script src="patient-state.js?v=scribe-profile-v8-enabled-20261004"></script>
+  <script src="judgment-fabric.js?v=scribe-profile-v8-enabled-20261004"></script>
+  <script src="agent.js?v=scribe-profile-v8-enabled-20261004"></script>
+  <script src="app.js?v=scribe-profile-v8-enabled-20261004"></script>
+  <script src="lab-trends-ui.js?v=scribe-profile-v8-enabled-20261004"></script>
+  <script src="kidney-protection-ui.js?v=scribe-profile-v8-enabled-20261004"></script>
+  <script src="microphone-meter.js?v=scribe-profile-v8-enabled-20261004"></script>
+  <script id="syntheticNoteDraftingConfig">window.SYNTHETIC_NOTE_DRAFTING_ENABLED=true;</script>
+  <script src="note-drafting-ui.js?v=scribe-profile-v8-enabled-20261004"></script>
+  <script src="prechart-workspace.js?v=scribe-profile-v8-enabled-20261004"></script>
   <script id="syntheticAudioTranscriptionConfig">window.SYNTHETIC_AUDIO_TRANSCRIPTION_ENABLED=true;</script>
-  <script src="recorded-audio-ui.js?v=soap-scribe-v7-enabled-20261004"></script>
-  <script src="scribe-review-ui.js?v=soap-scribe-v7-enabled-20261004"></script>
-  <script src="encounter-workflow-ui.js?v=soap-scribe-v7-enabled-20261004"></script>
-  <script src="activity-audit-ui.js?v=soap-scribe-v7-enabled-20261004"></script>
-  <script src="workspace-review-ui.js?v=soap-scribe-v7-enabled-20261004"></script>
-  <script src="workflow-prep-ui.js?v=soap-scribe-v7-enabled-20261004"></script>
-  <script src="mobile-ui.js?v=soap-scribe-v7-enabled-20261004"></script>
-  <script src="encounter-completion-ui.js?v=soap-scribe-v7-enabled-20261004"></script>
-  <script src="follow-up-queue-ui.js?v=soap-scribe-v7-enabled-20261004"></script>
+  <script src="recorded-audio-ui.js?v=scribe-profile-v8-enabled-20261004"></script>
+  <script src="scribe-review-ui.js?v=scribe-profile-v8-enabled-20261004"></script>
+  <script src="encounter-workflow-ui.js?v=scribe-profile-v8-enabled-20261004"></script>
+  <script src="activity-audit-ui.js?v=scribe-profile-v8-enabled-20261004"></script>
+  <script src="workspace-review-ui.js?v=scribe-profile-v8-enabled-20261004"></script>
+  <script src="workflow-prep-ui.js?v=scribe-profile-v8-enabled-20261004"></script>
+  <script src="mobile-ui.js?v=scribe-profile-v8-enabled-20261004"></script>
+  <script src="encounter-completion-ui.js?v=scribe-profile-v8-enabled-20261004"></script>
+  <script src="follow-up-queue-ui.js?v=scribe-profile-v8-enabled-20261004"></script>
 </body>
 </html>
 
