@@ -7,6 +7,7 @@ on:
       - clinician-gateway-cutover
       - astra-ultrafast-gateway
       - encounter-state-v4
+      - encounter-completion-v5
   pull_request:
     branches:
       - main
@@ -33,6 +34,7 @@ jobs:
           node --check workflow-prep-ui.js
           node --check activity-audit-ui.js
           node --check patient-state.js
+          node --check encounter-completion-ui.js
       - name: Harness contracts
         run: node scripts/harness-contract-tests.mjs
       - name: Scribe review safety
@@ -47,6 +49,8 @@ jobs:
         run: node scripts/encounter-state-v4-tests.mjs
       - name: Astra gateway safety
         run: node scripts/astra-gateway-tests.mjs
+      - name: Visit completion safety
+        run: node scripts/encounter-completion-tests.mjs
 
   jsonb-driver:
     runs-on: ubuntu-latest
@@ -69,8 +73,10 @@ jobs:
         with:
           node-version: "24"
       - name: Install the exact deployed Postgres.js version
-        run: npm install --prefix "$RUNNER_TEMP/jsonb-driver" --ignore-scripts --no-audit --no-fund postgres@3.4.7
+        run: npm install --prefix "$RUNNER_TEMP/jsonb-driver" --ignore-scripts --no-audit --no-fund postgres@3.4.7 jsdom@26.1.0
       - name: Real driver draft and signing regression
         env:
           ENCOUNTER_TEST_DB_URL: postgres://postgres:synthetic-ci-only@127.0.0.1:5432/encounter_jsonb_test
         run: POSTGRES_DRIVER_PATH="$RUNNER_TEMP/jsonb-driver/node_modules/postgres/src/index.js" node scripts/encounter-jsonb-driver-tests.mjs
+      - name: Visit completion DOM regression
+        run: DOM_TEST_MODULE="$RUNNER_TEMP/jsonb-driver/node_modules/jsdom/lib/api.js" node scripts/encounter-completion-ui-tests.mjs
