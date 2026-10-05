@@ -12,6 +12,7 @@ on:
       - soap-scribe-v7
       - scribe-profile-v8
       - encounter-coordinator-v9a
+      - agent-dot-interface-v10a
   pull_request:
     branches:
       - main
@@ -44,6 +45,7 @@ jobs:
           node --check microphone-meter.js
           node --check note-drafting-ui.js
           node --check encounter-coordinator-ui.js
+          node --check agent-map-ui.js
       - name: Harness contracts
         run: node scripts/harness-contract-tests.mjs
       - name: Scribe review safety
@@ -111,3 +113,25 @@ jobs:
 
       - name: Automatic transcription handoff DOM
         run: DOM_TEST_MODULE="$RUNNER_TEMP/jsonb-driver/node_modules/jsdom/lib/api.js" node scripts/encounter-coordinator-audio-ui-tests.mjs
+
+      - name: Hierarchical agent-dot navigation DOM
+        run: DOM_TEST_MODULE="$RUNNER_TEMP/jsonb-driver/node_modules/jsdom/lib/api.js" node scripts/agent-map-ui-tests.mjs
+
+  agent-map-browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Install browser verification tools
+        run: npm install --prefix "$RUNNER_TEMP/agent-map-browser" --ignore-scripts --no-audit --no-fund playwright@1.62.1
+      - name: Install Chromium
+        run: node "$RUNNER_TEMP/agent-map-browser/node_modules/playwright/cli.js" install --with-deps chromium
+      - name: Check agent map themes and responsive targets
+        run: PLAYWRIGHT_TEST_MODULE="$RUNNER_TEMP/agent-map-browser/node_modules/playwright/index.mjs" node scripts/agent-map-browser-tests.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: agent-map-browser-screenshots
+          path: agent-map-screenshots/
