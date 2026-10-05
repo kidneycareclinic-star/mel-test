@@ -13,7 +13,7 @@
   function say(text){message.textContent=text;}
   function show(){if(!dialog.open){if(dialog.showModal)dialog.showModal();else dialog.setAttribute('open','');}}
   function close(){if(dialog.close)dialog.close();else dialog.removeAttribute('open');launch.focus();}
-  function reset(){sequence++;routeSequence++;owner=account();list.replaceChildren();launch.textContent='Encounter inbox';dialog.querySelector('.inbox-summary').textContent='';say('Sign in to see encounters assigned to you.');}
+  function reset(){sequence++;routeSequence++;owner=account();list.replaceChildren();window.PHONE_ALERTS_UI?.reset();launch.textContent='Encounter inbox';dialog.querySelector('.inbox-summary').textContent='';say('Sign in to see encounters assigned to you.');}
   async function request(query,body){var requestedOwner=account(),cfg=window.SUPABASE_DEMO_BACKEND;if(!signedIn())throw Error('Sign in to open your encounter inbox.');
     var res=await fetch(cfg.baseUrl+'/functions/v1/encounter-inbox-gated'+(query?'?'+query:''),{method:body?'POST':'GET',headers:{Authorization:'Bearer '+cfg.anonJwt,...(body?{'Content-Type':'application/json'}:{})},body:body?JSON.stringify(body):undefined,cache:'no-store',signal:AbortSignal.timeout(12000)});
     var data=await res.json().catch(function(){return {};});if(account()!==requestedOwner){reset();throw Error('Clinician session changed. Sign in again.');}if(!res.ok)throw Error(errors[data.error]||'The encounter inbox is unavailable. Refresh or sign in again.');return data;
@@ -46,7 +46,7 @@
     }catch(e){if(ticket===routeSequence){show();say(e.message);}}
   }
   async function route(){var match=/^#review\/([0-9a-f-]{36})$/i.exec(window.location.hash);if(match&&signedIn())await openReview(match[1]);else if(window.location.hash.startsWith('#review/')&&signedIn()){show();say(errors.invalid_link);}}
-  launch.addEventListener('click',function(){show();refresh();});dialog.querySelector('[data-close]').addEventListener('click',close);
+  launch.addEventListener('click',function(){show();refresh();window.PHONE_ALERTS_UI?.refresh();});dialog.querySelector('[data-close]').addEventListener('click',close);
   dialog.querySelector('[data-refresh]').addEventListener('click',refresh);
   dialog.querySelectorAll('[data-filter]').forEach(function(b){b.addEventListener('click',function(){filter=b.dataset.filter;page=0;refresh();});});
   dialog.querySelector('[data-prev]').addEventListener('click',function(){page=Math.max(0,page-1);refresh();});dialog.querySelector('[data-next]').addEventListener('click',function(){page++;refresh();});
@@ -54,6 +54,6 @@
   window.addEventListener('encounter-agent-progress',function(event){var key=event.detail?.job?.id+':'+event.detail?.job?.status;if(key!==transition){transition=key;refresh();}});
   document.addEventListener('visibilitychange',function(){if(!document.hidden)refresh();});
   window.addEventListener('pagehide',function(){clearInterval(poll);});
-  window.ENCOUNTER_INBOX_UI={open:function(){show();return refresh();},refresh:refresh,openReview:openReview};
+  window.ENCOUNTER_INBOX_UI={open:function(){show();window.PHONE_ALERTS_UI?.refresh();return refresh();},refresh:refresh,openReview:openReview};
   Promise.resolve(window.BACKEND_PATIENT_READY).then(async function(){owner=account();await refresh();await route();poll=setInterval(function(){if(!document.hidden)refresh();},30000);});
 })();

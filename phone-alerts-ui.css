@@ -1,0 +1,15 @@
+.phone-alert-panel summary { cursor:pointer; min-height:44px; line-height:44px; font-weight:650; }
+.phone-alert-panel [data-phone-state] { color:var(--muted); font-size:12px; margin-left:8px; font-weight:400; }
+.phone-alert-panel p { line-height:1.5; }
+.phone-alert-panel fieldset { border:1px solid var(--border); border-radius:12px; padding:14px; margin:14px 0; min-width:0; }
+.phone-alert-panel legend { padding:0 6px; font-weight:600; }
+.phone-alert-panel label { display:block; margin:10px 0; line-height:1.5; }
+.phone-alert-panel input:not([type=checkbox]),.phone-alert-panel select { display:block; box-sizing:border-box; width:100%; min-height:44px; margin-top:6px; padding:10px; border:1px solid var(--border); border-radius:8px; background:var(--panel); color:var(--text); font:inherit; }
+.phone-alert-panel .phone-check { display:flex; gap:10px; align-items:flex-start; min-height:44px; }
+.phone-check input { flex:0 0 auto; width:20px; height:20px; margin:2px 0; accent-color:var(--accent); }
+.phone-alert-panel button { min-height:44px; max-width:100%; white-space:normal; margin:6px 0; }
+.phone-preview,.phone-alert-card { padding:14px; border:1px solid var(--border); border-radius:12px; background:var(--panel-2); margin:14px 0; overflow-wrap:anywhere; }
+.phone-alert-message:empty { display:none; }
+.phone-alert-message { background:var(--panel-2); padding:12px; border-radius:8px; }
+.phone-alert-panel h3 { font-size:16px; margin:12px 0; }
+.phone-alert-panel [hidden] { display:none !important; }

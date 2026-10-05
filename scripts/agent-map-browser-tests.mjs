@@ -77,19 +77,37 @@ try {
   const prior=window.fetch;window.CLINICIAN_AUTH={userId:()=> 'browser-physician'};window.PATIENTS=[window.currentPatient];window.BACKEND_PATIENT_READY=Promise.resolve();
   window.openEncounterPatient=patient=>{window.currentPatient=patient;window.dispatchEvent(new CustomEvent('scribe-patient-changed',{detail:{patientId:patient.id}}));};
   window.fetch=async(url,options)=>{
+   if(url.includes('phone-alerts-gated'))return {ok:true,json:async()=>({preferences:{version:1,mode:'preview',readyAlerts:true,pausedAlerts:true,quietHours:true,timeZone:'America/New_York',phoneLast4:null,verified:false,verificationPending:false,consented:false},providerReady:false,history:[{id:'browser-preview',jobId:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',reason:'ready',status:'preview',transport:'preview',text:'KidneyCare: An encounter is ready for your review. Sign in securely: https://kidneycareclinic-star.github.io/mel-test/preview/#review/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa Reply STOP to stop alerts.',createdAt:'2026-10-05T21:00:00Z'}],previewText:'KidneyCare: An encounter is ready for your review. Sign in securely: https://kidneycareclinic-star.github.io/mel-test/preview/ Reply STOP to stop alerts.'})};
    if(!url.includes('encounter-inbox-gated')){const response=await prior(url,options),data=await response.json();return {ok:response.ok,json:async()=>({...data,profile:{version:1,preferences:{}}})};}
    const params=new URL(url).searchParams;return {ok:true,json:async()=>params.has('job_id')?{mode:'review',patientId:'PT-001',encounterId:'ci-encounter',jobId:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',replaced:true}:{items:[{id:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',encounterId:'ci-encounter',patientId:'PT-001',patientName:'Synthetic patient',status:'ready',revision:'4:ready',seen:false}],counts:{attention:1,unseen:1,preparing:0},hasNext:false}};
   };
  });
- await page.addScriptTag({path:path.join(root,'mobile-ui.js')});await page.addScriptTag({path:path.join(root,'encounter-inbox-ui.js')});
+ await page.addScriptTag({path:path.join(root,'mobile-ui.js')});await page.addScriptTag({path:path.join(root,'encounter-inbox-ui.js')});await page.addScriptTag({path:path.join(root,'phone-alerts-ui.js')});
  await page.setViewportSize({width:1440,height:1100});
  for(const theme of ['dark','light']){await page.evaluate(value=>{document.documentElement.dataset.theme=value;return window.ENCOUNTER_INBOX_UI.open();},theme);await page.locator('#encounterInboxDialog').screenshot({path:path.join(output,theme+'-encounter-inbox.png')});}
  for(const width of [760,390,320]){
   await page.setViewportSize({width,height:1000});await page.evaluate(()=>window.ENCOUNTER_INBOX_UI.open());
-  const metrics=await page.evaluate(()=>{const n=document.getElementById('encounterInboxDialog');return {page:document.documentElement.scrollWidth,viewport:innerWidth,dialog:n.scrollWidth,width:n.clientWidth,targets:[...n.querySelectorAll('button')].map(b=>b.getBoundingClientRect().height)};});
+  const metrics=await page.evaluate(()=>{const n=document.getElementById('encounterInboxDialog');return {page:document.documentElement.scrollWidth,viewport:innerWidth,dialog:n.scrollWidth,width:n.clientWidth,targets:[...n.querySelectorAll('button')].map(b=>b.getBoundingClientRect().height).filter(h=>h>0)};});
   assert(metrics.page<=metrics.viewport+1,JSON.stringify(metrics));assert(metrics.dialog<=metrics.width+1,JSON.stringify(metrics));assert(metrics.targets.every(h=>h>=44));
   await page.locator('#encounterInboxDialog').screenshot({path:path.join(output,'light-'+width+'-encounter-inbox.png')});
  }
+ await page.evaluate(()=>{document.getElementById('encounterPhoneAlerts').open=true;});
+ await page.waitForFunction(()=>document.querySelector('[data-phone-state]').textContent==='Preview only');
+ assert.equal(await page.locator('[data-connect]').isVisible(),false);
+ assert.equal(await page.locator('[data-mode] option[value=sms]').evaluate(n=>n.disabled),true,'SMS option is natively disabled without a configured verified phone');
+ for(const theme of ['dark','light']){
+  await page.setViewportSize({width:1440,height:1100});await page.evaluate(v=>{document.documentElement.dataset.theme=v;},theme);
+  await page.locator('[data-preferences]').screenshot({path:path.join(output,theme+'-phone-alert-preferences.png')});
+  await page.locator('.phone-preview').screenshot({path:path.join(output,theme+'-phone-alert-message.png')});
+ }
+ for(const width of [760,390,320]){
+  await page.setViewportSize({width,height:1000});await page.evaluate(()=>{document.documentElement.dataset.theme='light';});
+  const metrics=await page.evaluate(()=>{const n=document.getElementById('encounterInboxDialog');return {page:document.documentElement.scrollWidth,viewport:innerWidth,dialog:n.scrollWidth,width:n.clientWidth,targets:[...document.querySelectorAll('#encounterPhoneAlerts button,#encounterPhoneAlerts select,#encounterPhoneAlerts input:not([type=checkbox]),#encounterPhoneAlerts .phone-check')].map(b=>b.getBoundingClientRect().height).filter(h=>h>0)};});
+  assert(metrics.page<=metrics.viewport+1,JSON.stringify(metrics));assert(metrics.dialog<=metrics.width+1,JSON.stringify(metrics));assert(metrics.targets.every(h=>h>=44),JSON.stringify(metrics));
+  await page.locator('[data-preferences]').screenshot({path:path.join(output,'light-'+width+'-phone-alert-preferences.png')});
+  await page.locator('.phone-preview').screenshot({path:path.join(output,'light-'+width+'-phone-alert-message.png')});
+ }
+ await page.evaluate(()=>{document.getElementById('encounterPhoneAlerts').open=false;});
  await page.getByRole('button',{name:'Open review',exact:true}).click();await page.waitForFunction(()=>!document.getElementById('encounterInboxDialog').open);
  assert.equal(await page.locator('#mainLayout').evaluate(n=>n.classList.contains('mobile-pane-patient')),true);assert.match(await page.locator('#encounterInboxNotice').textContent(),/original preparation changed/);
  assert.equal(await page.locator('.coordinator-finalize').isDisabled(),true,'inbox navigation cannot approve action drafts');
