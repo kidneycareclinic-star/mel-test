@@ -28,7 +28,7 @@ Deno.serve(async(req:Request)=>{
     if(req.method==='POST'&&!['prepare','finalize','save-review','save-profile'].includes(body?.action))coordinatorFail('invalid_action',400);
     const permission=req.method==='GET'?'patient.read':body.action==='finalize'?'encounter.sign':'encounter.draft';
     const patientId=await patientAccess(sql,person,externalId,'office',permission);
-    if(req.method==='GET')return reply(await sql.begin('isolation level repeatable read',async(tx:any)=>{const view=await coordinatorView(tx,patientId,externalId,person);return {...view,...await profileAndJob(tx,person,patientId,view.draft?.id||null)};}),200,origin);
+    if(req.method==='GET')return reply(await sql.begin('isolation level repeatable read',async(tx:any)=>{const view=await coordinatorView(tx,patientId,externalId,person);const expected=new URL(req.url).searchParams.get('expected_encounter_id');if(expected&&view.draft?.id!==expected)coordinatorFail('review_link_no_longer_current',409);return {...view,...await profileAndJob(tx,person,patientId,view.draft?.id||null)};}),200,origin);
     if(body.action==='save-profile')return reply(await write(person,patientId,externalId,'encounter.draft',(tx:any)=>queueCurrentAfterProfile(tx,patientId,person,body)),200,origin);
     if(body.action==='save-review')return reply(await write(person,patientId,externalId,'encounter.draft',(tx:any)=>saveReviewDraft(tx,patientId,externalId,person,body)),200,origin);
     if(body.action==='finalize'){

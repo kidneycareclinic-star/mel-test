@@ -15,6 +15,7 @@ on:
       - agent-dot-interface-v10a
       - clinical-actions-v10b
       - background-orchestrator-v11
+      - encounter-attention-v12
   pull_request:
     branches:
       - main
@@ -24,7 +25,7 @@ permissions:
 
 jobs:
   contracts:
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.ref_name == 'encounter-attention-v12' && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -49,6 +50,7 @@ jobs:
           node --check encounter-coordinator-ui.js
           node --check agent-map-ui.js
           node --check encounter-actions-ui.js
+          node --check encounter-inbox-ui.js
       - name: Harness contracts
         run: node scripts/harness-contract-tests.mjs
       - name: Scribe review safety
@@ -80,7 +82,7 @@ jobs:
         run: node scripts/soap-scribe-tests.mjs
 
   jsonb-driver:
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.ref_name == 'encounter-attention-v12' && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
     services:
       postgres:
         image: postgres:17
@@ -127,11 +129,14 @@ jobs:
       - name: Automatic transcription handoff DOM
         run: DOM_TEST_MODULE="$RUNNER_TEMP/jsonb-driver/node_modules/jsdom/lib/api.js" node scripts/encounter-coordinator-audio-ui-tests.mjs
 
+      - name: Encounter inbox navigation DOM
+        run: DOM_TEST_MODULE="$RUNNER_TEMP/jsonb-driver/node_modules/jsdom/lib/api.js" node scripts/encounter-inbox-ui-tests.mjs
+
       - name: Hierarchical agent-dot navigation DOM
         run: DOM_TEST_MODULE="$RUNNER_TEMP/jsonb-driver/node_modules/jsdom/lib/api.js" node scripts/agent-map-ui-tests.mjs
 
   agent-map-browser:
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.ref_name == 'encounter-attention-v12' && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

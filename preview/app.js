@@ -96,7 +96,7 @@ function nodeValue(n, fallback = "—") {
   return n && n.value !== undefined && n.value !== null ? n.value : fallback;
 }
 
-function renderWorkspace() {
+function renderWorkspace(patientToSelect = null) {
   const w = WORKSPACES[currentSetting];
   $("#workspaceTitle").textContent = w.title;
   $("#workspaceSubtitle").textContent = w.subtitle;
@@ -117,7 +117,8 @@ function renderWorkspace() {
   renderCensus($("#search").value);
 
   if (!currentPatient && window.PATIENTS.length) currentPatient = window.PATIENTS[0];
-  if (currentPatient) renderPatient(currentPatient, false);
+  if (patientToSelect) renderPatient(patientToSelect, true);
+  else if (currentPatient) renderPatient(currentPatient, false);
 }
 
 function renderCensus(filter = "") {
@@ -559,6 +560,13 @@ function renderPatient(patient, resetChat = true) {
   $("#agentStatus").textContent = "ready";
 }
 
+window.openEncounterPatient = function (patient) {
+  currentSetting = 'office';
+  expandedPatientId = null;
+  $('#search').value = '';
+  renderWorkspace(patient);
+};
+
 function selectPatient(patient) {
   renderPatient(patient, true);
   renderCensus($("#search").value);
@@ -779,3 +787,4 @@ function initializeHarness() {
 Promise.resolve(window.BACKEND_PATIENT_READY)
   .catch(function () { return null; })
   .then(initializeHarness);
+

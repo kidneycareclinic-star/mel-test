@@ -38,7 +38,10 @@ export async function testCoordinator(sql,principal,target){
   const [{id:patientId}]=await sql`select id from ehr.patient where external_id='PT-002'`;
   const sourceText='No swelling. Do not increase to two tablets. Potassium 4.9 mmol/L. Physician: repeat BMP in 3 months. Physician: return in 3 months.';
   async function draft(){return (await sql.unsafe("insert into ehr.synthetic_encounter(patient_id,clinician_principal_id,note_text,sources,base_state_version) values($1::uuid,$2::uuid,$3,$4::text::jsonb,3) returning id,version",[patientId,principal,sourceText,JSON.stringify([{kind:'ambient-transcript',title:'Reviewed source',text:sourceText,rawText:'Forbidden raw'}])]))[0];}
-  let encounter=await draft();const preferences={template:'soap',detail:'standard',headings:[],instructions:''};
+  let encounter=await draft();
+  const wrongReviewLink=await handler(new Request('https://example.test/coordinator?patient_id=PT-002&expected_encounter_id=00000000-0000-4000-8000-000000000000',{headers:{authorization:'Bearer synthetic-ci-only'}}));assert.equal(wrongReviewLink.status,409,'link scope cannot load another encounter');
+  const correctReviewLink=await handler(new Request('https://example.test/coordinator?patient_id=PT-002&expected_encounter_id='+encounter.id,{headers:{authorization:'Bearer synthetic-ci-only'}}));assert.equal(correctReviewLink.status,200);
+const preferences={template:'soap',detail:'standard',headings:[],instructions:''};
   async function dispatch(jobId){const token=webcrypto.randomUUID()+webcrypto.randomUUID(),hash=Buffer.from(await webcrypto.subtle.digest('SHA-256',new TextEncoder().encode(token))).toString('hex');const [{id}]=await sql.unsafe('insert into ehr.encounter_dispatch(job_id,token_hash) values($1::uuid,$2) returning id',[jobId,hash]);return {id,token};}
   async function stage(jobId){const d=await dispatch(jobId),claimed=await workerFns.claimDispatch(sql,d.id,d.token);if(claimed)await workerFns.processJob(sql,claimed,'ci-key');return claimed;}
   async function drive(jobId){for(let i=0;i<12;i++){let [j]=await sql`select * from ehr.encounter_job where id=${jobId}`;if(j.status!=='queued')return j;await sql`update ehr.encounter_job set available_at=now() where id=${jobId}`;await stage(jobId);}throw Error('Job did not settle');}

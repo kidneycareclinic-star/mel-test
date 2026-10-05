@@ -72,6 +72,28 @@ try {
   assert.equal(overlap,false,'Dot targets must not overlap at '+width);
   await page.locator('#encounterAgentMap').screenshot({path:path.join(output,'light-'+width+'-agent-map.png')});
  }
+ // Render the actual authenticated inbox, mobile routing and scoped coordinator together.
+ await page.evaluate(()=>{
+  const prior=window.fetch;window.CLINICIAN_AUTH={userId:()=> 'browser-physician'};window.PATIENTS=[window.currentPatient];window.BACKEND_PATIENT_READY=Promise.resolve();
+  window.openEncounterPatient=patient=>{window.currentPatient=patient;window.dispatchEvent(new CustomEvent('scribe-patient-changed',{detail:{patientId:patient.id}}));};
+  window.fetch=async(url,options)=>{
+   if(!url.includes('encounter-inbox-gated')){const response=await prior(url,options),data=await response.json();return {ok:response.ok,json:async()=>({...data,profile:{version:1,preferences:{}}})};}
+   const params=new URL(url).searchParams;return {ok:true,json:async()=>params.has('job_id')?{mode:'review',patientId:'PT-001',encounterId:'ci-encounter',jobId:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',replaced:true}:{items:[{id:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',encounterId:'ci-encounter',patientId:'PT-001',patientName:'Synthetic patient',status:'ready',revision:'4:ready',seen:false}],counts:{attention:1,unseen:1,preparing:0},hasNext:false}};
+  };
+ });
+ await page.addScriptTag({path:path.join(root,'mobile-ui.js')});await page.addScriptTag({path:path.join(root,'encounter-inbox-ui.js')});
+ await page.setViewportSize({width:1440,height:1100});
+ for(const theme of ['dark','light']){await page.evaluate(value=>{document.documentElement.dataset.theme=value;return window.ENCOUNTER_INBOX_UI.open();},theme);await page.locator('#encounterInboxDialog').screenshot({path:path.join(output,theme+'-encounter-inbox.png')});}
+ for(const width of [760,390,320]){
+  await page.setViewportSize({width,height:1000});await page.evaluate(()=>window.ENCOUNTER_INBOX_UI.open());
+  const metrics=await page.evaluate(()=>{const n=document.getElementById('encounterInboxDialog');return {page:document.documentElement.scrollWidth,viewport:innerWidth,dialog:n.scrollWidth,width:n.clientWidth,targets:[...n.querySelectorAll('button')].map(b=>b.getBoundingClientRect().height)};});
+  assert(metrics.page<=metrics.viewport+1,JSON.stringify(metrics));assert(metrics.dialog<=metrics.width+1,JSON.stringify(metrics));assert(metrics.targets.every(h=>h>=44));
+  await page.locator('#encounterInboxDialog').screenshot({path:path.join(output,'light-'+width+'-encounter-inbox.png')});
+ }
+ await page.getByRole('button',{name:'Open review',exact:true}).click();await page.waitForFunction(()=>!document.getElementById('encounterInboxDialog').open);
+ assert.equal(await page.locator('#mainLayout').evaluate(n=>n.classList.contains('mobile-pane-patient')),true);assert.match(await page.locator('#encounterInboxNotice').textContent(),/original preparation changed/);
+ assert.equal(await page.locator('.coordinator-finalize').isDisabled(),true,'inbox navigation cannot approve action drafts');
+ assert.equal(await page.locator('[data-note]').count(),1);
  assert.deepEqual(errors,[]);
  console.log('Browser checks passed: real UI modules, dark/light rendering, labeled dot targets, one note editor, 760/390/320px overflow and hit-target separation. Synthetic backend only.');
 } catch(error) {

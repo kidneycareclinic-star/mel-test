@@ -1,0 +1,27 @@
+import assert from 'node:assert/strict';import fs from 'node:fs';import {pathToFileURL} from 'node:url';
+const {JSDOM}=await import(pathToFileURL(process.env.DOM_TEST_MODULE).href);
+const id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',newId='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+const dom=new JSDOM(fs.readFileSync('index.html','utf8'),{url:'https://example.test/preview/#review/'+id,runScripts:'outside-only'}),w=dom.window,d=w.document;
+w.HTMLElement.prototype.scrollIntoView=function(){};w.HTMLDialogElement.prototype.showModal=function(){this.setAttribute('open','');};w.HTMLDialogElement.prototype.close=function(){this.removeAttribute('open');};
+let auth=null,ready;w.BACKEND_PATIENT_READY=new Promise(r=>ready=r);w.CLINICIAN_AUTH={userId:()=>auth};w.SUPABASE_DEMO_BACKEND={baseUrl:'https://synthetic.test',get anonJwt(){return auth?'ci-token':null;}};
+w.PATIENTS=[{id:'PT-001',name:'Synthetic patient'},{id:'PT-002',name:'Second patient'}];
+const requests=[],opened=[],panes=[],signed=[];let failure=null,deferred=null;
+w.openEncounterPatient=p=>opened.push({patient:p.id,mode:'signed'});w.ENCOUNTER_COMPLETION_UI={open:id=>signed.push(id)};
+w.ENCOUNTER_COORDINATOR_UI={openReview:async(p,e)=>{opened.push({patient:p.id,encounter:e});panes.push('patient');}};
+const panel=d.createElement('section');panel.id='encounterCoordinator';d.body.appendChild(panel);
+let items=[{id,encounterId:'encounter-1',patientId:'PT-002',patientName:'Synthetic <img src=x>',status:'ready',revision:'4:ready',seen:false}];
+w.fetch=async(url,options)=>{requests.push({url,body:options.body&&JSON.parse(options.body)});if(deferred)return deferred;if(failure)return {ok:false,json:async()=>({error:failure})};const params=new URL(url).searchParams;
+ if(options.body){items[0].seen=true;return {ok:true,json:async()=>({seen:true})};}
+ if(params.has('job_id'))return {ok:true,json:async()=>params.get('job_id')===newId?{mode:'signed',patientId:'PT-001',encounterId:'signed-visit',jobId:newId}:{mode:'review',patientId:'PT-002',encounterId:'encounter-1',jobId:id,replaced:true}};
+ return {ok:true,json:async()=>({items,counts:{attention:1,unseen:items[0].seen?0:1,preparing:0},hasNext:false})};
+};
+w.eval(fs.readFileSync('encounter-inbox-ui.js','utf8'));const settle=()=>new Promise(r=>setTimeout(r,30));await settle();assert.equal(requests.length,0,'no inbox request before clinician authentication');
+auth='clinician-one';ready();await settle();assert.deepEqual(opened,[{patient:'PT-002',encounter:'encounter-1'}]);assert.equal(w.location.hash,'#review/'+id);assert.match(d.getElementById('encounterInboxNotice').textContent,/original preparation changed/);
+assert.equal(requests.some(x=>x.body),false,'opening an alert cannot approve or acknowledge it');
+await w.ENCOUNTER_INBOX_UI.open();assert.match(d.getElementById('encounterInboxButton').textContent,/1 new/);assert.equal(d.querySelector('.inbox-list img'),null,'patient labels render as text');
+Array.from(d.querySelectorAll('.inbox-card button')).find(b=>b.textContent==='Mark seen').click();await settle();assert.equal(requests.at(-2).body.action,'seen');assert.equal(requests.some(x=>x.body?.action==='finalize'),false);assert.match(d.querySelector('.inbox-message').textContent,/still required/);
+let copied;Object.defineProperty(w.navigator,'clipboard',{value:{writeText:async value=>copied=value}});Array.from(d.querySelectorAll('.inbox-card button')).find(b=>b.textContent==='Copy secure link').click();await settle();assert.equal(copied,'https://example.test/preview/#review/'+id);assert.doesNotMatch(copied,/PT-|ci-token|clinician-one/);
+await w.ENCOUNTER_INBOX_UI.openReview(newId);assert.deepEqual(signed,['signed-visit']);assert.equal(opened.at(-1).patient,'PT-001');
+failure='review_link_no_longer_current';await w.ENCOUNTER_INBOX_UI.openReview(id);assert.match(d.querySelector('.inbox-message').textContent,/earlier encounter/);assert.equal(d.getElementById('encounterInboxDialog').open,true);failure=null;
+let release;deferred=new Promise(r=>release=r);const pending=w.ENCOUNTER_INBOX_UI.refresh();auth='clinician-two';release({ok:true,json:async()=>({items,counts:{attention:1,unseen:1,preparing:0},hasNext:false})});await pending;assert.equal(d.querySelectorAll('.inbox-card').length,0,'late response from previous account is discarded');assert.doesNotMatch(d.querySelector('.inbox-summary').textContent,/1 need attention/);
+dom.window.close();console.log('Inbox DOM: authenticated deep link, exact encounter navigation, replacement notice, text-safe cards, seen separate from approval, PHI-free opaque links, signed target, stale-link handling and account-change response rejection passed.');
