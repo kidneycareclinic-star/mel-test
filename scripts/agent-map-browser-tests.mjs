@@ -20,6 +20,7 @@ try {
  await page.goto('http://127.0.0.1:'+server.address().port,{waitUntil:'networkidle'});
  await page.evaluate(()=>{
   document.getElementById('clinicianSignIn').hidden=true;
+  document.documentElement.classList.add('clinician-authenticated');
   window.currentPatient={id:'PT-001',name:'Synthetic patient',labs:{eGFR:{value:31,unit:'mL/min/1.73m²'}},meds:[],problemList:[{name:'CKD G3b, existing chart'}]};
   window.SYNTHETIC_ENCOUNTER_COORDINATOR_ENABLED=true;window.SYNTHETIC_AUDIO_TRANSCRIPTION_ENABLED=true;
   window.SUPABASE_DEMO_BACKEND={baseUrl:'https://synthetic.test',anonJwt:'browser-ci-only'};
@@ -63,4 +64,8 @@ try {
  }
  assert.deepEqual(errors,[]);
  console.log('Browser checks passed: real UI modules, dark/light rendering, labeled dot targets, one note editor, 760/390/320px overflow and hit-target separation. Synthetic backend only.');
+} catch(error) {
+ await page.screenshot({path:path.join(output,'failure-layout.png'),fullPage:true}).catch(()=>{});
+ console.log('Browser diagnostic:',await page.evaluate(()=>({errors:window.testRequests,overflow:[...document.querySelectorAll('body *')].filter(n=>{const r=n.getBoundingClientRect();return r.width&&r.right>window.innerWidth+1;}).slice(0,12).map(n=>({tag:n.tagName,id:n.id,class:n.className,right:n.getBoundingClientRect().right}))})).catch(()=>({})));
+ throw error;
 } finally {await browser.close();await new Promise(r=>server.close(r));}

@@ -126,7 +126,7 @@
   window.addEventListener('microphone-meter-state',meter);
   map.querySelector('#agentMapStop').addEventListener('click',function(){window.RECORDED_AUDIO_UI?.stop();window.PRECHART_WORKSPACE_API?.stopVoice();});
   window.addEventListener('scribe-patient-changed',function(){select('voice');schedule();});
-  window.addEventListener('pagehide',function(){disposed=true;observer.disconnect();window.removeEventListener('microphone-meter-state',meter);});
+  window.addEventListener('pagehide',function(event){if(event.persisted)return;disposed=true;observer.disconnect();window.removeEventListener('microphone-meter-state',meter);});
   window.ENCOUNTER_AGENT_MAP={select:select,selected:function(){return selected;},refresh:refresh};
   select('voice');
 })();
