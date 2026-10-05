@@ -28,11 +28,12 @@ export async function coordinatorView(tx:any,patientId:string,externalId:string,
   const [run]=await tx.unsafe('select id,encounter_id,source_version,state_version,status,packet,packet_hash,error_code,created_at,expires_at from ehr.encounter_preparation where patient_id=$1::uuid and clinician_principal_id=$2::uuid order by created_at desc,id desc limit 1',[patientId,person.id]);
   const [receipt]=await tx.unsafe('select r.id,r.encounter_id,r.completion_id,r.state_version,r.created_at,c.note_text as "noteText",c.patient_instructions as "patientInstructions",r.reviewed_snapshot from ehr.encounter_approval_receipt r join ehr.encounter_completion c on c.id=r.completion_id where r.patient_id=$1::uuid and r.clinician_principal_id=$2::uuid order by r.created_at desc limit 1',[patientId,person.id]);
   let current=false;
-  if(run?.status==='ready'&&jsonObject(run.packet,'review_packet').packetVersion==='v10b'&&jsonObject(run.packet,'review_packet').clinicalEvidence?.corpusVersion===evidenceCorpus.version&&e?.id===run.encounter_id&&Date.parse(run.expires_at)>Date.now()){
+  if(run?.status==='ready'&&['v10b','v11'].includes(jsonObject(run.packet,'review_packet').packetVersion)&&jsonObject(run.packet,'review_packet').clinicalEvidence?.corpusVersion===evidenceCorpus.version&&e?.id===run.encounter_id&&Date.parse(run.expires_at)>Date.now()){
     try{current=(await digest(await snapshot(tx,patientId,externalId,person,e.id)))===(await tx.unsafe('select source_hash from ehr.encounter_preparation where id=$1::uuid',[run.id]))[0].source_hash;}catch(_){}
   }
   const [edit]=run?await tx.unsafe('select version,reviewed_snapshot from ehr.encounter_packet_edit where preparation_id=$1::uuid order by version desc limit 1',[run.id]):[];
-  return {patientId:externalId,patient,stateVersion:Number(st.state_version),draft:e||null,preparation:run?{...run,current,edit:edit||null}:null,receipt:receipt||null,capabilities:{guidelines:'bounded-reference-review',automaticOrders:'reviewed-source-drafts',phoneDelivery:false,externalExecution:false}};
+  const [inheritedEdit]=run&&!edit?await tx.unsafe('select pe.reviewed_snapshot from ehr.encounter_packet_edit pe join ehr.encounter_preparation prior on prior.id=pe.preparation_id where prior.encounter_id=$1::uuid and prior.patient_id=$2::uuid and prior.clinician_principal_id=$3::uuid and prior.status=\'superseded\' and prior.id<>$4::uuid order by pe.created_at desc,pe.version desc limit 1',[run.encounter_id,patientId,person.id,run.id]):[];
+  return {patientId:externalId,patient,stateVersion:Number(st.state_version),draft:e||null,preparation:run?{...run,current,edit:edit||null,inheritedEdit:inheritedEdit||null}:null,receipt:receipt||null,capabilities:{guidelines:'bounded-reference-review',automaticOrders:'reviewed-source-drafts',phoneDelivery:false,externalExecution:false}};
 }
 // Call with a patient lock and revalidated assignment. Model work is outside this transaction.
 export async function startPreparation(tx:any,patientId:string,externalId:string,person:any,body:any) {
@@ -42,7 +43,7 @@ export async function startPreparation(tx:any,patientId:string,externalId:string
   const sourceHash=await digest(source);
   const rows=await tx.unsafe("select * from ehr.encounter_preparation where encounter_id=$1::uuid and clinician_principal_id=$2::uuid and status in ('preparing','ready') order by created_at desc for update",[body.encounterId,person.id]);
   for(const old of rows){
-    const same=(old.status==='preparing'||jsonObject(old.packet,'prior_packet').packetVersion==='v10b'&&jsonObject(old.packet,'prior_packet').clinicalEvidence?.corpusVersion===evidenceCorpus.version)&&old.source_hash===sourceHash&&JSON.stringify(canonical(old.preferences))===JSON.stringify(canonical(prefs));
+    const same=(old.status==='preparing'||['v10b','v11'].includes(jsonObject(old.packet,'prior_packet').packetVersion)&&jsonObject(old.packet,'prior_packet').clinicalEvidence?.corpusVersion===evidenceCorpus.version)&&old.source_hash===sourceHash&&JSON.stringify(canonical(old.preferences))===JSON.stringify(canonical(prefs));
     if(same&&Date.parse(old.expires_at)>Date.now()&&(old.status==='ready'||Date.parse(old.created_at)>Date.now()-120000))return {existing:true,run:old};
     await tx.unsafe("update ehr.encounter_preparation set status='superseded',completed_at=coalesce(completed_at,now()) where id=$1::uuid",[old.id]);
   }

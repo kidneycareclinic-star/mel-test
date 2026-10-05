@@ -14,6 +14,7 @@ on:
       - encounter-coordinator-v9a
       - agent-dot-interface-v10a
       - clinical-actions-v10b
+      - background-orchestrator-v11
   pull_request:
     branches:
       - main
@@ -73,6 +74,8 @@ jobs:
         run: node scripts/note-drafting-tests.mjs
       - name: Source-linked clinical action contracts
         run: node scripts/clinical-actions-tests.mjs
+      - name: Background worker boundary
+        run: node scripts/encounter-worker-tests.mjs
       - name: SOAP and transcript fidelity safety
         run: node scripts/soap-scribe-tests.mjs
 
@@ -114,6 +117,9 @@ jobs:
 
       - name: Consolidated encounter review DOM
         run: DOM_TEST_MODULE="$RUNNER_TEMP/jsonb-driver/node_modules/jsdom/lib/api.js" node scripts/encounter-coordinator-ui-tests.mjs
+
+      - name: Durable orchestration UI
+        run: DOM_TEST_MODULE="$RUNNER_TEMP/jsonb-driver/node_modules/jsdom/lib/api.js" node scripts/encounter-orchestrator-ui-tests.mjs
 
       - name: Action decisions and instruction synchronization DOM
         run: DOM_TEST_MODULE="$RUNNER_TEMP/jsonb-driver/node_modules/jsdom/lib/api.js" node scripts/encounter-actions-ui-tests.mjs
