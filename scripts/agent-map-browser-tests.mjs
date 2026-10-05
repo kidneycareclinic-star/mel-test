@@ -94,7 +94,7 @@ try {
  await page.evaluate(()=>{document.getElementById('encounterPhoneAlerts').open=true;});
  await page.waitForFunction(()=>document.querySelector('[data-phone-state]').textContent==='Preview only');
  assert.equal(await page.locator('[data-connect]').isVisible(),false);
- assert.equal(await page.locator('[data-mode] option[value=sms]').isDisabled(),true);
+ assert.equal(await page.locator('[data-mode] option[value=sms]').evaluate(n=>n.disabled),true,'SMS option is natively disabled without a configured verified phone');
  for(const theme of ['dark','light']){
   await page.setViewportSize({width:1440,height:1100});await page.evaluate(v=>{document.documentElement.dataset.theme=v;},theme);
   await page.locator('[data-preferences]').screenshot({path:path.join(output,theme+'-phone-alert-preferences.png')});
