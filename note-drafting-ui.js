@@ -28,5 +28,5 @@
     var apply=document.createElement('button');apply.type='button';apply.className='small-btn';apply.textContent='Apply reviewed draft to note';apply.addEventListener('click',function(){if(!editor.value.trim())return;if(onApply(editor.value)===false)return;pane.remove();});pane.appendChild(apply);
     var discard=document.createElement('button');discard.type='button';discard.className='small-btn';discard.textContent='Discard generated draft';discard.addEventListener('click',function(){pane.remove();});pane.appendChild(discard);parent.appendChild(pane);return pane;
   }
-  window.NOTE_DRAFTING={enabled:enabled,mount:mount,preferences:preferences,generate:generate,preview:preview};
+  window.NOTE_DRAFTING={applyPreferences:function(p){refreshOwner();profile=Object.assign({},p,{headings:Array.isArray(p.headings)?p.headings.join('\n'):p.headings||''});sync();},enabled:enabled,mount:mount,preferences:preferences,generate:generate,preview:preview};
 })();

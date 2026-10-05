@@ -1,9 +1,10 @@
 import postgres from 'npm:postgres@3.4.7';
 import {clinician,patientAccess,authFailure} from './clinician-auth.ts';
-import {coordinatorFail,coordinatorView,startPreparation,generatePacket,finishPreparation,finalizeBundle,saveReviewDraft} from './coordinator.ts';
+import {coordinatorFail,coordinatorView,finalizeBundle,saveReviewDraft} from './coordinator.ts';
+import {profileAndJob,queuePreparation,queueCurrentAfterProfile} from './orchestration.ts';
 const sql=postgres(Deno.env.get('SUPABASE_DB_URL')!,{prepare:false,max:1});
 function allowed(origin:string|null){return origin==='https://kidneycareclinic-star.github.io'||!!origin&&/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);}
-function reply(body:any,status=200,origin:string|null=null){const headers=new Headers({'Content-Type':'application/json','Cache-Control':'no-store','Access-Control-Allow-Methods':'GET, POST, OPTIONS','Access-Control-Allow-Headers':'authorization, apikey, content-type'});if(origin&&allowed(origin)){headers.set('Access-Control-Allow-Origin',origin);headers.set('Vary','Origin');}return new Response(JSON.stringify({apiVersion:'encounter-coordinator-v10b',...body}),{status,headers});}
+function reply(body:any,status=200,origin:string|null=null){const headers=new Headers({'Content-Type':'application/json','Cache-Control':'no-store','Access-Control-Allow-Methods':'GET, POST, OPTIONS','Access-Control-Allow-Headers':'authorization, apikey, content-type'});if(origin&&allowed(origin)){headers.set('Access-Control-Allow-Origin',origin);headers.set('Vary','Origin');}return new Response(JSON.stringify({apiVersion:'encounter-coordinator-v11',...body}),{status,headers});}
 async function access(tx:any,person:any,patientId:string,externalId:string,permission:string){
   // Hold the active identity and assignment through each write, including provider completion.
   const rows=await tx.unsafe("select p.id from iam.principal p join iam.practice_membership pm on pm.principal_id=p.id join iam.patient_assignment pa on pa.principal_id=p.id and pa.practice_id=pm.practice_id where p.id=$1::uuid and p.active and p.synthetic and pm.active and pa.active and pa.patient_id=$2::uuid for share of p,pm,pa",[person.id,patientId]);
@@ -20,15 +21,15 @@ async function readBody(req:Request){
 }
 Deno.serve(async(req:Request)=>{
   const origin=req.headers.get('origin');if(origin&&!allowed(origin))return reply({error:'origin_not_allowed'},403,origin);if(req.method==='OPTIONS')return reply({ok:true},200,origin);if(!['GET','POST'].includes(req.method))return reply({error:'method_not_allowed'},405,origin);
-  let started:any=null;
   try{
     const person=await clinician(req,sql),body=req.method==='POST'?await readBody(req):null;
     const externalId=req.method==='GET'?new URL(req.url).searchParams.get('patient_id'):body?.patientId;
     if(typeof externalId!=='string'||!/^PT-\d{3}$/.test(externalId))coordinatorFail('invalid_patient',400);
-    if(req.method==='POST'&&!['prepare','finalize','save-review'].includes(body?.action))coordinatorFail('invalid_action',400);
+    if(req.method==='POST'&&!['prepare','finalize','save-review','save-profile'].includes(body?.action))coordinatorFail('invalid_action',400);
     const permission=req.method==='GET'?'patient.read':body.action==='finalize'?'encounter.sign':'encounter.draft';
     const patientId=await patientAccess(sql,person,externalId,'office',permission);
-    if(req.method==='GET')return reply(await sql.begin('isolation level repeatable read',(tx:any)=>coordinatorView(tx,patientId,externalId,person)),200,origin);
+    if(req.method==='GET')return reply(await sql.begin('isolation level repeatable read',async(tx:any)=>{const view=await coordinatorView(tx,patientId,externalId,person);return {...view,...await profileAndJob(tx,person,patientId,view.draft?.id||null)};}),200,origin);
+    if(body.action==='save-profile')return reply(await write(person,patientId,externalId,'encounter.draft',(tx:any)=>queueCurrentAfterProfile(tx,patientId,person,body)),200,origin);
     if(body.action==='save-review')return reply(await write(person,patientId,externalId,'encounter.draft',(tx:any)=>saveReviewDraft(tx,patientId,externalId,person,body)),200,origin);
     if(body.action==='finalize'){
       const result=await write(person,patientId,externalId,permission,async(tx:any)=>{
@@ -38,16 +39,10 @@ Deno.serve(async(req:Request)=>{
         return finalizeBundle(tx,patientId,externalId,person,body);
       });return reply(result,200,origin);
     }
-    const result=await write(person,patientId,externalId,permission,(tx:any)=>startPreparation(tx,patientId,externalId,person,body));
-    if(result.existing)return reply({patientId:externalId,preparation:result.run,current:result.run.status==='ready'},200,origin);
-    started=result.run;
-    const key=Deno.env.get('OPENAI_API_KEY');if(!key)coordinatorFail('note_drafting_not_configured',503);
-    const packet=await generatePacket(started,key);
-    const run=await write(person,patientId,externalId,permission,(tx:any)=>finishPreparation(tx,patientId,externalId,person,started,packet));
-    return reply({patientId:externalId,preparation:run,current:true},200,origin);
+    const result=await write(person,patientId,externalId,permission,(tx:any)=>queuePreparation(tx,patientId,person,body));
+    return reply({patientId:externalId,...result},202,origin);
   }catch(error){
     const denied=authFailure(error),code=denied?.code||((error as any)?.status?(error as Error).message:'coordinator_unavailable');
-    if(started){try{await sql.unsafe("update ehr.encounter_preparation set status='failed',error_code=$2,completed_at=now() where id=$1::uuid and status='preparing'",[started.id,code]);}catch(_){}}
     return reply({error:code},denied?.status||(error as any)?.status||500,origin);
   }
 });

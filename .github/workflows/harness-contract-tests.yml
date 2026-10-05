@@ -14,6 +14,7 @@ on:
       - encounter-coordinator-v9a
       - agent-dot-interface-v10a
       - clinical-actions-v10b
+      - background-orchestrator-v11
   pull_request:
     branches:
       - main
@@ -73,6 +74,8 @@ jobs:
         run: node scripts/note-drafting-tests.mjs
       - name: Source-linked clinical action contracts
         run: node scripts/clinical-actions-tests.mjs
+      - name: Background worker boundary
+        run: node scripts/encounter-worker-tests.mjs
       - name: SOAP and transcript fidelity safety
         run: node scripts/soap-scribe-tests.mjs
 

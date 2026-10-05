@@ -168,6 +168,7 @@
   async function saveDraft(patientId) {
     var local = window.PRECHART_WORKSPACE_API?.getPatientState(patientId);
     if (!local || !local.sources.length) throw new Error("Add at least one pre-chart source before saving.");
+    await window.ENCOUNTER_COORDINATOR_UI?.whenProfileReady?.();
     var prior = drafts.get(patientId);
     var result = await request("POST", patientId, {
       action: "save-draft", patientId: patientId,
