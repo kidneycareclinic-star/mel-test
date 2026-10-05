@@ -39,7 +39,7 @@
     (definition.tier<3?leads:specialists).appendChild(button);
     button.addEventListener('click',function(){select(definition.id);});
   });
-  var selected='voice',recordingSource=null,disposed=false,queued=false;
+  var job=null,selected='voice',recordingSource=null,disposed=false,queued=false;
   var capture=coordinator.querySelector('.coordinator-capture'),chart=coordinator.querySelector('.coordinator-chart');
   var clinicalPane=document.querySelector('.agent-pane'),clinicalHome=clinicalPane?.parentNode,clinicalNext=clinicalPane?.nextSibling;
   var loops=document.getElementById('openLoopList')?.closest('.loop-panel'),loopHome=loops?.parentNode,loopNext=loops?.nextSibling;
@@ -56,6 +56,7 @@
   function restore(node,parent,next){if(!node||!parent)return;if(next?.parentNode===parent)parent.insertBefore(node,next);else parent.appendChild(node);}
   function labelFor(id,s){
     if(!s.hasPatient)return 'Select patient';
+    if(job&&!s.signed&&id!=='voice'&&id!=='followup'){if(id==='orchestrator')return ({queued:'Queued · continues in background',running:'Working in background',failed:'Paused · retry available',ready:'Prepared · physician review',superseded:'Source changed',cancelled:'Stopped',finalized:'Finalized'})[job.status]||'Awaiting source';var stage=job.stages?.[id];if(stage)return ({complete:id==='verification'?'Source checks complete · review required':'Task complete',working:'Working',queued:'Queued',waiting:'Waiting for prior task','needs-attention':'Paused · needs attention',held:'Held'})[stage]||'Awaiting source';}
     if(id==='voice')return recordingSource?'Recording':'Capture & review';
     if(id==='chart')return s.chart?'Chart available':'Awaiting chart';
     if(id==='evidence')return coordinator.querySelector('[data-evidence]')?'KDIGO references available':'Awaiting preparation';
@@ -127,7 +128,8 @@
   }
   window.addEventListener('microphone-meter-state',meter);
   map.querySelector('#agentMapStop').addEventListener('click',function(){window.RECORDED_AUDIO_UI?.stop();window.PRECHART_WORKSPACE_API?.stopVoice();});
-  window.addEventListener('scribe-patient-changed',function(){select('voice');schedule();});
+  window.addEventListener('encounter-agent-progress',function(event){if(event.detail?.patientId!==patient()?.id)return;job=event.detail.job; schedule();});
+  window.addEventListener('scribe-patient-changed',function(){job=null;select('voice');schedule();});
   window.addEventListener('pagehide',function(event){if(event.persisted)return;disposed=true;observer.disconnect();window.removeEventListener('microphone-meter-state',meter);});
   window.ENCOUNTER_AGENT_MAP={select:select,selected:function(){return selected;},refresh:refresh};
   select('voice');
