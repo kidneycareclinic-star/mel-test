@@ -39,6 +39,7 @@
     (packet.reviews||[]).forEach(function(r){var row=node(review,'article','');row.dataset.review=r.id;node(row,'strong','Existing Astra narrative · proposed');var previous=(retained?.reviews||saved?.reviews||[]).find(function(d){return d.reviewId===r.id;});selection(row,[['Include narrative','accepted'],['Include edited narrative','edited'],['Exclude narrative','rejected']],previous?.decision||'accepted');var t=document.createElement('textarea');t.value=previous?.summary||r.generated_content?.review?.summary||'';t.rows=4;row.appendChild(t);node(row,'pre',JSON.stringify(r.generated_content?.review||{},null,2));});
     if(packet.tools?.length){node(review,'h4','Legacy internal actions · excluded in this build');packet.tools.forEach(function(t){node(review,'p','Excluded: '+(t.input?.label||t.input?.summary||t.tool_name));});}
     window.ENCOUNTER_ACTIONS?.render(review,packet,saved,retained);
+    if(retained)s.localEdits=readDraft(s);
     review.oninput=changed;review.onchange=changed;
     retry.hidden=!!run.current;finalize.disabled=!run.current||s.busy||s.dirty||!reviewReady();if(retained)setTimeout(function(){autosave(id).catch(function(e){if(active()===id)message(e.message,true);});},0);message(run.current?(reviewReady()?'Ready for physician review · the displayed note, selections and instructions will be finalized together.':'Drafts prepared · decide each action and review patient instructions before finalizing.'):'This packet needs fresh preparation before signing.');
   }

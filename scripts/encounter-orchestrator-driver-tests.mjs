@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-export async function testDurableQueue({sql,principal,patientId,workerFns,draft,dispatch,stage,drive,get,post,preferences,setMode,getCalls}){
+export async function testDurableQueue({sql,parallelSql,principal,patientId,workerFns,draft,dispatch,stage,drive,get,post,preferences,setMode,getCalls}){
   let e=await draft();let [job]=await sql`select * from ehr.encounter_job where encounter_id=${e.id}`;
   assert.equal(job.status,'queued','saving reviewed sources queues work without any browser preparation request');
   const beforeCalls=getCalls();await stage(job.id);await stage(job.id);await stage(job.id);
@@ -47,5 +47,17 @@ export async function testDurableQueue({sql,principal,patientId,workerFns,draft,
     const [permissions]=await sql.unsafe("select has_table_privilege('authenticated',$1,'select') as readable,has_table_privilege('anon',$1,'insert') as writable",['ehr.'+table]);assert.equal(permissions.readable,false);assert.equal(permissions.writable,false);
   }
   assert.equal((await sql`select has_function_privilege('authenticated','ehr.enqueue_encounter(uuid,boolean)','execute') as yes`)[0].yes,false);
+  // Two independent connections race for one job: only one lease is awarded.
+  e=await draft();[job]=await sql`select * from ehr.encounter_job where encounter_id=${e.id}`;
+  const one=await dispatch(job.id),two=await dispatch(job.id),claims=await Promise.all([workerFns.claimDispatch(parallelSql,one.id,one.token),workerFns.claimDispatch(parallelSql,two.id,two.token)]);
+  assert.equal(claims.filter(Boolean).length,1);await workerFns.processJob(sql,claims.find(Boolean),'ci-key');
+  // Exercise the real scheduler SQL with a disposable HTTP transport stub.
+  await sql.unsafe(`create schema net;create table net.ci_request(id bigint generated always as identity,url text,body jsonb,headers jsonb,timeout_ms int);
+    create function net.http_post(url text,body jsonb,headers jsonb,timeout_milliseconds int) returns bigint language sql as $$insert into net.ci_request(url,body,headers,timeout_ms) values(url,body,headers,timeout_milliseconds) returning id$$;`);
+  await sql`update ehr.encounter_dispatch_config set enabled=true,endpoint='https://excqvjpsmdxzhujsbkmz.supabase.co/functions/v1/encounter-worker'`;
+  assert((await sql`select ehr.dispatch_encounter_jobs() as n`)[0].n>=1);
+  const [request]=await sql`select * from net.ci_request order by id limit 1`;assert.deepEqual(Object.keys(request.body),['dispatchId']);assert.equal(request.timeout_ms,90000);
+  const scheduled=await workerFns.claimDispatch(sql,request.body.dispatchId,request.headers.Authorization.slice(7));assert(scheduled,'real dispatcher and worker hashes match');await workerFns.processJob(sql,scheduled,'ci-key');
+  await sql`update ehr.encounter_dispatch_config set enabled=false`;await sql.unsafe('drop schema net cascade');
   console.log('v11 durable queue: source-trigger enqueue, per-task checkpoints, bounded retries, note-preserving resume, expired worker recovery, late-output fencing, single-use/forged/expired dispatch, duplicate claim, source/profile invalidation, revocation, patient binding, edit inheritance, private tables and immutable history passed.');
 }

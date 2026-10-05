@@ -32,6 +32,9 @@ create table ehr.encounter_job (
 create unique index encounter_job_current on ehr.encounter_job(encounter_id) where status in ('queued','running','ready','failed');
 create index encounter_job_dispatch on ehr.encounter_job(available_at,created_at) where status='queued';
 create index encounter_job_lease on ehr.encounter_job(lease_until) where status='running';
+create index encounter_job_encounter on ehr.encounter_job(encounter_id,created_at desc);
+create index encounter_job_clinician on ehr.encounter_job(clinician_principal_id);
+create index encounter_job_preparation on ehr.encounter_job(preparation_id) where preparation_id is not null;
 create index encounter_job_owner on ehr.encounter_job(patient_id,clinician_principal_id,created_at desc);
 create table ehr.encounter_job_event (
   id bigint generated always as identity primary key,
@@ -53,6 +56,8 @@ create table ehr.encounter_dispatch (
   request_id bigint,
   created_at timestamptz not null default now()
 );
+create index encounter_dispatch_job on ehr.encounter_dispatch(job_id);
+create index encounter_dispatch_expiry on ehr.encounter_dispatch(expires_at);
 create table ehr.encounter_dispatch_config (
   singleton boolean primary key default true check(singleton),
   enabled boolean not null default false,

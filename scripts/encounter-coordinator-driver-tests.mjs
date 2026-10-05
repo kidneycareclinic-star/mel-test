@@ -1,6 +1,6 @@
 import {testDurableQueue} from './encounter-orchestrator-driver-tests.mjs';
 // Actual coordinator SQL, transactions, reducer and auth on the disposable CI database.
-import assert from 'node:assert/strict';import fs from 'node:fs';import vm from 'node:vm';import {stripTypeScriptTypes} from 'node:module';import {webcrypto} from 'node:crypto';
+import assert from 'node:assert/strict';import fs from 'node:fs';import vm from 'node:vm';import {stripTypeScriptTypes} from 'node:module';import {webcrypto} from 'node:crypto';import {pathToFileURL} from 'node:url';
 export async function testCoordinator(sql,principal,target){
   await sql.unsafe(`
     alter table ehr.proposed_observation add column id uuid default gen_random_uuid(),add column client_record_id text,add column field text,add column display_label text,add column observation_type text,add column value_numeric numeric,add column value_json jsonb,add column unit text,add column source_text text,add column observed_at timestamptz default now(),add column confidence text,add column certainty text,add column provenance_id uuid,add column decision_event_id uuid,add column reviewed_by_type text,add column reviewed_by_id text,add column metadata jsonb default '{}',add column created_at timestamptz default now();
@@ -93,6 +93,7 @@ export async function testCoordinator(sql,principal,target){
   assert.equal((await post({...body,preparationId:expired.id,packetHash:run.packet_hash,observations:[],idempotencyKey:webcrypto.randomUUID()})).body.error,'review_packet_changed_or_expired');
   assert.equal((await post({...body,patientId:'PT-003',observations:[],idempotencyKey:webcrypto.randomUUID()})).status,409);
   const [{canRead}]=await sql`select has_table_privilege('authenticated','ehr.encounter_preparation','select') as "canRead"`;assert.equal(canRead,false);
-  await testDurableQueue({sql,principal,patientId,workerFns,draft,dispatch,stage,drive,get,post,preferences,setMode:mode=>providerMode=mode,getCalls:()=>providerCalls});
+  const {default:parallelDriver}=await import(pathToFileURL(process.env.POSTGRES_DRIVER_PATH).href),parallelSql=parallelDriver(target.href,{prepare:false,max:2});
+  try{await testDurableQueue({sql,parallelSql,principal,patientId,workerFns,draft,dispatch,stage,drive,get,post,preferences,setMode:mode=>providerMode=mode,getCalls:()=>providerCalls});}finally{await parallelSql.end();}
   console.log('v11 real driver: source-linked actions, pending/instruction gates, included/excluded completion items, before/after history, signed-action reload, authenticated assignment, read-only/idempotent preparation, exact source binding, durable edits, one-transaction signed completion, actual reducer/audit, clean visits, numeric edits, wrong patient/owner, revocation before/after provider, late rollback, replay mismatch, stale output, failure and expiry passed (provider mocked).');
 }
