@@ -1,5 +1,6 @@
 import {patientState,jsonObject} from './json-boundary.ts';
-import {preferences,chartContext,providerRequest,validateDraft} from './drafting.ts';
+import {preferences,chartContext,validateDraft} from './drafting.ts';
+import {actionRequest,validateActions,evidenceFor,reviewActions} from './clinical-actions.ts';
 import {applyObservations} from './observations.ts';
 export function coordinatorFail(code:string,status=409):never {throw Object.assign(new Error(code),{status});}
 export const coordinatorUuid=(v:any)=>typeof v==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
@@ -25,13 +26,13 @@ export async function coordinatorView(tx:any,patientId:string,externalId:string,
   const st=await stateRow(tx,patientId),patient=patientState(st.state_text,externalId);
   const [e]=await tx.unsafe("select id,version,note_text,sources from ehr.synthetic_encounter where patient_id=$1::uuid and clinician_principal_id=$2::uuid and status='draft' order by created_at desc limit 1",[patientId,person.id]);
   const [run]=await tx.unsafe('select id,encounter_id,source_version,state_version,status,packet,packet_hash,error_code,created_at,expires_at from ehr.encounter_preparation where patient_id=$1::uuid and clinician_principal_id=$2::uuid order by created_at desc,id desc limit 1',[patientId,person.id]);
-  const [receipt]=await tx.unsafe('select r.id,r.encounter_id,r.completion_id,r.state_version,r.created_at,c.note_text as "noteText",c.patient_instructions as "patientInstructions" from ehr.encounter_approval_receipt r join ehr.encounter_completion c on c.id=r.completion_id where r.patient_id=$1::uuid and r.clinician_principal_id=$2::uuid order by r.created_at desc limit 1',[patientId,person.id]);
+  const [receipt]=await tx.unsafe('select r.id,r.encounter_id,r.completion_id,r.state_version,r.created_at,c.note_text as "noteText",c.patient_instructions as "patientInstructions",r.reviewed_snapshot from ehr.encounter_approval_receipt r join ehr.encounter_completion c on c.id=r.completion_id where r.patient_id=$1::uuid and r.clinician_principal_id=$2::uuid order by r.created_at desc limit 1',[patientId,person.id]);
   let current=false;
-  if(run?.status==='ready'&&e?.id===run.encounter_id&&Date.parse(run.expires_at)>Date.now()){
+  if(run?.status==='ready'&&jsonObject(run.packet,'review_packet').packetVersion==='v10b'&&e?.id===run.encounter_id&&Date.parse(run.expires_at)>Date.now()){
     try{current=(await digest(await snapshot(tx,patientId,externalId,person,e.id)))===(await tx.unsafe('select source_hash from ehr.encounter_preparation where id=$1::uuid',[run.id]))[0].source_hash;}catch(_){}
   }
   const [edit]=run?await tx.unsafe('select version,reviewed_snapshot from ehr.encounter_packet_edit where preparation_id=$1::uuid order by version desc limit 1',[run.id]):[];
-  return {patientId:externalId,patient,stateVersion:Number(st.state_version),draft:e||null,preparation:run?{...run,current,edit:edit||null}:null,receipt:receipt||null,capabilities:{guidelines:false,automaticOrders:false,phoneDelivery:false,externalExecution:false}};
+  return {patientId:externalId,patient,stateVersion:Number(st.state_version),draft:e||null,preparation:run?{...run,current,edit:edit||null}:null,receipt:receipt||null,capabilities:{guidelines:'bounded-reference-review',automaticOrders:'reviewed-source-drafts',phoneDelivery:false,externalExecution:false}};
 }
 // Call with a patient lock and revalidated assignment. Model work is outside this transaction.
 export async function startPreparation(tx:any,patientId:string,externalId:string,person:any,body:any) {
@@ -41,7 +42,7 @@ export async function startPreparation(tx:any,patientId:string,externalId:string
   const sourceHash=await digest(source);
   const rows=await tx.unsafe("select * from ehr.encounter_preparation where encounter_id=$1::uuid and clinician_principal_id=$2::uuid and status in ('preparing','ready') order by created_at desc for update",[body.encounterId,person.id]);
   for(const old of rows){
-    const same=old.source_hash===sourceHash&&JSON.stringify(canonical(old.preferences))===JSON.stringify(canonical(prefs));
+    const same=(old.status==='preparing'||jsonObject(old.packet,'prior_packet').packetVersion==='v10b')&&old.source_hash===sourceHash&&JSON.stringify(canonical(old.preferences))===JSON.stringify(canonical(prefs));
     if(same&&Date.parse(old.expires_at)>Date.now()&&(old.status==='ready'||Date.parse(old.created_at)>Date.now()-120000))return {existing:true,run:old};
     await tx.unsafe("update ehr.encounter_preparation set status='superseded',completed_at=coalesce(completed_at,now()) where id=$1::uuid",[old.id]);
   }
@@ -51,14 +52,15 @@ export async function startPreparation(tx:any,patientId:string,externalId:string
 export async function generatePacket(run:any,key:string) {
   const source=jsonObject(run.source_snapshot,'preparation_source'),prefs=jsonObject(run.preferences,'preparation_preferences');
   let res:Response;
-  try{res=await fetch('https://api.openai.com/v1/responses',{method:'POST',headers:{Authorization:'Bearer '+key,'Content-Type':'application/json'},body:JSON.stringify(providerRequest(source.context,prefs)),signal:AbortSignal.timeout(60000)});}catch(_){coordinatorFail('note_drafting_provider_failed',502);}
+  try{res=await fetch('https://api.openai.com/v1/responses',{method:'POST',headers:{Authorization:'Bearer '+key,'Content-Type':'application/json'},body:JSON.stringify(actionRequest(source.context,prefs)),signal:AbortSignal.timeout(60000)});}catch(_){coordinatorFail('note_drafting_provider_failed',502);}
   if(!res.ok)coordinatorFail(res.status===429?'note_drafting_rate_limited':'note_drafting_provider_failed',res.status===429?429:502);
   const output=await res.json().catch(()=>coordinatorFail('note_drafting_invalid_output',502));
   if(output.status!=='completed')coordinatorFail('note_drafting_invalid_output',502);
   const text=(output.output||[]).filter((m:any)=>m.type==='message').flatMap((m:any)=>m.content||[]).filter((c:any)=>c.type==='output_text').map((c:any)=>c.text).join('');
   let value:any;try{value=JSON.parse(text);}catch(_){coordinatorFail('note_drafting_invalid_output',502);}
-  const draft=validateDraft(value,prefs,source.context);
-  return {patientId:source.patient.id,encounterId:source.encounterId,sourceVersion:source.sourceVersion,stateVersion:source.stateVersion,...draft,patientInstructions:'No patient-specific instructions documented.',sources:source.context.reviewedSources,chart:source.patient,observations:source.observations,reviews:source.reviews,tools:source.tools,preferences:prefs,model:output.model,reviewRequired:true,externalExecution:false};
+  const draft=validateDraft(value,prefs,source.context),actions=[];
+  for(const a of validateActions(value.actions,source.context))actions.push({...a,id:await digest(a)});
+  return {patientId:source.patient.id,encounterId:source.encounterId,sourceVersion:source.sourceVersion,stateVersion:source.stateVersion,...draft,packetVersion:'v10b',actions,clinicalEvidence:evidenceFor(source.context),patientInstructions:'No patient-specific instructions selected.',sources:source.context.reviewedSources,chart:source.patient,observations:source.observations,reviews:source.reviews,tools:source.tools,preferences:prefs,model:output.model,reviewRequired:true,externalExecution:false};
 }
 export async function finishPreparation(tx:any,patientId:string,externalId:string,person:any,run:any,packet:any) {
   const source=await snapshot(tx,patientId,externalId,person,run.encounter_id,true);
@@ -73,9 +75,10 @@ function exactDecisions(rows:any[],decisions:any[],key:string,allowed:string[]){
 }
 export async function finalizeBundle(tx:any,patientId:string,externalId:string,person:any,body:any) {
   if(!coordinatorUuid(body.preparationId)||!coordinatorUuid(body.idempotencyKey)||typeof body.packetHash!=='string')coordinatorFail('invalid_finalization_request',400);
-  const requestHash=await digest({preparationId:body.preparationId,packetHash:body.packetHash,noteText:body.noteText,patientInstructions:body.patientInstructions,observations:body.observations,reviews:body.reviews,tools:body.tools,reviewVersion:body.reviewVersion});
+  let requestHash=await digest({preparationId:body.preparationId,packetHash:body.packetHash,noteText:body.noteText,patientInstructions:body.patientInstructions,observations:body.observations,reviews:body.reviews,tools:body.tools,actions:body.actions||[],instructionsReviewed:body.instructionsReviewed===true,reviewVersion:body.reviewVersion});
   const [prior]=await tx.unsafe('select * from ehr.encounter_approval_receipt where clinician_principal_id=$1::uuid and idempotency_key=$2::uuid',[person.id,body.idempotencyKey]);
-  if(prior){if(prior.patient_id!==patientId||prior.preparation_id!==body.preparationId||prior.request_hash!==requestHash)coordinatorFail('approval_replay_mismatch');return {receiptId:prior.id,encounterId:prior.encounter_id,completionId:prior.completion_id,stateVersion:Number(prior.state_version),status:'finalized',noteText:jsonObject(prior.reviewed_snapshot,'receipt').noteText,patientInstructions:jsonObject(prior.reviewed_snapshot,'receipt').patientInstructions,replayed:true,externalExecution:false};}
+  if(prior&&jsonObject(prior.reviewed_snapshot,'receipt').actions===undefined)requestHash=await digest({preparationId:body.preparationId,packetHash:body.packetHash,noteText:body.noteText,patientInstructions:body.patientInstructions,observations:body.observations,reviews:body.reviews,tools:body.tools,reviewVersion:body.reviewVersion});
+  if(prior){if(prior.patient_id!==patientId||prior.preparation_id!==body.preparationId||prior.request_hash!==requestHash)coordinatorFail('approval_replay_mismatch');return {receiptId:prior.id,encounterId:prior.encounter_id,completionId:prior.completion_id,stateVersion:Number(prior.state_version),status:'finalized',noteText:jsonObject(prior.reviewed_snapshot,'receipt').noteText,patientInstructions:jsonObject(prior.reviewed_snapshot,'receipt').patientInstructions,actions:jsonObject(prior.reviewed_snapshot,'receipt').actions||[],replayed:true,externalExecution:false};}
   const [run]=await tx.unsafe('select * from ehr.encounter_preparation where id=$1::uuid and patient_id=$2::uuid and clinician_principal_id=$3::uuid',[body.preparationId,patientId,person.id]);
   if(!run||run.status!=='ready'||run.packet_hash!==body.packetHash||Date.parse(run.expires_at)<=Date.now())coordinatorFail('review_packet_changed_or_expired');
   const source=await snapshot(tx,patientId,externalId,person,run.encounter_id,true);
@@ -84,7 +87,9 @@ export async function finalizeBundle(tx:any,patientId:string,externalId:string,p
   await tx.unsafe('select id from ehr.encounter_preparation where id=$1::uuid for update',[run.id]);
   const [edit]=await tx.unsafe('select version from ehr.encounter_packet_edit where preparation_id=$1::uuid order by version desc limit 1',[run.id]);
   if(!Number.isSafeInteger(body.reviewVersion)||body.reviewVersion!==(edit?.version||0))coordinatorFail('review_edits_changed');
-  const note=content(body.noteText,20000),instructions=content(body.patientInstructions,40000);
+  const note=content(body.noteText,20000),instructions=content(body.patientInstructions,40000),original=jsonObject(run.packet,'review_packet');
+  const actions=reviewActions(original,body.actions,true);
+  if(actions.length&&body.instructionsReviewed!==true)coordinatorFail('patient_instructions_review_required');
   exactDecisions(source.observations,body.observations,'proposalId',['accepted','edited','rejected']);
   exactDecisions(source.reviews,body.reviews,'reviewId',['accepted','edited','rejected']);
   // v9A does not execute legacy agent tools; exclusions are explicit and audited.
@@ -100,17 +105,28 @@ export async function finalizeBundle(tx:any,patientId:string,externalId:string,p
   const finalState=await stateRow(tx,patientId);
   await tx.unsafe("insert into ehr.provenance(patient_id,source_kind,source_label,source_system,actor_type,actor_id,certainty,raw_payload) values($1::uuid,'signed-encounter','Physician-finalized review bundle','mel-test','physician',$2,'known',$3::text::jsonb)",[patientId,person.externalId,JSON.stringify({encounterId:run.encounter_id,noteText:note,sources:source.sources,stateVersion:Number(state_version),packetHash:run.packet_hash,synthetic:true})]);
   await tx.unsafe("update ehr.synthetic_encounter set note_text=$2,status='signed',signed_at=now(),signed_event_id=$3::uuid,final_state_version=$4,version=version+1,updated_at=now() where id=$1::uuid",[run.encounter_id,note,event.id,state_version]);
-  const original=jsonObject(run.packet,'review_packet');
-  const [completion]=await tx.unsafe('insert into ehr.encounter_completion(patient_id,encounter_id,clinician_principal_id,source_state_version,source_state,generated_content,note_text,patient_instructions) values($1::uuid,$2::uuid,$3::uuid,$4,$5::text::jsonb,$6::text::jsonb,$7,$8) returning id',[patientId,run.encounter_id,person.id,state_version,finalState.state_text,JSON.stringify({noteText:original.noteText,patientInstructions:original.patientInstructions,generator:'encounter-coordinator-v9a',externalExecution:false}),note,instructions]);
-  const before={version:1,status:'draft',noteText:note,patientInstructions:instructions,sourceStateVersion:Number(state_version),items:[]};
+  const [completion]=await tx.unsafe('insert into ehr.encounter_completion(patient_id,encounter_id,clinician_principal_id,source_state_version,source_state,generated_content,note_text,patient_instructions) values($1::uuid,$2::uuid,$3::uuid,$4,$5::text::jsonb,$6::text::jsonb,$7,$8) returning id',[patientId,run.encounter_id,person.id,state_version,finalState.state_text,JSON.stringify({noteText:original.noteText,patientInstructions:original.patientInstructions,actions:original.actions||[],clinicalEvidence:original.clinicalEvidence||null,generator:'encounter-coordinator-v10b',externalExecution:false}),note,instructions]);
+  const completionItems=[];
+  for(const a of actions.filter((a:any)=>a.kind!=='instruction')){
+    const details=[a.details,a.timing?'Timing: '+a.timing:'',a.medication?'Medication fields: '+JSON.stringify(a.medication):''].filter(Boolean).join('\n');
+    const [item]=await tx.unsafe('insert into ehr.encounter_completion_item(completion_id,kind,label,details) values($1::uuid,$2,$3,$4) returning *',[completion.id,a.kind,a.label,details]);
+    completionItems.push(item);
+  }
+  const before={version:1,status:'draft',noteText:note,patientInstructions:instructions,sourceStateVersion:Number(state_version),items:structuredClone(completionItems)};
   const [created]=await tx.unsafe("insert into ehr.event(patient_id,event_type,actor_type,actor_id,source,status,causation_id,payload) values($1::uuid,'COMPLETION_DRAFT_CREATED','physician',$2,'encounter-coordinator','recorded',$3::uuid,$4::text::jsonb) returning id",[patientId,person.externalId,event.id,JSON.stringify({encounterId:run.encounter_id,completionId:completion.id,externalExecution:false})]);
   await tx.unsafe("insert into ehr.encounter_completion_history(completion_id,event_id,version,action,actor_id,after_snapshot) values($1::uuid,$2::uuid,1,'DRAFT_CREATED',$3,$4::text::jsonb)",[completion.id,created.id,person.externalId,JSON.stringify(before)]);
+  let trackedIndex=0;
+  for(const a of actions.filter((a:any)=>a.kind!=='instruction')){
+    const item=completionItems[trackedIndex++],decision=['accepted','edited'].includes(a.decision)?'approved':'rejected';
+    await tx.unsafe('update ehr.encounter_completion_item set status=$2,reviewed_by_id=$3,reviewed_at=now(),updated_at=now() where id=$1::uuid',[item.id,decision,person.externalId]);
+    item.status=decision;item.reviewed_by_id=person.externalId;
+  }
   await tx.unsafe("update ehr.encounter_completion set status='approved',approved_by_id=$2,approved_at=now(),version=version+1,updated_at=now() where id=$1::uuid",[completion.id,person.externalId]);
-  const after={...before,version:2,status:'approved',approvedBy:person.externalId};
+  const after={...before,version:2,status:'approved',approvedBy:person.externalId,items:completionItems};
   await tx.unsafe("insert into ehr.encounter_completion_history(completion_id,event_id,version,action,actor_id,before_snapshot,after_snapshot) values($1::uuid,$2::uuid,2,'PACKAGE_APPROVED',$3,$4::text::jsonb,$5::text::jsonb)",[completion.id,event.id,person.externalId,JSON.stringify(before),JSON.stringify(after)]);
-  const [receipt]=await tx.unsafe('insert into ehr.encounter_approval_receipt(preparation_id,patient_id,encounter_id,clinician_principal_id,idempotency_key,request_hash,packet_hash,reviewed_snapshot,event_id,completion_id,state_version) values($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::uuid,$6,$7,$8::text::jsonb,$9::uuid,$10::uuid,$11) returning id',[run.id,patientId,run.encounter_id,person.id,body.idempotencyKey,requestHash,run.packet_hash,JSON.stringify({noteText:note,patientInstructions:instructions,observations:body.observations,reviews:body.reviews,tools:body.tools,before:source,after:JSON.parse(finalState.state_text)}),event.id,completion.id,state_version]);
+  const [receipt]=await tx.unsafe('insert into ehr.encounter_approval_receipt(preparation_id,patient_id,encounter_id,clinician_principal_id,idempotency_key,request_hash,packet_hash,reviewed_snapshot,event_id,completion_id,state_version) values($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::uuid,$6,$7,$8::text::jsonb,$9::uuid,$10::uuid,$11) returning id',[run.id,patientId,run.encounter_id,person.id,body.idempotencyKey,requestHash,run.packet_hash,JSON.stringify({noteText:note,patientInstructions:instructions,observations:body.observations,reviews:body.reviews,tools:body.tools,actions,clinicalEvidence:original.clinicalEvidence||null,instructionsReviewed:body.instructionsReviewed===true,before:source,after:JSON.parse(finalState.state_text)}),event.id,completion.id,state_version]);
   await tx.unsafe("update ehr.encounter_preparation set status='finalized' where id=$1::uuid",[run.id]);
-  return {receiptId:receipt.id,encounterId:run.encounter_id,completionId:completion.id,stateVersion:Number(state_version),patient:patientState(finalState.state_text,externalId),status:'finalized',noteText:note,patientInstructions:instructions,externalExecution:false};
+  return {receiptId:receipt.id,encounterId:run.encounter_id,completionId:completion.id,stateVersion:Number(state_version),patient:patientState(finalState.state_text,externalId),status:'finalized',noteText:note,patientInstructions:instructions,actions,externalExecution:false};
 }
 
 export async function saveReviewDraft(tx:any,patientId:string,externalId:string,person:any,body:any) {
@@ -119,11 +135,11 @@ export async function saveReviewDraft(tx:any,patientId:string,externalId:string,
   if(!run||run.status!=='ready'||run.packet_hash!==body.packetHash||Date.parse(run.expires_at)<=Date.now())coordinatorFail('review_packet_changed_or_expired');
   const source=await snapshot(tx,patientId,externalId,person,run.encounter_id);
   if(await digest(source)!==run.source_hash)coordinatorFail('preparation_source_changed');
-  content(body.noteText,20000);content(body.patientInstructions,40000);
+  content(body.noteText,20000);content(body.patientInstructions,40000);reviewActions(jsonObject(run.packet,'review_packet'),body.actions);
   exactDecisions(source.observations,body.observations,'proposalId',['accepted','edited','rejected']);exactDecisions(source.reviews,body.reviews,'reviewId',['accepted','edited','rejected']);exactDecisions(source.tools,body.tools,'toolId',['rejected']);
   const [prior]=await tx.unsafe('select version,reviewed_snapshot from ehr.encounter_packet_edit where preparation_id=$1::uuid order by version desc limit 1',[run.id]);
   if(!Number.isSafeInteger(body.reviewVersion)||body.reviewVersion!==(prior?.version||0))coordinatorFail('review_edits_changed');
-  const reviewed={noteText:body.noteText,patientInstructions:body.patientInstructions,observations:body.observations,reviews:body.reviews,tools:body.tools};
+  const reviewed={noteText:body.noteText,patientInstructions:body.patientInstructions,observations:body.observations,reviews:body.reviews,tools:body.tools,actions:body.actions||[],instructionsReviewed:body.instructionsReviewed===true,instructionsManual:body.instructionsManual===true};
   if(prior&&await digest(prior.reviewed_snapshot)===await digest(reviewed))return {reviewVersion:prior.version,saved:true};
   const version=(prior?.version||0)+1;if(version>1000)coordinatorFail('review_edit_limit');
   await tx.unsafe('insert into ehr.encounter_packet_edit(preparation_id,version,clinician_principal_id,reviewed_snapshot) values($1::uuid,$2,$3::uuid,$4::text::jsonb)',[run.id,version,person.id,JSON.stringify(reviewed)]);

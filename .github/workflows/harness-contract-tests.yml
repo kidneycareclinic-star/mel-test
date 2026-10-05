@@ -13,6 +13,7 @@ on:
       - scribe-profile-v8
       - encounter-coordinator-v9a
       - agent-dot-interface-v10a
+      - clinical-actions-v10b
   pull_request:
     branches:
       - main
@@ -46,6 +47,7 @@ jobs:
           node --check note-drafting-ui.js
           node --check encounter-coordinator-ui.js
           node --check agent-map-ui.js
+          node --check encounter-actions-ui.js
       - name: Harness contracts
         run: node scripts/harness-contract-tests.mjs
       - name: Scribe review safety
@@ -69,6 +71,8 @@ jobs:
         run: node scripts/audio-transcription-tests.mjs
       - name: Physician drafting wire contract and source gates
         run: node scripts/note-drafting-tests.mjs
+      - name: Source-linked clinical action contracts
+        run: node scripts/clinical-actions-tests.mjs
       - name: SOAP and transcript fidelity safety
         run: node scripts/soap-scribe-tests.mjs
 
@@ -110,6 +114,9 @@ jobs:
 
       - name: Consolidated encounter review DOM
         run: DOM_TEST_MODULE="$RUNNER_TEMP/jsonb-driver/node_modules/jsdom/lib/api.js" node scripts/encounter-coordinator-ui-tests.mjs
+
+      - name: Action decisions and instruction synchronization DOM
+        run: DOM_TEST_MODULE="$RUNNER_TEMP/jsonb-driver/node_modules/jsdom/lib/api.js" node scripts/encounter-actions-ui-tests.mjs
 
       - name: Automatic transcription handoff DOM
         run: DOM_TEST_MODULE="$RUNNER_TEMP/jsonb-driver/node_modules/jsdom/lib/api.js" node scripts/encounter-coordinator-audio-ui-tests.mjs

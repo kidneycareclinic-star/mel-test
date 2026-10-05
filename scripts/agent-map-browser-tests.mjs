@@ -31,7 +31,7 @@ try {
   window.testRequests=[];
   window.fetch=async(url,options)=>{
    window.testRequests.push({url,method:options?.method});if(options?.method==='POST')throw Error('No clinical writes allowed in browser navigation test');
-   return {ok:true,json:async()=>({patient:window.currentPatient,draft:{id:'ci-encounter',version:1},preparation:{id:'ci-preparation',encounter_id:'ci-encounter',status:'ready',current:true,packet_hash:'ci-hash',packet:{noteText:'SUBJECTIVE\nPatient reports no new swelling.\n\nOBJECTIVE\nHistorical eGFR 31 mL/min/1.73m².\n\nASSESSMENT\nCKD G3b per chart.\n\nPLAN\nPhysician review of the current chart and encounter.',patientInstructions:'No patient-specific instructions documented.',sources:[{kind:'reviewed-transcript',text:'No new swelling.'}],observations:[],reviews:[],tools:[],sections:[]}}})};
+   return {ok:true,json:async()=>({patient:window.currentPatient,draft:{id:'ci-encounter',version:1},preparation:{id:'ci-preparation',encounter_id:'ci-encounter',status:'ready',current:true,packet_hash:'ci-hash',packet:{noteText:'SUBJECTIVE\nPatient reports no new swelling.\n\nOBJECTIVE\nHistorical eGFR 31 mL/min/1.73m².\n\nASSESSMENT\nCKD G3b per chart.\n\nPLAN\nPhysician review of the current chart and encounter.',patientInstructions:'No patient-specific instructions documented.',sources:[{kind:'reviewed-transcript',text:'No new swelling.'}],observations:[],reviews:[],tools:[],sections:[],actions:[{id:'browser-lab',kind:'lab',label:'Repeat BMP',details:'Repeat BMP.',timing:'in 3 months',sourceTitle:'Reviewed transcript',sourceQuote:'Physician: repeat BMP in 3 months.',intent:'physician-plan',patientText:'Get a repeat BMP in 3 months.',blockers:[],medication:null}],clinicalEvidence:{applicability:'Historical CKD G3b chart context; confirm applicability.',corpusVersion:'kdigo-2024-monitoring-20261005',checkedAt:'2026-10-05',clinicalValidation:'Starter reference set; physician review required',references:[{title:'Kidney function and albuminuria monitoring',summary:'Review GFR and albuminuria monitoring in CKD.',section:'Practice Points 2.1.1–2.1.2',page:40,url:'https://kdigo.org/wp-content/uploads/2026/04/KDIGO-2024-CKD-Guideline.pdf#page=40',role:'Reference; not an order'}]}}}})};
   };
   document.getElementById('ptName').textContent='Synthetic patient · PT-001';document.getElementById('ptMeta').textContent='Office follow-up · Synthetic testing only';
   document.getElementById('contextMeta').textContent='Recorded context and source detail';
@@ -39,6 +39,7 @@ try {
  await page.addScriptTag({path:path.join(root,'theme.js')});
  await page.addScriptTag({path:path.join(root,'microphone-meter.js')});
  await page.addScriptTag({path:path.join(root,'recorded-audio-ui.js')});
+ await page.addScriptTag({path:path.join(root,'encounter-actions-ui.js')});
  await page.addScriptTag({path:path.join(root,'encounter-coordinator-ui.js')});
  await page.addScriptTag({path:path.join(root,'agent-map-ui.js')});
  await page.locator('[data-note]').waitFor();
@@ -46,6 +47,9 @@ try {
  await page.locator('[data-agent="note"] strong').click();
  for(const id of ['orchestrator','chart','evidence','orders','verification','followup','voice','note'])await page.locator('[data-agent="'+id+'"] strong').click();
  assert.equal(await page.locator('[data-note]').count(),1);
+ assert.equal(await page.locator('[data-action]').count(),1);assert.equal(await page.locator('.coordinator-finalize').isDisabled(),true);
+ await page.locator('[data-agent="evidence"] strong').click();await page.getByRole('button',{name:'KDIGO reference review'}).click();assert.equal(await page.locator('[data-evidence] details').getAttribute('open'),'');
+ await page.locator('[data-agent="orders"] strong').click();await page.getByRole('button',{name:'Draft actions',exact:true}).click();assert.equal(await page.locator('[data-action] select').evaluate(n=>n===document.activeElement),true);
  const regions=await page.evaluate(()=>[...document.querySelectorAll('#encounterAgentMap [data-agent]')].map(n=>{const r=n.getBoundingClientRect();return {width:r.width,height:r.height};}));
  assert(regions.every(r=>r.width>=44&&r.height>=44));
  for(const theme of ['dark','light']){
