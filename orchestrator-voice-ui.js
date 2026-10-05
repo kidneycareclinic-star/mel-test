@@ -29,8 +29,10 @@
     if(command.target==='chart')coordinator.querySelector('.coordinator-chart details')?.setAttribute('open','');
     if(command.target==='template'){var prefs=coordinator.querySelector('.coordinator-preferences');prefs.open=true;prefs.querySelector('select')?.focus();}
     if(command.target==='evidence')coordinator.querySelector('[data-evidence] details')?.setAttribute('open','');
+    if(command.target==='phone'&&window.PHONE_ALERTS_UI){window.PHONE_ALERTS_UI.open();message('Opened phone connection checklist.');return;}
     if(command.target==='inbox'||command.target==='phone'){window.ENCOUNTER_INBOX_UI?.open();if(command.target==='phone'){var alerts=document.getElementById('encounterPhoneAlerts');if(alerts){alerts.open=true;alerts.scrollIntoView?.({block:'start'});}}}
     if(command.target==='review'){
+      if(window.ENCOUNTER_REVIEW_UI){window.ENCOUNTER_REVIEW_UI.open();message('Opened the live encounter review checklist. Continue review goes to the next item.');return;}
       var pending=Array.from(coordinator.querySelectorAll('[data-action]')).filter(function(row){return row.querySelector('select').value==='pending';});
       var instructions=coordinator.querySelector('[data-instructions-reviewed]');
       text=context().noteText?'Review the entire note and source facts. '+pending.length+' action draft'+(pending.length===1?'':'s')+' still need a decision.'+(instructions&&!instructions.checked?' Patient instructions still need confirmation.':''):'Save reviewed encounter text first; no prepared note is available yet.';

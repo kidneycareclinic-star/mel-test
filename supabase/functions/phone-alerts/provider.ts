@@ -9,8 +9,11 @@ export function alertText(reason:string,jobId:string|null){
 }
 export function providerConfig(get:(key:string)=>string|undefined){
   const account=get('TWILIO_ACCOUNT_SID')||'',token=get('TWILIO_AUTH_TOKEN')||'',service=get('TWILIO_MESSAGING_SERVICE_SID')||'',verify=get('TWILIO_VERIFY_SERVICE_SID')||'',key=get('SMS_CONTACT_ENCRYPTION_KEY')||'';
-  const configured=get('SMS_DELIVERY_MODE')==='twilio'&&/^AC[0-9a-f]{32}$/i.test(account)&&/^[0-9a-f]{32}$/i.test(token)&&/^MG[0-9a-f]{32}$/i.test(service)&&/^VA[0-9a-f]{32}$/i.test(verify)&&/^[0-9a-f]{64}$/i.test(key);
-  return {configured,account,token,service,verify,key};
+  const mode=get('SMS_DELIVERY_MODE')||'';
+  const check=(value:string,pattern:RegExp)=>!value?'missing':pattern.test(value)?'configured':'invalid';
+  const readiness={account:check(account,/^AC[0-9a-f]{32}$/i),auth:check(token,/^[0-9a-f]{32}$/i),messaging:check(service,/^MG[0-9a-f]{32}$/i),verification:check(verify,/^VA[0-9a-f]{32}$/i),encryption:check(key,/^[0-9a-f]{64}$/i),delivery:check(mode,/^twilio$/)};
+  const configured=Object.values(readiness).every(value=>value==='configured');
+  return {configured,account,token,service,verify,key,readiness};
 }
 export function normalizePhone(value:any){
   if(typeof value!=='string'||!/^\+1[2-9][0-9]{2}[2-9][0-9]{6}$/.test(value))alertFail('us_mobile_number_required');

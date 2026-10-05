@@ -18,6 +18,7 @@ on:
       - encounter-attention-v12
       - phone-alerts-v13
       - orchestrator-voice-v14
+      - encounter-readiness-v15
   pull_request:
     branches:
       - main
@@ -27,7 +28,7 @@ permissions:
 
 jobs:
   contracts:
-    runs-on: ${{ (github.ref_name == 'encounter-attention-v12' || github.ref_name == 'phone-alerts-v13' || github.ref_name == 'orchestrator-voice-v14') && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
+    runs-on: ${{ (github.ref_name == 'encounter-attention-v12' || github.ref_name == 'phone-alerts-v13' || github.ref_name == 'orchestrator-voice-v14' || github.ref_name == 'encounter-readiness-v15') && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -56,6 +57,7 @@ jobs:
           node --check phone-alerts-ui.js
           node --check orchestrator-commands.js
           node --check orchestrator-voice-ui.js
+          node --check encounter-review-ui.js
       - name: Harness contracts
         run: node scripts/harness-contract-tests.mjs
       - name: Scribe review safety
@@ -91,7 +93,7 @@ jobs:
         run: node scripts/soap-scribe-tests.mjs
 
   jsonb-driver:
-    runs-on: ${{ (github.ref_name == 'encounter-attention-v12' || github.ref_name == 'phone-alerts-v13' || github.ref_name == 'orchestrator-voice-v14') && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
+    runs-on: ${{ (github.ref_name == 'encounter-attention-v12' || github.ref_name == 'phone-alerts-v13' || github.ref_name == 'orchestrator-voice-v14' || github.ref_name == 'encounter-readiness-v15') && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
     services:
       postgres:
         image: postgres:17
@@ -151,7 +153,7 @@ jobs:
         run: DOM_TEST_MODULE="$RUNNER_TEMP/jsonb-driver/node_modules/jsdom/lib/api.js" node scripts/agent-map-ui-tests.mjs
 
   agent-map-browser:
-    runs-on: ${{ (github.ref_name == 'encounter-attention-v12' || github.ref_name == 'phone-alerts-v13' || github.ref_name == 'orchestrator-voice-v14') && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
+    runs-on: ${{ (github.ref_name == 'encounter-attention-v12' || github.ref_name == 'phone-alerts-v13' || github.ref_name == 'orchestrator-voice-v14' || github.ref_name == 'encounter-readiness-v15') && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

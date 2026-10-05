@@ -4,7 +4,7 @@ import {providerConfig} from '../supabase/functions/phone-alerts/provider.ts';
 export async function testPhoneAlerts(sql,principal,target){
   await sql.unsafe(fs.readFileSync('supabase/sql/phone-alerts-v13.sql','utf8'));
   const person={id:principal},off=providerConfig(()=>undefined),values={SMS_DELIVERY_MODE:'twilio',TWILIO_ACCOUNT_SID:'AC'+'a'.repeat(32),TWILIO_AUTH_TOKEN:'b'.repeat(32),TWILIO_MESSAGING_SERVICE_SID:'MG'+'c'.repeat(32),TWILIO_VERIFY_SERVICE_SID:'VA'+'d'.repeat(32),SMS_CONTACT_ENCRYPTION_KEY:'e'.repeat(64)},config=providerConfig(n=>values[n]);
-  let view=await sql.begin(tx=>phoneView(tx,person,off));assert.equal(view.preferences.mode,'preview');assert.equal(view.providerReady,false);assert.equal(view.preferences.phoneLast4,null);
+  let view=await sql.begin(tx=>phoneView(tx,person,off));assert.equal(view.preferences.mode,'preview');assert.equal(view.providerReady,false);assert.equal(view.preferences.phoneLast4,null);assert.equal(view.configurationValidation,'format-only');assert.deepEqual(Object.values(view.configurationChecks),Array(6).fill('missing'));
   const mutation=(fields,cfg=off,fetcher)=>sql.begin(tx=>phoneMutation(tx,person,{expectedVersion:view.preferences.version,...fields},cfg,fetcher));
   const refresh=async(cfg=off)=>view=await sql.begin(tx=>phoneView(tx,person,cfg));
   const preferences=(mode='preview',fields={})=>({action:'preferences',mode,readyAlerts:true,pausedAlerts:true,quietHours:false,timeZone:'America/New_York',...fields});
@@ -28,7 +28,7 @@ export async function testPhoneAlerts(sql,principal,target){
   await sql`select ehr.queue_phone_alerts()`;const [alert]=await sql`select * from ehr.phone_alert where job_id=${fixture.jobId}`;assert(alert);assert.equal(alert.transport,'preview');
   const count=(await sql`select count(*)::int as n from ehr.phone_alert`)[0].n;await sql`select ehr.queue_phone_alerts()`;assert.equal((await sql`select count(*)::int as n from ehr.phone_alert`)[0].n,count,'revision/transport deduplication');
   let calls=0;await processPhoneAlert(sql,alert.id,off,async()=>{calls++;throw Error('preview cannot call provider');});assert.equal(calls,0);assert.equal((await sql`select status from ehr.phone_alert where id=${alert.id}`)[0].status,'preview');
-  await mutation({action:'preview-test'});await refresh();assert.equal(view.history[0].status,'preview');assert.equal(view.history[0].jobId,null);assert.doesNotMatch(JSON.stringify(view),/phone_ciphertext|verify_sid|provider_sid|token_hash|TWILIO/);
+  await mutation({action:'preview-test'});await refresh();assert.equal(view.history[0].status,'preview');assert.equal(view.history[0].jobId,null);assert.equal(view.history[0].preferenceVersion,view.preferences.version);assert.doesNotMatch(JSON.stringify(view),/phone_ciphertext|verify_sid|provider_sid|token_hash|TWILIO/);
   await assert.rejects(mutation({action:'preview-test'}),/preview_rate_limited/);
   // Save an opt-out while work is pending; re-enable reuses only never-submitted alerts.
   const pendingFixture=await makeJob();await sql`select ehr.queue_phone_alerts()`;const [pending]=await sql`select * from ehr.phone_alert where job_id=${pendingFixture.jobId}`;

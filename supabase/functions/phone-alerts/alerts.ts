@@ -19,12 +19,12 @@ function publicPreference(pref:any){
 }
 export async function phoneView(tx:any,person:any,config:any){
   const pref=await phonePreference(tx,person.id);
-  const rows=await tx.unsafe('select id,job_id,reason,status,error_code,created_at,updated_at,transport from ehr.phone_alert where clinician_principal_id=$1::uuid order by created_at desc,id desc limit 20',[person.id]);
+  const rows=await tx.unsafe('select id,job_id,reason,status,error_code,created_at,updated_at,transport,preference_version from ehr.phone_alert where clinician_principal_id=$1::uuid order by created_at desc,id desc limit 20',[person.id]);
   const history=[];
   for(const row of rows){if(row.job_id){try{await resolveReview(tx,person,row.job_id);}catch(_){continue;}}
-    history.push({id:row.id,jobId:row.job_id,reason:row.reason,status:row.status,errorCode:row.error_code,createdAt:row.created_at,updatedAt:row.updated_at,transport:row.transport,text:alertText(row.reason,row.job_id)});
+    history.push({id:row.id,jobId:row.job_id,reason:row.reason,status:row.status,errorCode:row.error_code,createdAt:row.created_at,updatedAt:row.updated_at,transport:row.transport,preferenceVersion:row.preference_version,text:alertText(row.reason,row.job_id)});
   }
-  return {preferences:publicPreference(pref),providerReady:config.configured,history,quietHoursLabel:'10 PM–7 AM',previewText:alertText('ready',null)};
+  return {preferences:publicPreference(pref),providerReady:config.configured,configurationChecks:config.readiness,configurationValidation:'format-only',history,quietHoursLabel:'10 PM–7 AM',previewText:alertText('ready',null)};
 }
 function exactKeys(body:any,keys:string[]){
   if(!body||Array.isArray(body)||typeof body!=='object'||Object.keys(body).some(k=>!keys.includes(k)))alertFail('invalid_request');

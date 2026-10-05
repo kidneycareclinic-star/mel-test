@@ -43,6 +43,7 @@ try {
  await page.addScriptTag({path:path.join(root,'encounter-actions-ui.js')});
  await page.addScriptTag({path:path.join(root,'encounter-coordinator-ui.js')});
  await page.addScriptTag({path:path.join(root,'agent-map-ui.js')});
+ await page.addScriptTag({path:path.join(root,'encounter-review-ui.js')});
  await page.addScriptTag({path:path.join(root,'orchestrator-commands.js')});
  await page.addScriptTag({path:path.join(root,'orchestrator-voice-ui.js')});
  await page.locator('[data-note]').waitFor();
@@ -88,6 +89,14 @@ try {
  await page.evaluate(()=>{document.querySelector('#orchestratorVoice [data-command]').value='Open the proposed orders.';document.querySelector('#orchestratorVoice [data-command-form]').dispatchEvent(new Event('submit',{cancelable:true}));});
  assert.equal(await page.evaluate(()=>window.ENCOUNTER_AGENT_MAP.selected()),'orders');
  assert.equal(await page.evaluate(()=>window.testRequests.some(r=>r.method==='POST')),false);
+ await page.evaluate(()=>window.ENCOUNTER_REVIEW_UI.open());
+ assert.equal(await page.locator('#encounterReviewChecklist [data-review-count]').textContent(),'2 review items remaining');
+ for(const theme of ['dark','light'])for(const width of [1440,390,320]){
+  await page.setViewportSize({width,height:1000});await page.evaluate(value=>{document.documentElement.dataset.theme=value;},theme);
+  const metrics=await page.locator('#encounterReviewChecklist').evaluate(n=>({width:n.clientWidth,scroll:n.scrollWidth,button:n.querySelector('button').getBoundingClientRect().height}));assert(metrics.scroll<=metrics.width+1);assert(metrics.button>=44);
+  await page.locator('#encounterReviewChecklist').screenshot({path:path.join(output,theme+'-'+width+'-review-checklist.png')});
+ }
+ await page.locator('#encounterReviewChecklist [data-review-next]').click();assert.equal(await page.locator('[data-action] select').evaluate(n=>n===document.activeElement),true);
  // Render the actual authenticated inbox, mobile routing and scoped coordinator together.
  await page.evaluate(()=>{
   const prior=window.fetch;window.CLINICIAN_AUTH={userId:()=> 'browser-physician'};window.PATIENTS=[window.currentPatient];window.BACKEND_PATIENT_READY=Promise.resolve();
@@ -113,6 +122,7 @@ try {
  assert.equal(await page.locator('[data-mode] option[value=sms]').evaluate(n=>n.disabled),true,'SMS option is natively disabled without a configured verified phone');
  for(const theme of ['dark','light']){
   await page.setViewportSize({width:1440,height:1100});await page.evaluate(v=>{document.documentElement.dataset.theme=v;},theme);
+  await page.locator('.phone-connection').screenshot({path:path.join(output,theme+'-phone-connection.png')});
   await page.locator('[data-preferences]').screenshot({path:path.join(output,theme+'-phone-alert-preferences.png')});
   await page.locator('.phone-preview').screenshot({path:path.join(output,theme+'-phone-alert-message.png')});
  }
@@ -120,6 +130,8 @@ try {
   await page.setViewportSize({width,height:1000});await page.evaluate(()=>{document.documentElement.dataset.theme='light';});
   const metrics=await page.evaluate(()=>{const n=document.getElementById('encounterInboxDialog');return {page:document.documentElement.scrollWidth,viewport:innerWidth,dialog:n.scrollWidth,width:n.clientWidth,targets:[...document.querySelectorAll('#encounterPhoneAlerts button,#encounterPhoneAlerts select,#encounterPhoneAlerts input:not([type=checkbox]),#encounterPhoneAlerts .phone-check')].map(b=>b.getBoundingClientRect().height).filter(h=>h>0)};});
   assert(metrics.page<=metrics.viewport+1,JSON.stringify(metrics));assert(metrics.dialog<=metrics.width+1,JSON.stringify(metrics));assert(metrics.targets.every(h=>h>=44),JSON.stringify(metrics));
+  await page.locator('.phone-connection').screenshot({path:path.join(output,theme+'-phone-connection.png')});
+  await page.locator('.phone-connection').screenshot({path:path.join(output,'light-'+width+'-phone-connection.png')});
   await page.locator('[data-preferences]').screenshot({path:path.join(output,'light-'+width+'-phone-alert-preferences.png')});
   await page.locator('.phone-preview').screenshot({path:path.join(output,'light-'+width+'-phone-alert-message.png')});
  }

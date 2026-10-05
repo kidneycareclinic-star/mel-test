@@ -3,6 +3,9 @@ import {providerConfig,alertText,isQuiet,normalizePhone,encryptPhone,decryptPhon
 const values={SMS_DELIVERY_MODE:'twilio',TWILIO_ACCOUNT_SID:'AC'+'a'.repeat(32),TWILIO_AUTH_TOKEN:'b'.repeat(32),TWILIO_MESSAGING_SERVICE_SID:'MG'+'c'.repeat(32),TWILIO_VERIFY_SERVICE_SID:'VA'+'d'.repeat(32),SMS_CONTACT_ENCRYPTION_KEY:'e'.repeat(64)};
 const config=providerConfig(n=>values[n]),owner='11111111-1111-4111-8111-111111111111',job='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',phone='+12025550123';
 assert.equal(config.configured,true);assert.equal(providerConfig(()=>undefined).configured,false);
+assert.deepEqual(Object.values(config.readiness),Array(6).fill('configured'));assert.deepEqual(Object.values(providerConfig(()=>undefined).readiness),Array(6).fill('missing'));
+assert.equal(providerConfig(n=>n==='TWILIO_AUTH_TOKEN'?'bad-token':values[n]).readiness.auth,'invalid');assert.equal(providerConfig(n=>n==='SMS_DELIVERY_MODE'?'preview':values[n]).readiness.delivery,'invalid');
+for(const secret of Object.values(values).filter(v=>v!=='twilio'))assert.equal(JSON.stringify(config.readiness).includes(secret),false,'public diagnostics never include secret values');
 for(const name of Object.keys(values))assert.equal(providerConfig(n=>n===name?undefined:values[n]).configured,false);
 assert.equal(normalizePhone(phone),phone);for(const bad of ['+442025550123','2025550123','+12025550123&To=other',null])assert.throws(()=>normalizePhone(bad));
 const cipher=await encryptPhone(phone,owner,config.key);assert.doesNotMatch(cipher,/12025550123/);assert.equal(await decryptPhone(cipher,owner,config.key),phone);

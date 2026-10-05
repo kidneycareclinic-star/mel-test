@@ -13,3 +13,9 @@
 .phone-alert-message { background:var(--panel-2); padding:12px; border-radius:8px; }
 .phone-alert-panel h3 { font-size:16px; margin:12px 0; }
 .phone-alert-panel [hidden] { display:none !important; }
+.phone-connection{border:1px solid var(--border);border-radius:12px;padding:14px;margin:14px 0;background:var(--panel)}
+.phone-connection ol{padding-left:24px}.phone-connection li{padding:10px 4px;line-height:1.5;border-bottom:1px solid var(--border)}
+.phone-connection li strong,.phone-connection li span{display:block}.phone-connection li span{color:var(--muted);margin-top:3px}.phone-connection [data-state=complete] strong{color:var(--good)}
+.phone-connection-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.phone-connection a{display:inline-flex;align-items:center;min-height:44px;color:var(--accent);overflow-wrap:anywhere}
+.phone-connection table{width:100%;table-layout:fixed;border-collapse:collapse;font-size:12px}.phone-connection th,.phone-connection td{padding:8px 4px;text-align:left;overflow-wrap:anywhere;border-bottom:1px solid var(--border)}
+.phone-connection [data-server-details]{margin-top:10px}

@@ -19,7 +19,7 @@
       [/^(?:open|show)(?: me)? (?:the )?(?:chart|labs)$/i,'chart','chart'],
       [/^(?:open|show)(?: me)? (?:the )?(?:evidence|guideline references)$/i,'evidence','evidence'],
       [/^(?:open|show)(?: me)? (?:the )?encounter inbox$/i,'followup','inbox'],
-      [/^(?:open|show)(?: me)? (?:the )?phone alerts$/i,'followup','phone']
+      [/^(?:open|show)(?: me)? (?:the )?(?:phone alerts|phone connection(?: status)?)$/i,'followup','phone']
     ];
     for (var route of routes) if (route[0].test(command)) return {kind:'navigate',agent:route[1],target:route[2]};
     return {kind:'unknown'};
