@@ -19,6 +19,13 @@ async function readBody(req:Request){
   const data=new Uint8Array(size);let offset=0;for(const c of chunks){data.set(c,offset);offset+=c.length;}
   try{return JSON.parse(new TextDecoder().decode(data));}catch(_){coordinatorFail('invalid_request',400);}
 }
+async function voiceFence(tx:any,patientId:string,person:any,body:any){
+  if(body.voiceCommand!==true&&!Object.hasOwn(body,'voiceEncounterId'))return;
+  const expected=body.action==='prepare'?body.encounterId:body.voiceEncounterId,version=body.action==='prepare'?body.expectedVersion:body.voiceEncounterVersion;
+  if(typeof expected!=='string'||!Number.isSafeInteger(version)||version<1)coordinatorFail('invalid_voice_context',400);
+  const [current]=await tx.unsafe("select id,version from ehr.synthetic_encounter where patient_id=$1::uuid and clinician_principal_id=$2::uuid and status='draft' order by created_at desc limit 1 for update",[patientId,person.id]);
+  if(current?.id!==expected||Number(current.version)!==version)coordinatorFail('voice_encounter_changed',409);
+}
 Deno.serve(async(req:Request)=>{
   const origin=req.headers.get('origin');if(origin&&!allowed(origin))return reply({error:'origin_not_allowed'},403,origin);if(req.method==='OPTIONS')return reply({ok:true},200,origin);if(!['GET','POST'].includes(req.method))return reply({error:'method_not_allowed'},405,origin);
   try{
@@ -30,7 +37,7 @@ Deno.serve(async(req:Request)=>{
     const patientId=await patientAccess(sql,person,externalId,'office',permission);
     if(req.method==='GET')return reply(await sql.begin('isolation level repeatable read',async(tx:any)=>{const view=await coordinatorView(tx,patientId,externalId,person);const expected=new URL(req.url).searchParams.get('expected_encounter_id');if(expected&&view.draft?.id!==expected)coordinatorFail('review_link_no_longer_current',409);return {...view,...await profileAndJob(tx,person,patientId,view.draft?.id||null)};}),200,origin);
     if(body.action==='save-profile')return reply(await write(person,patientId,externalId,'encounter.draft',(tx:any)=>queueCurrentAfterProfile(tx,patientId,person,body)),200,origin);
-    if(body.action==='save-review')return reply(await write(person,patientId,externalId,'encounter.draft',(tx:any)=>saveReviewDraft(tx,patientId,externalId,person,body)),200,origin);
+    if(body.action==='save-review')return reply(await write(person,patientId,externalId,'encounter.draft',async(tx:any)=>{await voiceFence(tx,patientId,person,body);return saveReviewDraft(tx,patientId,externalId,person,body);}),200,origin);
     if(body.action==='finalize'){
       const result=await write(person,patientId,externalId,permission,async(tx:any)=>{
         if(body.observations?.length)await patientAccess(tx,person,externalId,'office','scribe.review');
@@ -39,7 +46,7 @@ Deno.serve(async(req:Request)=>{
         return finalizeBundle(tx,patientId,externalId,person,body);
       });return reply(result,200,origin);
     }
-    const result=await write(person,patientId,externalId,permission,(tx:any)=>queuePreparation(tx,patientId,person,body));
+    const result=await write(person,patientId,externalId,permission,async(tx:any)=>{await voiceFence(tx,patientId,person,body);return queuePreparation(tx,patientId,person,body);});
     return reply({patientId:externalId,...result},202,origin);
   }catch(error){
     const denied=authFailure(error),code=denied?.code||((error as any)?.status?(error as Error).message:'coordinator_unavailable');

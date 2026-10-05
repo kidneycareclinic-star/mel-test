@@ -63,7 +63,7 @@
     if(id==='note')return s.signed?'Signed':s.note?'Draft available':'Awaiting reviewed source';
     if(id==='orders')return s.signed?'Review saved · simulated':s.note?coordinator.querySelectorAll('[data-action]').length+' source drafts · simulated':'Awaiting reviewed source';
     if(id==='verification')return s.signed?'Receipt saved':s.ready?'Review available':'Approval held';
-    if(id==='followup')return 'Tracker · phone alerts planned';
+    if(id==='followup')return 'Tracker · phone alert settings';
     return s.error?'Needs attention':s.signed?'Finalized':s.ready?'Ready for review':s.note?'Review required':'Awaiting reviewed source';
   }
   function focusControl(selector){var element=coordinator.querySelector(selector);if(!element)return;element.scrollIntoView?.({block:'center',behavior:'auto'});element.focus();}
@@ -84,10 +84,11 @@
       note:'Choose your template and detail, then edit the prepared note below. Your existing physician edits remain protected when preparation changes.',
       orders:'Review source-linked action drafts and synchronized patient instructions below. Clarify flagged intent or missing medication fields, or exclude a draft. Finalization saves the selected simulated items into follow-up tracking.',
       verification:'Review the entire note, source evidence, proposed values and exclusions below. The existing authenticated, version-checked finalization control signs the exact reviewed packet.',
-      followup:'Inspect this patient’s open loops and the assigned-patient follow-up queue. Clinical orders remain simulated. The encounter inbox opens current work for review. Phone delivery is planned.'
+      followup:'Inspect this patient’s open loops and the assigned-patient follow-up queue. Clinical orders remain simulated. The encounter inbox opens current work for review; phone alert settings control opted-in delivery.'
     };description.textContent=text[id];
     if(id==='chart')chart.querySelector('details')?.setAttribute('open','');
     if(id==='voice'){action('Reviewed transcript',function(){focusControl('#ambientReviewedInput');});action('Physician dictation',function(){document.getElementById('dictationModeBtn')?.click();focusControl('#physicianDictationInput');});}
+    if(id==='orchestrator')action('Talk to orchestrator',function(){window.ORCHESTRATOR_VOICE_UI?.open();window.ORCHESTRATOR_VOICE_UI?.start();});
     if(id==='note'){action('Template & detail',function(){var prefs=coordinator.querySelector('.coordinator-preferences');prefs.open=true;prefs.querySelector('select')?.focus();});action('Edit note',function(){focusControl('[data-note]');});}
     if(id==='evidence')action('KDIGO reference review',function(){var detail=coordinator.querySelector('[data-evidence] details');if(detail){detail.open=true;detail.scrollIntoView?.({block:'center'});}});
     if(id==='orders')action('Draft actions',function(){focusControl('[data-action] select');});

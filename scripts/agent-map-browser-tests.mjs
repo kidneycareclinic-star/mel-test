@@ -22,7 +22,7 @@ try {
   document.getElementById('clinicianSignIn').hidden=true;
   document.documentElement.classList.add('clinician-authenticated');
   window.currentPatient={id:'PT-001',name:'Synthetic patient',labs:{eGFR:{value:31,unit:'mL/min/1.73m²'}},meds:[],problemList:[{name:'CKD G3b, existing chart'}]};
-  window.SYNTHETIC_ENCOUNTER_COORDINATOR_ENABLED=true;window.SYNTHETIC_AUDIO_TRANSCRIPTION_ENABLED=true;
+  window.SYNTHETIC_ENCOUNTER_COORDINATOR_ENABLED=true;window.SYNTHETIC_AUDIO_TRANSCRIPTION_ENABLED=true;window.CLINICIAN_AUTH={userId:()=> 'browser-physician'};
   window.SUPABASE_DEMO_BACKEND={baseUrl:'https://synthetic.test',anonJwt:'browser-ci-only'};
   window.PRECHART_WORKSPACE_API={stopVoice(){},whenSourcesReady(){return Promise.resolve();}};
   window.NOTE_DRAFTING={mount(parent){parent.insertAdjacentHTML('beforeend','<label>Template<select><option>Nephrology SOAP</option><option>Problem-oriented</option></select></label>');},preferences(){return {};}};
@@ -32,7 +32,7 @@ try {
   window.testRequests=[];
   window.fetch=async(url,options)=>{
    window.testRequests.push({url,method:options?.method});if(options?.method==='POST')throw Error('No clinical writes allowed in browser navigation test');
-   return {ok:true,json:async()=>({patient:window.currentPatient,job:window.browserJob,draft:{id:'ci-encounter',version:1},preparation:{id:'ci-preparation',encounter_id:'ci-encounter',status:'ready',current:true,packet_hash:'ci-hash',packet:{noteText:'SUBJECTIVE\nPatient reports no new swelling.\n\nOBJECTIVE\nHistorical eGFR 31 mL/min/1.73m².\n\nASSESSMENT\nCKD G3b per chart.\n\nPLAN\nPhysician review of the current chart and encounter.',patientInstructions:'No patient-specific instructions documented.',sources:[{kind:'reviewed-transcript',text:'No new swelling.'}],observations:[],reviews:[],tools:[],sections:[],actions:[{id:'browser-lab',kind:'lab',label:'Repeat BMP',details:'Repeat BMP.',timing:'in 3 months',sourceTitle:'Reviewed transcript',sourceQuote:'Physician: repeat BMP in 3 months.',intent:'physician-plan',patientText:'Get a repeat BMP in 3 months.',blockers:[],medication:null}],clinicalEvidence:{applicability:'Historical CKD G3b chart context; confirm applicability.',corpusVersion:'kdigo-2024-monitoring-20261005',checkedAt:'2026-10-05',clinicalValidation:'Starter reference set; physician review required',references:[{title:'Kidney function and albuminuria monitoring',summary:'Review GFR and albuminuria monitoring in CKD.',section:'Practice Points 2.1.1–2.1.2',page:40,url:'https://kdigo.org/wp-content/uploads/2026/04/KDIGO-2024-CKD-Guideline.pdf#page=40',role:'Reference; not an order'}]}}}})};
+   return {ok:true,json:async()=>({patient:window.currentPatient,profile:{preferences:{template:'soap',detail:'standard',headings:[],instructions:''}},job:window.browserJob,draft:{id:'ci-encounter',version:1},preparation:{id:'ci-preparation',encounter_id:'ci-encounter',status:'ready',current:true,packet_hash:'ci-hash',packet:{noteText:'SUBJECTIVE\nPatient reports no new swelling.\n\nOBJECTIVE\nHistorical eGFR 31 mL/min/1.73m².\n\nASSESSMENT\nCKD G3b per chart.\n\nPLAN\nPhysician review of the current chart and encounter.',patientInstructions:'No patient-specific instructions documented.',sources:[{kind:'reviewed-transcript',text:'No new swelling.'}],observations:[],reviews:[],tools:[],sections:[],actions:[{id:'browser-lab',kind:'lab',label:'Repeat BMP',details:'Repeat BMP.',timing:'in 3 months',sourceTitle:'Reviewed transcript',sourceQuote:'Physician: repeat BMP in 3 months.',intent:'physician-plan',patientText:'Get a repeat BMP in 3 months.',blockers:[],medication:null}],clinicalEvidence:{applicability:'Historical CKD G3b chart context; confirm applicability.',corpusVersion:'kdigo-2024-monitoring-20261005',checkedAt:'2026-10-05',clinicalValidation:'Starter reference set; physician review required',references:[{title:'Kidney function and albuminuria monitoring',summary:'Review GFR and albuminuria monitoring in CKD.',section:'Practice Points 2.1.1–2.1.2',page:40,url:'https://kdigo.org/wp-content/uploads/2026/04/KDIGO-2024-CKD-Guideline.pdf#page=40',role:'Reference; not an order'}]}}}})};
   };
   document.getElementById('ptName').textContent='Synthetic patient · PT-001';document.getElementById('ptMeta').textContent='Office follow-up · Synthetic testing only';
   document.getElementById('contextMeta').textContent='Recorded context and source detail';
@@ -43,6 +43,8 @@ try {
  await page.addScriptTag({path:path.join(root,'encounter-actions-ui.js')});
  await page.addScriptTag({path:path.join(root,'encounter-coordinator-ui.js')});
  await page.addScriptTag({path:path.join(root,'agent-map-ui.js')});
+ await page.addScriptTag({path:path.join(root,'orchestrator-commands.js')});
+ await page.addScriptTag({path:path.join(root,'orchestrator-voice-ui.js')});
  await page.locator('[data-note]').waitFor();
  assert.equal(await page.locator('#encounterAgentMap [data-agent]').count(),8);
  assert.equal(await page.locator('[data-agent="note"] .agent-dot-state').textContent(),'Task complete');
@@ -72,6 +74,20 @@ try {
   assert.equal(overlap,false,'Dot targets must not overlap at '+width);
   await page.locator('#encounterAgentMap').screenshot({path:path.join(output,'light-'+width+'-agent-map.png')});
  }
+ // Real command controls and plan previews stay readable across themes and narrow screens.
+ await page.evaluate(()=>{document.querySelector('#orchestratorVoice [data-command]').value='Add to plan: Repeat BMP in 2 months.';document.querySelector('#orchestratorVoice [data-command-form]').dispatchEvent(new Event('submit',{cancelable:true}));});
+ await page.locator('#orchestratorVoice [data-proposal]').waitFor({state:'visible'});
+ assert.equal(await page.locator('[data-note]').evaluate(n=>n.value.includes('Repeat BMP in 2 months.')),false,'proposal must not edit the note');
+ for(const theme of ['dark','light'])for(const width of [1440,760,390,320]){
+  await page.setViewportSize({width,height:1000});await page.evaluate(value=>{document.documentElement.dataset.theme=value;},theme);
+  const metrics=await page.evaluate(()=>{const n=document.getElementById('orchestratorVoice');return {page:document.documentElement.scrollWidth,viewport:innerWidth,panel:n.scrollWidth,width:n.clientWidth,targets:[...n.querySelectorAll('button')].map(b=>b.getBoundingClientRect().height).filter(h=>h>0)};});
+  assert(metrics.page<=metrics.viewport+1,JSON.stringify(metrics));assert(metrics.panel<=metrics.width+1,JSON.stringify(metrics));assert(metrics.targets.every(h=>h>=44));
+  await page.locator('#orchestratorVoice').screenshot({path:path.join(output,theme+'-'+width+'-orchestrator-voice.png')});
+ }
+ await page.locator('#orchestratorVoice [data-reject]').click();
+ await page.evaluate(()=>{document.querySelector('#orchestratorVoice [data-command]').value='Open the proposed orders.';document.querySelector('#orchestratorVoice [data-command-form]').dispatchEvent(new Event('submit',{cancelable:true}));});
+ assert.equal(await page.evaluate(()=>window.ENCOUNTER_AGENT_MAP.selected()),'orders');
+ assert.equal(await page.evaluate(()=>window.testRequests.some(r=>r.method==='POST')),false);
  // Render the actual authenticated inbox, mobile routing and scoped coordinator together.
  await page.evaluate(()=>{
   const prior=window.fetch;window.CLINICIAN_AUTH={userId:()=> 'browser-physician'};window.PATIENTS=[window.currentPatient];window.BACKEND_PATIENT_READY=Promise.resolve();
