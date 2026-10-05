@@ -4,3 +4,5 @@
 .encounter-review-checklist p{line-height:1.5}.encounter-review-checklist ol{padding-left:24px}.encounter-review-checklist li{padding:10px 8px;border-bottom:1px solid var(--border);line-height:1.5;overflow-wrap:anywhere}
 .encounter-review-checklist li strong,.encounter-review-checklist li span{display:block}.encounter-review-checklist li span{color:var(--muted);margin-top:3px}.encounter-review-checklist [data-state=attention] strong{color:var(--warn)}
 .encounter-review-checklist button{min-height:44px;white-space:normal;max-width:100%}.encounter-review-checklist [hidden]{display:none!important}
+
+:root[data-theme="light"] .encounter-review-checklist [data-state=attention] strong{color:#8a4d00}

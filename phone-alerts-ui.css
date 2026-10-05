@@ -19,3 +19,5 @@
 .phone-connection-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.phone-connection a{display:inline-flex;align-items:center;min-height:44px;color:var(--accent);overflow-wrap:anywhere}
 .phone-connection table{width:100%;table-layout:fixed;border-collapse:collapse;font-size:12px}.phone-connection th,.phone-connection td{padding:8px 4px;text-align:left;overflow-wrap:anywhere;border-bottom:1px solid var(--border)}
 .phone-connection [data-server-details]{margin-top:10px}
+
+:root[data-theme="light"] .phone-connection [data-state=complete] strong{color:#17633d}

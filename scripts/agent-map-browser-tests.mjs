@@ -12,7 +12,7 @@ const server=http.createServer((req,res)=>{
  if(url.pathname==='/'){res.setHeader('Content-Type','text/html');res.end(html);return;}
  const file=path.resolve(root,'.'+url.pathname);
  if(!file.startsWith(root+path.sep)||!fs.existsSync(file)||!fs.statSync(file).isFile()){res.statusCode=404;res.end();return;}
- res.setHeader('Content-Type',file.endsWith('.css')?'text/css':file.endsWith('.js')?'text/javascript':'application/octet-stream');res.end(fs.readFileSync(file));
+ res.setHeader('Content-Type',file.endsWith('.html')?'text/html':file.endsWith('.css')?'text/css':file.endsWith('.js')?'text/javascript':'application/octet-stream');res.end(fs.readFileSync(file));
 });await new Promise(r=>server.listen(0,'127.0.0.1',r));
 const browser=await chromium.launch({headless:true});const page=await browser.newPage({viewport:{width:1440,height:1100}});
 const errors=[];page.on('pageerror',error=>errors.push(error.message));
@@ -130,7 +130,6 @@ try {
   await page.setViewportSize({width,height:1000});await page.evaluate(()=>{document.documentElement.dataset.theme='light';});
   const metrics=await page.evaluate(()=>{const n=document.getElementById('encounterInboxDialog');return {page:document.documentElement.scrollWidth,viewport:innerWidth,dialog:n.scrollWidth,width:n.clientWidth,targets:[...document.querySelectorAll('#encounterPhoneAlerts button,#encounterPhoneAlerts select,#encounterPhoneAlerts input:not([type=checkbox]),#encounterPhoneAlerts .phone-check')].map(b=>b.getBoundingClientRect().height).filter(h=>h>0)};});
   assert(metrics.page<=metrics.viewport+1,JSON.stringify(metrics));assert(metrics.dialog<=metrics.width+1,JSON.stringify(metrics));assert(metrics.targets.every(h=>h>=44),JSON.stringify(metrics));
-  await page.locator('.phone-connection').screenshot({path:path.join(output,theme+'-phone-connection.png')});
   await page.locator('.phone-connection').screenshot({path:path.join(output,'light-'+width+'-phone-connection.png')});
   await page.locator('[data-preferences]').screenshot({path:path.join(output,'light-'+width+'-phone-alert-preferences.png')});
   await page.locator('.phone-preview').screenshot({path:path.join(output,'light-'+width+'-phone-alert-message.png')});
@@ -140,6 +139,8 @@ try {
  assert.equal(await page.locator('#mainLayout').evaluate(n=>n.classList.contains('mobile-pane-patient')),true);assert.match(await page.locator('#encounterInboxNotice').textContent(),/original preparation changed/);
  assert.equal(await page.locator('.coordinator-finalize').isDisabled(),true,'inbox navigation cannot approve action drafts');
  assert.equal(await page.locator('[data-note]').count(),1);
+ const guide=await browser.newPage();await guide.goto('http://127.0.0.1:'+server.address().port+'/phone-alert-setup.html',{waitUntil:'networkidle'});assert.equal(await guide.locator('table tbody tr').count(),6);assert.equal(await guide.locator('input,textarea,script').count(),0,'setup instructions never collect credentials');
+ for(const theme of ['dark','light'])for(const width of [1440,390,320]){await guide.emulateMedia({colorScheme:theme});await guide.setViewportSize({width,height:1000});const metrics=await guide.evaluate(()=>({scroll:document.documentElement.scrollWidth,width:innerWidth}));assert(metrics.scroll<=metrics.width+1,JSON.stringify(metrics));await guide.screenshot({path:path.join(output,theme+'-'+width+'-phone-setup-guide.png'),fullPage:true});}await guide.close();
  assert.deepEqual(errors,[]);
  console.log('Browser checks passed: real UI modules, dark/light rendering, labeled dot targets, one note editor, 760/390/320px overflow and hit-target separation. Synthetic backend only.');
 } catch(error) {
