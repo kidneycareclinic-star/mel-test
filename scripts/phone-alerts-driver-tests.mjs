@@ -40,6 +40,14 @@ export async function testPhoneAlerts(sql,principal,target){
   await sql`insert into ehr.encounter_inbox_seen(job_id,clinician_principal_id,revision) values(${seenFixture.jobId},${principal},${seen.revision})`;await processPhoneAlert(sql,seen.id,off);assert.equal((await sql`select status from ehr.phone_alert where id=${seen.id}`)[0].status,'cancelled');
   const revokedFixture=await makeJob();await sql`select ehr.queue_phone_alerts()`;const [revoked]=await sql`select id from ehr.phone_alert where job_id=${revokedFixture.jobId}`;
   await sql`update iam.patient_assignment set active=false where patient_id=${revokedFixture.patientId}`;await processPhoneAlert(sql,revoked.id,off);assert.equal((await sql`select status from ehr.phone_alert where id=${revoked.id}`)[0].status,'cancelled');
+  // Failed jobs stay failed after expiry, exactly as the inbox revision specifies.
+  const [pastPatient]=await sql`insert into ehr.patient(external_id,display_name) values(${'PT-'+patientNumber++},'Expired failure fixture') returning id`;
+  await sql`insert into iam.patient_assignment(practice_id,principal_id,patient_id) values(${practice.practice_id},${principal},${pastPatient.id})`;
+  const [pastEncounter]=await sql`insert into ehr.synthetic_encounter(patient_id,clinician_principal_id,note_text,sources,base_state_version) values(${pastPatient.id},${principal},'Synthetic expired fixture','[]',1) returning id`;
+  const [pastJob]=await sql`insert into ehr.encounter_job(patient_id,encounter_id,clinician_principal_id,source_version,profile_version,preferences,status,expires_at) values(${pastPatient.id},${pastEncounter.id},${principal},1,0,'{}','failed',now()-interval '1 hour') returning id`;
+  await sql`select ehr.queue_phone_alerts()`;const [pastAlert]=await sql`select * from ehr.phone_alert where job_id=${pastJob.id}`;assert.equal(pastAlert.reason,'failed');assert.equal(pastAlert.revision,'0:failed');
+  await sql`update ehr.phone_alert set send_started_at=now()-interval '3 hours' where clinician_principal_id=${principal}`;
+  await processPhoneAlert(sql,pastAlert.id,off);assert.equal((await sql`select status from ehr.phone_alert where id=${pastAlert.id}`)[0].status,'preview');
   // Provider is completely mocked: no verification or encounter text leaves CI.
   const wires=[];let response={sid:'VE'+'a'.repeat(32),status:'pending'},httpStatus=201;
   const fetcher=async(url,options)=>{wires.push({url,body:options.body});return new Response(JSON.stringify(response),{status:httpStatus});};
@@ -50,6 +58,8 @@ export async function testPhoneAlerts(sql,principal,target){
   response={status:'pending',valid:false};httpStatus=200;let result=await mutation({action:'verify-check',code:'999999'},config,fetcher);assert.equal(result.error,'verification_code_invalid');await refresh(config);assert.equal(view.preferences.verified,false);
   response={status:'approved',valid:true};await mutation({action:'verify-check',code:'123456'},config,fetcher);await refresh(config);assert.equal(view.preferences.verified,true);assert.equal(view.preferences.mode,'preview');
   await mutation(preferences('sms',{consent:true}),config,fetcher);await refresh(config);assert.equal(view.preferences.mode,'sms');
+  await mutation(preferences('off'),config);await refresh(config);assert.equal(view.preferences.consented,false,'disabling delivery clears active consent');
+  await mutation(preferences('sms',{consent:true}),config,fetcher);await refresh(config);
   const liveFixture=await makeJob();await sql`select ehr.queue_phone_alerts()`;const [live]=await sql`select * from ehr.phone_alert where job_id=${liveFixture.jobId} and transport='sms'`;
   response={sid:'SM'+'b'.repeat(32),status:'queued'};httpStatus=201;const baseline=wires.length;await Promise.all([processPhoneAlert(sql,live.id,config,fetcher),processPhoneAlert(sql,live.id,config,fetcher)]);assert.equal(wires.length,baseline+1,'concurrent processing sends once');assert.equal((await sql`select status from ehr.phone_alert where id=${live.id}`)[0].status,'accepted');
   response={sid:'SM'+'b'.repeat(32),status:'delivered'};httpStatus=200;await processPhoneAlert(sql,live.id,config,fetcher);assert.equal((await sql`select status from ehr.phone_alert where id=${live.id}`)[0].status,'delivered');

@@ -85,8 +85,8 @@ begin
   select q.clinician_principal_id,q.id,q.revision,q.preference_version,q.mode,q.effective_status
   from (
     select j.id,j.clinician_principal_id,pref.version as preference_version,pref.mode,pref.ready_alerts,pref.paused_alerts,
-      case when j.expires_at<=now() then 'expired' else j.status end as effective_status,
-      coalesce((select max(ev.id)::text from ehr.encounter_job_event ev where ev.job_id=j.id),'0')||':'||case when j.expires_at<=now() then 'expired' else j.status end as revision
+      case when j.status in ('ready','queued','running') and j.expires_at<=now() then 'expired' else j.status end as effective_status,
+      coalesce((select max(ev.id)::text from ehr.encounter_job_event ev where ev.job_id=j.id),'0')||':'||case when j.status in ('ready','queued','running') and j.expires_at<=now() then 'expired' else j.status end as revision
     from ehr.encounter_job j join ehr.synthetic_encounter e on e.id=j.encounter_id and e.patient_id=j.patient_id and e.clinician_principal_id=j.clinician_principal_id
     join ehr.patient p on p.id=j.patient_id and p.active and p.synthetic
     join ehr.clinician_phone_preference pref on pref.clinician_principal_id=j.clinician_principal_id and pref.mode<>'off'

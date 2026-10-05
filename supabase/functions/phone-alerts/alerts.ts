@@ -42,7 +42,7 @@ export async function phoneMutation(tx:any,person:any,body:any,config:any,fetche
     if(body.mode==='sms'&&!config.configured)alertFail('phone_delivery_not_configured',503);
     if(body.mode==='sms'&&(!pref.verified_at||!pref.phone_ciphertext||body.consent!==true))alertFail('verified_phone_and_consent_required',409);
     await tx.unsafe(`update ehr.clinician_phone_preference set mode=$2,ready_alerts=$3,paused_alerts=$4,quiet_hours=$5,time_zone=$6,
-      consent_at=case when $2='sms' then now() else consent_at end,consent_version=case when $2='sms' then $7 else consent_version end,version=version+1,updated_at=now() where clinician_principal_id=$1::uuid`,[person.id,body.mode,body.readyAlerts,body.pausedAlerts,body.quietHours,body.timeZone,consentVersion]);
+      consent_at=case when $2='sms' then now() else null end,consent_version=case when $2='sms' then $7 else null end,version=version+1,updated_at=now() where clinician_principal_id=$1::uuid`,[person.id,body.mode,body.readyAlerts,body.pausedAlerts,body.quietHours,body.timeZone,consentVersion]);
     await changedPreference(tx,person.id);await alertAudit(tx,person.id,'preferences_saved');
   }else if(body.action==='preview-test'){
     exactKeys(body,['action','expectedVersion']);
