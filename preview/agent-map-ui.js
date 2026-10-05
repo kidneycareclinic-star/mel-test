@@ -39,7 +39,7 @@
     (definition.tier<3?leads:specialists).appendChild(button);
     button.addEventListener('click',function(){select(definition.id);});
   });
-  var job=null,selected='voice',recordingSource=null,disposed=false,queued=false;
+  var job=window.ENCOUNTER_COORDINATOR_UI?.job?.()||null,selected='voice',recordingSource=null,disposed=false,queued=false;
   var capture=coordinator.querySelector('.coordinator-capture'),chart=coordinator.querySelector('.coordinator-chart');
   var clinicalPane=document.querySelector('.agent-pane'),clinicalHome=clinicalPane?.parentNode,clinicalNext=clinicalPane?.nextSibling;
   var loops=document.getElementById('openLoopList')?.closest('.loop-panel'),loopHome=loops?.parentNode,loopNext=loops?.nextSibling;
