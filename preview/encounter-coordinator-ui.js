@@ -61,7 +61,7 @@
   });
   retry.addEventListener('click',function(){load(active());});
   window.addEventListener('encounter-draft-saved',function(event){var d=event.detail;if(active()===d.patientId){setTimeout(function(){prepare(d.patientId,d.saved);},0);}});
-  window.addEventListener('scribe-patient-changed',function(event){clearTimeout(pollTimer);clearTimeout(editTimer);if(visibleId){var previous=state(visibleId);if(previous.dirty)autosave(visibleId).catch(function(){});}visibleId=null;sequence++;review.replaceChildren();finalize.disabled=true;var id=event.detail.patientId;if(window.SUPABASE_DEMO_BACKEND?.anonJwt)load(id);else message('Sign in as a clinician to assemble and prepare this encounter.');});
+  window.addEventListener('scribe-patient-changed',function(event){clearTimeout(pollTimer);clearTimeout(editTimer);if(visibleId){var previous=state(visibleId);if(previous.dirty)autosave(visibleId).catch(function(){});}visibleId=null;sequence++;review.replaceChildren();panel.querySelector('.coordinator-chart').replaceChildren();finalize.disabled=true;message('Assembling the selected patient chart…');var id=event.detail.patientId;if(window.SUPABASE_DEMO_BACKEND?.anonJwt)load(id);else message('Sign in as a clinician to assemble and prepare this encounter.');});
   panel.querySelector('.coordinator-preferences').addEventListener('change',function(){var id=active();request(id).then(function(result){if(active()===id&&result.draft)prepare(id,{encounterId:result.draft.id,version:result.draft.version});}).catch(function(e){message(e.message,true);});});
   window.ENCOUNTER_COORDINATOR_UI={refresh:function(){return load(active());},prepare:prepare,active:true};
   if(active()&&window.SUPABASE_DEMO_BACKEND?.anonJwt)load(active());
