@@ -1,6 +1,6 @@
 import {patientState,jsonObject} from './json-boundary.ts';
 import {preferences,chartContext,validateDraft} from './drafting.ts';
-import {actionRequest,validateActions,evidenceFor,reviewActions} from './clinical-actions.ts';
+import {actionRequest,validateActions,evidenceFor,reviewActions,evidenceCorpus} from './clinical-actions.ts';
 import {applyObservations} from './observations.ts';
 export function coordinatorFail(code:string,status=409):never {throw Object.assign(new Error(code),{status});}
 export const coordinatorUuid=(v:any)=>typeof v==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
@@ -18,7 +18,7 @@ export async function snapshot(tx:any,patientId:string,externalId:string,person:
   const observations=await tx.unsafe("select id,client_record_id,field,display_label,observation_type,value_numeric,value_json,unit,source_text,observed_at,confidence,certainty,status,provenance_id from ehr.proposed_observation where patient_id=$1::uuid and encounter_id=$2::uuid and status='pending' order by id"+(lock?' for update':''),[patientId,encounterId]);
   const reviews=await tx.unsafe("select id,run_id,base_state_version,generated_content,status from ehr.encounter_review where patient_id=$1::uuid and encounter_id=$2::uuid and status='pending' order by id"+(lock?' for update':''),[patientId,encounterId]);
   const tools=await tx.unsafe("select id,tool_name,risk_level,input,status from ehr.tool_call where patient_id=$1::uuid and input->>'encounterId'=$2 and status='awaiting_approval' order by id"+(lock?' for update':''),[patientId,encounterId]);
-  const context={mode:'prechart',encounterNote:e.note_text||'',reviewedSources:sources.filter(s=>s.kind!=='attachment'&&typeof s.text==='string').map(s=>({kind:s.kind,title:s.title,text:s.text})),chartContext:chartContext(patient,encounterId),approvedItems:[]};
+  const context={mode:'prechart',encounterNote:e.note_text||'',reviewedSources:sources.filter(s=>s.kind!=='attachment'&&typeof s.text==='string').map(s=>({kind:s.kind,title:s.title,text:s.text})),chartContext:{...chartContext(patient,encounterId),laboratoryHistory:patient.labHistory||null},approvedItems:[]};
   const result=canonical({encounterId:e.id,sourceVersion:e.version,stateVersion:Number(st.state_version),noteText:e.note_text,sources,patient,context,observations,reviews,tools});
   if(JSON.stringify(result).length>250000)coordinatorFail('encounter_packet_too_large',413);return result;
 }
@@ -28,7 +28,7 @@ export async function coordinatorView(tx:any,patientId:string,externalId:string,
   const [run]=await tx.unsafe('select id,encounter_id,source_version,state_version,status,packet,packet_hash,error_code,created_at,expires_at from ehr.encounter_preparation where patient_id=$1::uuid and clinician_principal_id=$2::uuid order by created_at desc,id desc limit 1',[patientId,person.id]);
   const [receipt]=await tx.unsafe('select r.id,r.encounter_id,r.completion_id,r.state_version,r.created_at,c.note_text as "noteText",c.patient_instructions as "patientInstructions",r.reviewed_snapshot from ehr.encounter_approval_receipt r join ehr.encounter_completion c on c.id=r.completion_id where r.patient_id=$1::uuid and r.clinician_principal_id=$2::uuid order by r.created_at desc limit 1',[patientId,person.id]);
   let current=false;
-  if(run?.status==='ready'&&jsonObject(run.packet,'review_packet').packetVersion==='v10b'&&e?.id===run.encounter_id&&Date.parse(run.expires_at)>Date.now()){
+  if(run?.status==='ready'&&jsonObject(run.packet,'review_packet').packetVersion==='v10b'&&jsonObject(run.packet,'review_packet').clinicalEvidence?.corpusVersion===evidenceCorpus.version&&e?.id===run.encounter_id&&Date.parse(run.expires_at)>Date.now()){
     try{current=(await digest(await snapshot(tx,patientId,externalId,person,e.id)))===(await tx.unsafe('select source_hash from ehr.encounter_preparation where id=$1::uuid',[run.id]))[0].source_hash;}catch(_){}
   }
   const [edit]=run?await tx.unsafe('select version,reviewed_snapshot from ehr.encounter_packet_edit where preparation_id=$1::uuid order by version desc limit 1',[run.id]):[];
@@ -42,7 +42,7 @@ export async function startPreparation(tx:any,patientId:string,externalId:string
   const sourceHash=await digest(source);
   const rows=await tx.unsafe("select * from ehr.encounter_preparation where encounter_id=$1::uuid and clinician_principal_id=$2::uuid and status in ('preparing','ready') order by created_at desc for update",[body.encounterId,person.id]);
   for(const old of rows){
-    const same=(old.status==='preparing'||jsonObject(old.packet,'prior_packet').packetVersion==='v10b')&&old.source_hash===sourceHash&&JSON.stringify(canonical(old.preferences))===JSON.stringify(canonical(prefs));
+    const same=(old.status==='preparing'||jsonObject(old.packet,'prior_packet').packetVersion==='v10b'&&jsonObject(old.packet,'prior_packet').clinicalEvidence?.corpusVersion===evidenceCorpus.version)&&old.source_hash===sourceHash&&JSON.stringify(canonical(old.preferences))===JSON.stringify(canonical(prefs));
     if(same&&Date.parse(old.expires_at)>Date.now()&&(old.status==='ready'||Date.parse(old.created_at)>Date.now()-120000))return {existing:true,run:old};
     await tx.unsafe("update ehr.encounter_preparation set status='superseded',completed_at=coalesce(completed_at,now()) where id=$1::uuid",[old.id]);
   }

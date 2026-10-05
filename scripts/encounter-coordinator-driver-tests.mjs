@@ -1,4 +1,4 @@
-// Actual v9A SQL, transactions, reducer and auth on the disposable CI database.
+// Actual coordinator SQL, transactions, reducer and auth on the disposable CI database.
 import assert from 'node:assert/strict';import fs from 'node:fs';import vm from 'node:vm';import {stripTypeScriptTypes} from 'node:module';import {webcrypto} from 'node:crypto';
 export async function testCoordinator(sql,principal,target){
   await sql.unsafe(`
@@ -86,5 +86,5 @@ export async function testCoordinator(sql,principal,target){
   assert.equal((await post({...body,preparationId:expired.id,packetHash:run.packet_hash,observations:[],idempotencyKey:webcrypto.randomUUID()})).body.error,'review_packet_changed_or_expired');
   assert.equal((await post({...body,patientId:'PT-003',observations:[],idempotencyKey:webcrypto.randomUUID()})).status,409);
   const [{canRead}]=await sql`select has_table_privilege('authenticated','ehr.encounter_preparation','select') as "canRead"`;assert.equal(canRead,false);
-  console.log('v9A real driver: authenticated assignment, read-only/idempotent preparation, exact source binding, durable edits, one-transaction signed completion, actual reducer/audit, clean visits, numeric edits, wrong patient/owner, revocation before/after provider, late rollback, replay mismatch, stale output, failure and expiry passed (provider mocked).');
+  console.log('v10B real driver: source-linked actions, pending/instruction gates, included/excluded completion items, before/after history, signed-action reload, authenticated assignment, read-only/idempotent preparation, exact source binding, durable edits, one-transaction signed completion, actual reducer/audit, clean visits, numeric edits, wrong patient/owner, revocation before/after provider, late rollback, replay mismatch, stale output, failure and expiry passed (provider mocked).');
 }

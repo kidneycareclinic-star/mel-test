@@ -63,7 +63,7 @@
     if(id==='orders')return s.signed?'Review saved · simulated':s.note?coordinator.querySelectorAll('[data-action]').length+' source drafts · simulated':'Awaiting reviewed source';
     if(id==='verification')return s.signed?'Receipt saved':s.ready?'Review available':'Approval held';
     if(id==='followup')return 'Tracker · phone alerts planned';
-    return s.error?'Needs attention':s.signed?'Finalized':s.ready?'Ready for review':s.note?'Review edits pending':'Awaiting reviewed source';
+    return s.error?'Needs attention':s.signed?'Finalized':s.ready?'Ready for review':s.note?'Review required':'Awaiting reviewed source';
   }
   function focusControl(selector){var element=coordinator.querySelector(selector);if(!element)return;element.scrollIntoView?.({block:'center',behavior:'auto'});element.focus();}
   function action(label,fn){var button=document.createElement('button');button.type='button';button.className='small-btn';button.textContent=label;button.addEventListener('click',fn);actions.appendChild(button);}

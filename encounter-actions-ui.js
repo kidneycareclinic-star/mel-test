@@ -33,6 +33,6 @@
     exclude.addEventListener('click',function(){region.querySelectorAll('[data-action]').forEach(function(row){row.querySelector('select').value='rejected';updateFields(row);});confirm.checked=false;sync(review);exclude.dispatchEvent(new Event('change',{bubbles:true}));});
     sync(review);
   }
-  function signed(review,actions){if(!actions?.length)return;node(review,'h4','Reviewed actions · simulated tracking');actions.forEach(function(a){node(review,'p',(['accepted','edited'].includes(a.decision)?'Included':'Excluded')+' · '+a.label+(a.timing?' · '+a.timing:''));});}
+  function signed(review,actions,clinicalEvidence){evidence(review,clinicalEvidence);if(!actions?.length)return;node(review,'h4','Reviewed actions · simulated tracking');actions.forEach(function(a){var row=node(review,'article','');node(row,'strong',(['accepted','edited'].includes(a.decision)?'Included':'Excluded')+' · '+a.label+(a.timing?' · '+a.timing:''));if(a.details)node(row,'p',a.details);if(a.sourceQuote)node(row,'blockquote',a.sourceQuote);});}
   window.ENCOUNTER_ACTIONS={render:render,read:read,gate:gate,changed:changed,signed:signed};
 })();
