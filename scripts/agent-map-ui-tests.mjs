@@ -42,7 +42,7 @@ w.dispatchEvent(new w.CustomEvent('microphone-meter-state',{detail:{kind:'stop',
 d.getElementById('agentMapStop').click();assert.equal(stops,2);meter.stop();await settle();assert.equal(map.classList.contains('is-recording'),false);assert.equal(capture.hidden,true);
 assert.equal(map.querySelector('.agent-orb-levels i').style.getPropertyValue('--orb-height'),'8px');
 w.currentPatient={id:'PT-002'};w.dispatchEvent(new w.CustomEvent('scribe-patient-changed',{detail:{patientId:'PT-002'}}));await settle();assert.equal(d.getElementById('agentMapPatient').textContent,'PT-002');assert.equal(w.ENCOUNTER_AGENT_MAP.selected(),'voice');
-assert.match(map.querySelector('[data-agent="orders"] .agent-dot-state').textContent,/source drafts/);assert.match(map.querySelector('[data-agent="followup"] .agent-dot-state').textContent,/phone alerts planned/);
+assert.match(map.querySelector('[data-agent="orders"] .agent-dot-state').textContent,/source drafts/);assert.match(map.querySelector('[data-agent="followup"] .agent-dot-state').textContent,/phone alert settings/);
 assert.equal(calls,0);
 for(const file of ['agent-map-ui.js','agent-map-ui.css','microphone-meter.js','encounter-coordinator-ui.js','index.html'])assert.equal(fs.readFileSync(file,'utf8'),fs.readFileSync('preview/'+file,'utf8'));
 dom.window.close();console.log('Agent map DOM passed: labeled hierarchy, navigation without mutations, editor preservation, exact approval gate, inline evidence/loops, real-sample orb, explicit stop, patient reset and preview parity.');

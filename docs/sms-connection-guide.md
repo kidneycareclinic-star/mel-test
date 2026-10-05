@@ -16,7 +16,7 @@ No inbound webhook or status callback URL is required for this implementation: t
 
 ## 3. Create a separate Verify Service
 
-Open Twilio's **Verify** console, create a service named **KidneyCare**, and enable SMS verification. Keep its code length at **6 digits**, matching the app's verification form. Save the **Verify Service SID** (`VA…`). The Verify service sends one-time verification codes; the `MG…` service sends encounter alerts. Verify does not require adding your alert sender to its own service.
+Open Twilio's **Verify** console, create a service named **KidneyCare**, and enable SMS verification. The default **6-digit** code length works with the app. Save the **Verify Service SID** (`VA…`). The Verify service sends one-time verification codes; the `MG…` service sends encounter alerts. Verify does not require adding your alert sender to its own service.
 
 ## 4. Generate the contact encryption key locally
 
@@ -51,7 +51,7 @@ Click **Save**, then reload the EHR preview. The deployed functions read these s
 2. Open **Encounter inbox → Phone alerts** (or say **“Open phone alerts”**).
 3. Enter your US mobile as `+1` followed by ten digits, acknowledge verification-message consent, and press **Send verification code**.
 4. Enter the six-digit code and press **Verify phone**.
-5. Set **Delivery → Text my verified phone**, enable the alert types you want, acknowledge alert consent, and press **Save preferences**.
+5. Set **Delivery → Text my verified phone**, enable the alert types you want, acknowledge alert consent, and press **Save alert preferences**.
 6. Set your time zone and quiet-hour preference. Quiet hours are 10 p.m.–7 a.m. in the selected zone when enabled.
 
 The current app supports US mobile numbers. On Twilio trial, your recipient must also be verified in Twilio; the in-app check does not remove that trial restriction.
@@ -60,14 +60,14 @@ The current app supports US mobile numbers. On Twilio trial, your recipient must
 
 Record or type synthetic encounter text, correct it, and save it as a reviewed source. Let the orchestrator prepare the draft; leave it ready for review. The minute scheduler queues eligible ready/paused encounter notifications subject to your preferences, quiet hours, the current job revision, spacing and daily/hourly limits.
 
-Check **Phone alerts → Delivery history**. **Accepted/sent** means Twilio accepted or sent it; **delivered** appears only after a carrier delivery status is reported and polled. Open the secure link, sign in, and verify that it opens the current authorized encounter. The alert contains generic status and a secure link, with no patient name, lab result or note text. Signing remains inside the EHR.
+Check **Phone alerts → Recent alerts**. **Accepted/sent** means Twilio accepted or sent it; **delivered** appears only after a carrier delivery status is reported and polled. Open the secure link, sign in, and verify that it opens the current authorized encounter. The alert contains generic status and a secure link, with no patient name, lab result or note text. Signing remains inside the EHR.
 
 **Run alert preview always displays a preview and never sends a text**, even when SMS delivery is enabled. Use a new eligible synthetic encounter job to test real alert delivery. Verification itself sends a real one-time code once the provider is configured and you submit its consent form.
 
 ## Troubleshooting
 
 - **Connection controls are missing:** reload after saving all six secrets; confirm the exact names and SID prefixes.
-- **Code does not arrive:** check the mobile format, Twilio's verified-recipient list on trial, Verify SMS settings, account balance and Twilio Verify logs. Keep code length at six digits.
+- **Code does not arrive:** check the mobile format, Twilio's verified-recipient list on trial, Verify SMS settings, account balance and Twilio Verify logs. The app accepts four- to ten-digit Verify codes.
 - **Alerts do not arrive:** confirm a sender is attached to the `MG…` service and its registration is approved; verify the phone, select SMS delivery, save consent, check quiet hours and inspect delivery history/Twilio messaging logs. A rate-limited alert waits; a stale encounter revision is not sent.
 - **History says sent:** wait for carrier status polling; sent is not proof of delivery.
 - **Stop alerts:** change Delivery to preview/off and save preferences, or reply STOP to Twilio's sender. Clearing the saved phone also returns the app to preview mode.
