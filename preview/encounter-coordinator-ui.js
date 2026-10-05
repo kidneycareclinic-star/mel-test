@@ -53,7 +53,7 @@
   }
   function syncProfile(id,result){var owner=account();if(profileOwner===owner)return profilePromise;if(profileOwner!==null)profileDirty=false;profileOwner=owner;
     if(result.profile&&!profileDirty){window.NOTE_DRAFTING?.applyPreferences?.(result.profile.preferences);profilePromise=Promise.resolve();}
-    else profilePromise=request(id,{action:'save-profile',preferences:window.NOTE_DRAFTING.preferences()});
+    else profilePromise=request(id,{action:'save-profile',preferences:window.NOTE_DRAFTING.preferences()}).catch(function(e){if(profileOwner===owner)profileOwner=null;throw e;});
     return profilePromise;
   }
   async function load(id,force){var ticket=++sequence;try{var result=await request(id);if(ticket!==sequence||active()!==id)return;await syncProfile(id,result);if(ticket!==sequence||active()!==id)return;chart(result.patient);var s=state(id),run=result.preparation;s.draft=result.draft;progress(id,result.job);
@@ -80,7 +80,7 @@
   window.addEventListener('encounter-draft-saved',function(event){var d=event.detail;if(active()===d.patientId){setTimeout(function(){prepare(d.patientId,d.saved);},0);}});
   window.addEventListener('scribe-patient-changed',function(event){clearTimeout(pollTimer);clearTimeout(editTimer);if(visibleId){var previous=state(visibleId);if(previous.dirty)autosave(visibleId).catch(function(){});}visibleId=null;sequence++;progress(event.detail.patientId,null);review.replaceChildren();panel.querySelector('.coordinator-chart').replaceChildren();finalize.disabled=true;message('Assembling the selected patient chart…');var id=event.detail.patientId;if(window.SUPABASE_DEMO_BACKEND?.anonJwt)load(id);else message('Sign in as a clinician to assemble and prepare this encounter.');});
   panel.querySelector('.coordinator-preferences').addEventListener('input',function(){profileDirty=true;clearTimeout(profileTimer);profileTimer=setTimeout(function(){var id=active();profilePromise=profilePromise.catch(function(){}).then(function(){return request(id,{action:'save-profile',preferences:window.NOTE_DRAFTING.preferences()});});profilePromise.then(function(){if(active()===id)load(id);}).catch(function(e){message(e.message,true);});},500);});
-  window.ENCOUNTER_COORDINATOR_UI={refresh:function(){return load(active());},prepare:prepare,whenProfileReady:async function(){var id=active();if(profileOwner!==account())await syncProfile(id,await request(id));if(profileDirty){clearTimeout(profileTimer);profilePromise=profilePromise.catch(function(){}).then(function(){return request(id,{action:'save-profile',preferences:window.NOTE_DRAFTING.preferences()});});}return profilePromise;},active:true};
+  window.ENCOUNTER_COORDINATOR_UI={job:function(){return state(active()).job||null;},refresh:function(){return load(active());},prepare:prepare,whenProfileReady:async function(){var id=active();if(profileOwner!==account())await syncProfile(id,await request(id));if(profileDirty){clearTimeout(profileTimer);profilePromise=profilePromise.catch(function(){}).then(function(){return request(id,{action:'save-profile',preferences:window.NOTE_DRAFTING.preferences()});});}return profilePromise;},active:true};
   document.addEventListener('visibilitychange',function(){if(!document.hidden&&active())load(active());});
   window.addEventListener('pagehide',function(){clearTimeout(pollTimer);clearTimeout(editTimer);clearTimeout(profileTimer);});
   if(active()&&window.SUPABASE_DEMO_BACKEND?.anonJwt)load(active());
