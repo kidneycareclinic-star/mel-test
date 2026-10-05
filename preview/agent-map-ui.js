@@ -58,12 +58,12 @@
     if(!s.hasPatient)return 'Select patient';
     if(id==='voice')return recordingSource?'Recording':'Capture & review';
     if(id==='chart')return s.chart?'Chart available':'Awaiting chart';
-    if(id==='evidence')return 'Astra · guidelines planned';
+    if(id==='evidence')return coordinator.querySelector('[data-evidence]')?'KDIGO references available':'Awaiting preparation';
     if(id==='note')return s.signed?'Signed':s.note?'Draft available':'Awaiting reviewed source';
-    if(id==='orders')return 'Simulated · writer planned';
+    if(id==='orders')return s.signed?'Review saved · simulated':s.note?coordinator.querySelectorAll('[data-action]').length+' source drafts · simulated':'Awaiting reviewed source';
     if(id==='verification')return s.signed?'Receipt saved':s.ready?'Review available':'Approval held';
     if(id==='followup')return 'Tracker · phone alerts planned';
-    return s.error?'Needs attention':s.signed?'Finalized':s.ready?'Ready for review':s.note?'Review edits pending':'Awaiting reviewed source';
+    return s.error?'Needs attention':s.signed?'Finalized':s.ready?'Ready for review':s.note?'Review required':'Awaiting reviewed source';
   }
   function focusControl(selector){var element=coordinator.querySelector(selector);if(!element)return;element.scrollIntoView?.({block:'center',behavior:'auto'});element.focus();}
   function action(label,fn){var button=document.createElement('button');button.type='button';button.className='small-btn';button.textContent=label;button.addEventListener('click',fn);actions.appendChild(button);}
@@ -79,15 +79,17 @@
       voice:'Record or dictate, correct the transcript, then save reviewed text. The note and approval packet remain below. Selecting this dot does not start the microphone.',
       orchestrator:'Coordinates preparation from saved, reviewed sources. Follow the actual status below; resolve exceptions and finalize the current encounter packet when ready.',
       chart:'Inspect dated laboratory values, problem list, medications and allergies assembled for this patient. Source detail remains available below the encounter.',
-      evidence:'Astra clinical analysis is available here. A dedicated nephrology guideline agent and its versioned evidence corpus are planned.',
+      evidence:'Inspect the versioned KDIGO monitoring and risk references below, then assess relevance to this patient. References remain separate from the documented plan. Astra analysis is also available here.',
       note:'Choose your template and detail, then edit the prepared note below. Your existing physician edits remain protected when preparation changes.',
-      orders:'Review patient instructions and the simulated visit package in the encounter packet. Automatic order drafting and external order release are planned; existing legacy actions stay excluded.',
+      orders:'Review source-linked action drafts and synchronized patient instructions below. Clarify flagged intent or missing medication fields, or exclude a draft. Finalization saves the selected simulated items into follow-up tracking.',
       verification:'Review the entire note, source evidence, proposed values and exclusions below. The existing authenticated, version-checked finalization control signs the exact reviewed packet.',
       followup:'Inspect this patient’s open loops and the assigned-patient follow-up queue. Clinical orders remain simulated. Secure phone alerts and mobile approvals are planned.'
     };description.textContent=text[id];
     if(id==='chart')chart.querySelector('details')?.setAttribute('open','');
     if(id==='voice'){action('Reviewed transcript',function(){focusControl('#ambientReviewedInput');});action('Physician dictation',function(){document.getElementById('dictationModeBtn')?.click();focusControl('#physicianDictationInput');});}
     if(id==='note'){action('Template & detail',function(){var prefs=coordinator.querySelector('.coordinator-preferences');prefs.open=true;prefs.querySelector('select')?.focus();});action('Edit note',function(){focusControl('[data-note]');});}
+    if(id==='evidence')action('KDIGO reference review',function(){var detail=coordinator.querySelector('[data-evidence] details');if(detail){detail.open=true;detail.scrollIntoView?.({block:'center'});}});
+    if(id==='orders')action('Draft actions',function(){focusControl('[data-action] select');});
     if(id==='orders')action('Patient instructions',function(){focusControl('[data-instructions]');});
     if(id==='verification')action('Review packet',function(){focusControl('[data-note]');});
     if(id==='evidence'&&clinicalPane){content.appendChild(clinicalPane);clinicalPane.classList.add('agent-map-inline-clinical');}

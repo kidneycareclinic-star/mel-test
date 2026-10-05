@@ -1,4 +1,4 @@
-// Actual v9A SQL, transactions, reducer and auth on the disposable CI database.
+// Actual coordinator SQL, transactions, reducer and auth on the disposable CI database.
 import assert from 'node:assert/strict';import fs from 'node:fs';import vm from 'node:vm';import {stripTypeScriptTypes} from 'node:module';import {webcrypto} from 'node:crypto';
 export async function testCoordinator(sql,principal,target){
   await sql.unsafe(`
@@ -22,18 +22,18 @@ export async function testCoordinator(sql,principal,target){
   await sql.unsafe(fs.readFileSync('supabase/sql/encounter-coordinator-v9.sql','utf8'));
   await sql`update iam.practice_membership set permissions=${sql.json({'patient.read':true,'encounter.draft':true,'encounter.sign':true,'scribe.review':true,'agent.review':true,'tool.prepare':true})}`;
   let handler,authId=principal,providerCalls=0,providerMode='ok',race=null;
-  const parts=['drafting.ts','json-boundary.ts','observations.ts','coordinator.ts','clinician-auth.ts','index.ts'];
+  const parts=['drafting.ts','clinical-actions.ts','json-boundary.ts','observations.ts','coordinator.ts','clinician-auth.ts','index.ts'];
   const code=parts.map(p=>fs.readFileSync('supabase/functions/encounter-coordinator/'+p,'utf8').replace(/^import .*$/gm,'').replace(/^export /gm,'')).join('\n');
-  vm.runInNewContext(stripTypeScriptTypes(code),{postgres:()=>sql,crypto:webcrypto,TextEncoder,TextDecoder,Uint8Array,Headers,Request,Response,URL,Date,Number,JSON,Map,Set,AbortSignal,console,Deno:{env:{get:n=>n==='OPENAI_API_KEY'?'ci-only-key':target.href},serve:fn=>handler=fn},fetch:async(url,options)=>{
+  vm.runInNewContext(stripTypeScriptTypes(code),{postgres:()=>sql,crypto:webcrypto,TextEncoder,TextDecoder,Uint8Array,Headers,Request,Response,URL,Date,Number,JSON,Map,Set,AbortSignal,structuredClone,console,Deno:{env:{get:n=>n==='OPENAI_API_KEY'?'ci-only-key':target.href},serve:fn=>handler=fn},fetch:async(url,options)=>{
     if(url.endsWith('/auth/v1/user'))return new Response(JSON.stringify({id:authId,is_anonymous:false}));
     providerCalls++;assert.equal(url,'https://api.openai.com/v1/responses');assert.doesNotMatch(options.body,/Forbidden raw/);const input=JSON.parse(JSON.parse(options.body).input);assert.equal(input.evidence.mode,'prechart');assert.equal(JSON.parse(options.body).store,false);if(race)await race();if(providerMode==='fail')return new Response('{}',{status:502});
-    const value={sections:input.preferences.headings.map((heading,i)=>({heading,body:i?'Not documented.':'No swelling.',sourceQuotes:i?[]:['No swelling.']})),reviewFlags:['Examination not documented.']};
+    const value={sections:input.preferences.headings.map((heading,i)=>({heading,body:i?'Not documented.':'No swelling.',sourceQuotes:i?[]:['No swelling.']})),reviewFlags:['Examination not documented.'],actions:[{kind:'lab',label:'BMP',details:'Repeat BMP.',timing:'in 3 months',sourceId:'reviewed-0',sourceQuote:'Physician: repeat BMP in 3 months.',intent:'physician-plan',missingInformation:[],patientText:'Get your repeat BMP in 3 months.',medication:null},{kind:'follow-up',label:'Nephrology follow-up',details:'Return for follow-up.',timing:'in 3 months',sourceId:'reviewed-0',sourceQuote:'Physician: return in 3 months.',intent:'physician-plan',missingInformation:[],patientText:'Return for follow-up in 3 months.',medication:null}]};
     return new Response(JSON.stringify({status:'completed',model:'ci-provider-mock',output:[{type:'message',content:[{type:'output_text',text:JSON.stringify(value)}]}]}));
   }});
   async function post(body){const r=await handler(new Request('https://example.test/coordinator',{method:'POST',headers:{authorization:'Bearer synthetic-ci-only','content-type':'application/json'},body:JSON.stringify(body)}));return {status:r.status,body:await r.json()};}
   async function get(patientId='PT-002'){const r=await handler(new Request('https://example.test/coordinator?patient_id='+patientId,{headers:{authorization:'Bearer synthetic-ci-only'}}));return {status:r.status,body:await r.json()};}
   const [{id:patientId}]=await sql`select id from ehr.patient where external_id='PT-002'`;
-  const sourceText='No swelling. Do not increase to two tablets. Potassium 4.9 mmol/L.';
+  const sourceText='No swelling. Do not increase to two tablets. Potassium 4.9 mmol/L. Physician: repeat BMP in 3 months. Physician: return in 3 months.';
   async function draft(){return (await sql.unsafe("insert into ehr.synthetic_encounter(patient_id,clinician_principal_id,note_text,sources,base_state_version) values($1::uuid,$2::uuid,$3,$4::text::jsonb,3) returning id,version",[patientId,principal,sourceText,JSON.stringify([{kind:'ambient-transcript',title:'Reviewed source',text:sourceText,rawText:'Forbidden raw'}])]))[0];}
   let encounter=await draft();const preferences={template:'soap',detail:'standard',headings:[],instructions:''};
   const prep=()=>post({action:'prepare',patientId:'PT-002',encounterId:encounter.id,expectedVersion:encounter.version,preferences});
@@ -41,7 +41,10 @@ export async function testCoordinator(sql,principal,target){
   let r=await prep();assert.equal(r.status,200,JSON.stringify(r));let run=r.body.preparation;assert.equal(run.status,'ready');assert.equal((await get()).body.preparation.current,true);assert.equal(Number((await sql`select count(*) as n from ehr.patient_state where patient_id=${patientId}`)[0].n),countBefore,'preparation never changes clinical state');
   let called=providerCalls;assert.equal((await prep()).body.preparation.id,run.id);assert.equal(providerCalls,called,'same source/profile preparation is idempotent');
   const original=run.packet.noteText;
-  let body={patientId:'PT-002',preparationId:run.id,packetHash:run.packet_hash,reviewVersion:0,noteText:original+'\nPhysician retained edit',patientInstructions:'Discuss the documented plan with your clinical team.',observations:[],reviews:[],tools:[]};
+  let body={patientId:'PT-002',preparationId:run.id,packetHash:run.packet_hash,reviewVersion:0,noteText:original+'\nPhysician retained edit',patientInstructions:'Discuss the documented plan with your clinical team.',observations:[],reviews:[],tools:[],actions:run.packet.actions.map((a,i)=>({actionId:a.id,decision:i?'rejected':'accepted'})),instructionsReviewed:true};
+  assert.equal((await post({...body,action:'finalize',actions:[],idempotencyKey:webcrypto.randomUUID()})).body.error,'action_decisions_incomplete');
+  assert.equal((await post({...body,action:'finalize',actions:run.packet.actions.map(a=>({actionId:a.id,decision:'pending'})),idempotencyKey:webcrypto.randomUUID()})).body.error,'action_review_required');
+  assert.equal((await post({...body,action:'finalize',instructionsReviewed:false,idempotencyKey:webcrypto.randomUUID()})).body.error,'patient_instructions_review_required');
   r=await post({...body,action:'save-review'});assert.equal(r.status,200,JSON.stringify(r));body.reviewVersion=r.body.reviewVersion;
   assert.equal((await get()).body.preparation.edit.reviewed_snapshot.noteText,body.noteText,'physician edits survive reload');assert.equal((await post({...body,reviewVersion:0,action:'save-review'})).body.error,'review_edits_changed');
   const key=webcrypto.randomUUID(),final={...body,action:'finalize',idempotencyKey:key};
@@ -49,7 +52,11 @@ export async function testCoordinator(sql,principal,target){
   await sql`update iam.patient_assignment set active=false where principal_id=${principal} and patient_id=${patientId}`;assert.equal((await post(final)).status,403);await sql`update iam.patient_assignment set active=true where principal_id=${principal} and patient_id=${patientId}`;
   const beforeState=Number((await sql`select max(state_version) as v from ehr.patient_state where patient_id=${patientId}`)[0].v);
   r=await post(final);assert.equal(r.status,200,JSON.stringify(r));assert.equal(r.body.status,'finalized');const receipt=r.body.receiptId;
-  const [approved]=await sql`select * from ehr.encounter_completion where id=${r.body.completionId}`;assert.equal(approved.status,'approved');assert.equal(approved.note_text,body.noteText);assert.equal(Number(approved.source_state_version),beforeState+1,'clean visit gets a frozen signed state without a fabricated observation');
+  const [approved]=await sql`select * from ehr.encounter_completion where id=${r.body.completionId}`;assert.equal(approved.status,'approved');assert.equal(approved.note_text,body.noteText);
+  const tracked=await sql`select kind,status,label from ehr.encounter_completion_item where completion_id=${approved.id} order by kind`;assert.deepEqual(tracked.map(a=>[a.kind,a.status]),[['follow-up','rejected'],['lab','approved']]);
+  assert.equal((await get()).body.receipt.reviewed_snapshot.actions.length,2,'signed actions survive reload');
+  const history=await sql`select after_snapshot from ehr.encounter_completion_history where completion_id=${approved.id} order by version`;assert(history[0].after_snapshot.items.every(i=>i.status==='pending'));assert(history[1].after_snapshot.items.every(i=>i.status!=='pending'));
+  assert.equal(Number(approved.source_state_version),beforeState+1,'clean visit gets a frozen signed state without a fabricated observation');
   const [audit]=await sql`select * from ehr.patient_state_audit where encounter_id=${encounter.id}`;assert.equal(Number(audit.previous_version),beforeState);assert.equal(Number(audit.resulting_version),beforeState+1);
   assert.equal((await post(final)).body.receiptId,receipt);assert.equal((await post({...final,noteText:'different'})).body.error,'approval_replay_mismatch');
   await assert.rejects(sql.unsafe("update ehr.encounter_approval_receipt set packet_hash='tamper' where id=$1::uuid",[receipt]),/approval_receipt_is_immutable/);
@@ -58,7 +65,7 @@ export async function testCoordinator(sql,principal,target){
   encounter=await draft();const [{id:po}]=await sql.unsafe("insert into ehr.proposed_observation(patient_id,encounter_id,field,display_label,observation_type,value_numeric,unit,source_text,status,client_record_id,confidence,certainty) values($1::uuid,$2::uuid,'Potassium','Potassium','Potassium',4.9,'mmol/L','Potassium 4.9 mmol/L.','pending',$3,'pattern-match-demo','proposed') returning id",[patientId,encounter.id,'v9-ci-potassium']);
   r=await prep();assert.equal(r.status,200,JSON.stringify(r));run=r.body.preparation;
   const edits=[{proposalId:po,decision:'edited',editedValue:4.8}];
-  body={patientId:'PT-002',action:'finalize',preparationId:run.id,packetHash:run.packet_hash,reviewVersion:0,idempotencyKey:webcrypto.randomUUID(),noteText:run.packet.noteText,patientInstructions:'No new instructions documented.',observations:edits,reviews:[],tools:[]};
+  body={patientId:'PT-002',action:'finalize',preparationId:run.id,packetHash:run.packet_hash,reviewVersion:0,idempotencyKey:webcrypto.randomUUID(),noteText:run.packet.noteText,patientInstructions:'No new instructions documented.',observations:edits,reviews:[],tools:[],actions:run.packet.actions.map(a=>({actionId:a.id,decision:'accepted'})),instructionsReviewed:true};
   assert.equal((await post({...body,observations:[]})).body.error,'packet_decisions_incomplete');
   // Force a late completion insert failure; all clinical writes must roll back.
   await sql.unsafe("create function ehr.ci_block_completion() returns trigger language plpgsql as $$begin raise exception 'ci late failure'; end$$; create trigger ci_block_completion before insert on ehr.encounter_completion for each row execute function ehr.ci_block_completion();");
@@ -79,5 +86,5 @@ export async function testCoordinator(sql,principal,target){
   assert.equal((await post({...body,preparationId:expired.id,packetHash:run.packet_hash,observations:[],idempotencyKey:webcrypto.randomUUID()})).body.error,'review_packet_changed_or_expired');
   assert.equal((await post({...body,patientId:'PT-003',observations:[],idempotencyKey:webcrypto.randomUUID()})).status,409);
   const [{canRead}]=await sql`select has_table_privilege('authenticated','ehr.encounter_preparation','select') as "canRead"`;assert.equal(canRead,false);
-  console.log('v9A real driver: authenticated assignment, read-only/idempotent preparation, exact source binding, durable edits, one-transaction signed completion, actual reducer/audit, clean visits, numeric edits, wrong patient/owner, revocation before/after provider, late rollback, replay mismatch, stale output, failure and expiry passed (provider mocked).');
+  console.log('v10B real driver: source-linked actions, pending/instruction gates, included/excluded completion items, before/after history, signed-action reload, authenticated assignment, read-only/idempotent preparation, exact source binding, durable edits, one-transaction signed completion, actual reducer/audit, clean visits, numeric edits, wrong patient/owner, revocation before/after provider, late rollback, replay mismatch, stale output, failure and expiry passed (provider mocked).');
 }
