@@ -63,6 +63,7 @@ async function withJob(sql:any,claimed:any,callback:any){
     const {person,externalId}=await workerAccess(tx,claimed);
     const [job]=await tx.unsafe('select * from ehr.encounter_job where id=$1::uuid for update',[claimed.id]);
     if(job.status!=='running'||job.lease_token!==claimed.lease_token||job.stage!==claimed.stage||Date.parse(job.lease_until)<=Date.now())coordinatorFail('worker_lease_lost');
+    if(Date.parse(job.expires_at)<=Date.now())coordinatorFail('job_expired');
     const [encounter]=await tx.unsafe("select version from ehr.synthetic_encounter where id=$1::uuid and patient_id=$2::uuid and clinician_principal_id=$3::uuid and status='draft' for update",[job.encounter_id,job.patient_id,person.id]);
     if(!encounter||encounter.version!==job.source_version)coordinatorFail('preparation_source_changed');
     let run=null;

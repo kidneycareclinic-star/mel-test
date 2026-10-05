@@ -47,6 +47,10 @@ export async function testDurableQueue({sql,parallelSql,principal,patientId,work
     const [permissions]=await sql.unsafe("select has_table_privilege('authenticated',$1,'select') as readable,has_table_privilege('anon',$1,'insert') as writable",['ehr.'+table]);assert.equal(permissions.readable,false);assert.equal(permissions.writable,false);
   }
   assert.equal((await sql`select has_function_privilege('authenticated','ehr.enqueue_encounter(uuid,boolean)','execute') as yes`)[0].yes,false);
+  // A valid lease cannot extend the job's absolute preparation deadline.
+  e=await draft();const [expiredBase]=await sql`select * from ehr.encounter_job where encounter_id=${e.id}`;await sql`update ehr.encounter_job set status='superseded' where id=${expiredBase.id}`;
+  const [expiredJob]=await sql.unsafe("insert into ehr.encounter_job(patient_id,encounter_id,clinician_principal_id,source_version,profile_version,preferences,status,stage,attempts,stage_attempts,lease_token,lease_until,expires_at) select patient_id,encounter_id,clinician_principal_id,source_version,profile_version,preferences,'running','chart',1,1,gen_random_uuid(),now()+interval '120 seconds',now()-interval '1 second' from ehr.encounter_job where id=$1::uuid returning *",[expiredBase.id]);
+  const expiryCalls=getCalls();await workerFns.processJob(sql,expiredJob,'ci-key');assert.equal(getCalls(),expiryCalls);assert.equal((await sql`select error_code from ehr.encounter_job where id=${expiredJob.id}`)[0].error_code,'job_expired');assert.equal((await sql`select count(*)::int as n from ehr.encounter_preparation where encounter_id=${e.id}`)[0].n,0);
   // Two independent connections race for one job: only one lease is awarded.
   e=await draft();[job]=await sql`select * from ehr.encounter_job where encounter_id=${e.id}`;
   const one=await dispatch(job.id),two=await dispatch(job.id),claims=await Promise.all([workerFns.claimDispatch(parallelSql,one.id,one.token),workerFns.claimDispatch(parallelSql,two.id,two.token)]);
