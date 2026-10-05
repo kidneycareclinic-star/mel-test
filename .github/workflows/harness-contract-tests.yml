@@ -17,6 +17,7 @@ on:
       - background-orchestrator-v11
       - encounter-attention-v12
       - phone-alerts-v13
+      - orchestrator-voice-v14
   pull_request:
     branches:
       - main
@@ -26,7 +27,7 @@ permissions:
 
 jobs:
   contracts:
-    runs-on: ${{ (github.ref_name == 'encounter-attention-v12' || github.ref_name == 'phone-alerts-v13') && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
+    runs-on: ${{ (github.ref_name == 'encounter-attention-v12' || github.ref_name == 'phone-alerts-v13' || github.ref_name == 'orchestrator-voice-v14') && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -53,6 +54,8 @@ jobs:
           node --check encounter-actions-ui.js
           node --check encounter-inbox-ui.js
           node --check phone-alerts-ui.js
+          node --check orchestrator-commands.js
+          node --check orchestrator-voice-ui.js
       - name: Harness contracts
         run: node scripts/harness-contract-tests.mjs
       - name: Scribe review safety
@@ -82,11 +85,13 @@ jobs:
         run: node scripts/encounter-worker-tests.mjs
       - name: Phone alert provider and worker boundary
         run: node scripts/phone-alerts-tests.mjs
+      - name: Bounded orchestrator commands and exact plan proposals
+        run: node scripts/orchestrator-commands-tests.mjs
       - name: SOAP and transcript fidelity safety
         run: node scripts/soap-scribe-tests.mjs
 
   jsonb-driver:
-    runs-on: ${{ (github.ref_name == 'encounter-attention-v12' || github.ref_name == 'phone-alerts-v13') && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
+    runs-on: ${{ (github.ref_name == 'encounter-attention-v12' || github.ref_name == 'phone-alerts-v13' || github.ref_name == 'orchestrator-voice-v14') && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
     services:
       postgres:
         image: postgres:17
@@ -139,11 +144,14 @@ jobs:
       - name: Phone notification preferences DOM
         run: DOM_TEST_MODULE="$RUNNER_TEMP/jsonb-driver/node_modules/jsdom/lib/api.js" node scripts/phone-alerts-ui-tests.mjs
 
+      - name: Voice command capture and encounter isolation DOM
+        run: DOM_TEST_MODULE="$RUNNER_TEMP/jsonb-driver/node_modules/jsdom/lib/api.js" node scripts/orchestrator-voice-ui-tests.mjs
+
       - name: Hierarchical agent-dot navigation DOM
         run: DOM_TEST_MODULE="$RUNNER_TEMP/jsonb-driver/node_modules/jsdom/lib/api.js" node scripts/agent-map-ui-tests.mjs
 
   agent-map-browser:
-    runs-on: ${{ (github.ref_name == 'encounter-attention-v12' || github.ref_name == 'phone-alerts-v13') && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
+    runs-on: ${{ (github.ref_name == 'encounter-attention-v12' || github.ref_name == 'phone-alerts-v13' || github.ref_name == 'orchestrator-voice-v14') && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

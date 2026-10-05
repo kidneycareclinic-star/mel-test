@@ -34,5 +34,6 @@
     sync(review);
   }
   function signed(review,actions,clinicalEvidence){evidence(review,clinicalEvidence);if(!actions?.length)return;node(review,'h4','Reviewed actions · simulated tracking');actions.forEach(function(a){var row=node(review,'article','');node(row,'strong',(['accepted','edited'].includes(a.decision)?'Included':'Excluded')+' · '+a.label+(a.timing?' · '+a.timing:''));if(a.details)node(row,'p',a.details);if(a.sourceQuote)node(row,'blockquote',a.sourceQuote);});}
-  window.ENCOUNTER_ACTIONS={render:render,read:read,gate:gate,changed:changed,signed:signed};
+  function invalidateForNoteEdit(review){review.querySelectorAll('[data-action]').forEach(function(row){row.querySelector('select').value='pending';row.querySelector('[data-clarified]').checked=false;updateFields(row);});var confirm=review.querySelector('[data-instructions-reviewed]');if(confirm)confirm.checked=false;sync(review);}
+  window.ENCOUNTER_ACTIONS={render:render,read:read,gate:gate,changed:changed,signed:signed,invalidateForNoteEdit:invalidateForNoteEdit};
 })();
