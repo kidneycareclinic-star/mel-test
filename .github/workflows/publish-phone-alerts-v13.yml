@@ -1,0 +1,40 @@
+name: Publish tested phone alerts v13
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/publish-phone-alerts-v13.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: publish-phone-alerts-v13
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Verify the exact tested preview
+        run: git diff --exit-code a5f080356e7e92bd019fc5b09e34045ae924a3c4 HEAD -- preview/
+      - name: Package only the tested preview
+        run: |
+          mkdir -p "$RUNNER_TEMP/phone-alerts-v13-site/preview"
+          cp -R preview/. "$RUNNER_TEMP/phone-alerts-v13-site/preview/"
+          cat > "$RUNNER_TEMP/phone-alerts-v13-site/index.html" <<'HTML'
+          <!doctype html><html lang="en"><head><meta charset="utf-8"><meta http-equiv="refresh" content="0;url=./preview/"><title>KidneyCare</title></head><body><a href="./preview/">Open KidneyCare</a></body></html>
+          HTML
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: ${{ runner.temp }}/phone-alerts-v13-site
+      - name: Publish static preview
+        id: deployment
+        uses: actions/deploy-pages@v4
