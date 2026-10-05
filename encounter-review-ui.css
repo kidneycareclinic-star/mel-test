@@ -1,0 +1,8 @@
+.encounter-review-checklist{margin:14px 0;padding:14px;border:1px solid var(--border);border-radius:14px;background:var(--panel)}
+.encounter-review-checklist>summary{min-height:44px;cursor:pointer;display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;align-items:center;font-weight:650}
+.encounter-review-checklist [data-review-count]{font-size:12px;font-weight:400;color:var(--muted)}
+.encounter-review-checklist p{line-height:1.5}.encounter-review-checklist ol{padding-left:24px}.encounter-review-checklist li{padding:10px 8px;border-bottom:1px solid var(--border);line-height:1.5;overflow-wrap:anywhere}
+.encounter-review-checklist li strong,.encounter-review-checklist li span{display:block}.encounter-review-checklist li span{color:var(--muted);margin-top:3px}.encounter-review-checklist [data-state=attention] strong{color:var(--warn)}
+.encounter-review-checklist button{min-height:44px;white-space:normal;max-width:100%}.encounter-review-checklist [hidden]{display:none!important}
+
+:root[data-theme="light"] .encounter-review-checklist [data-state=attention] strong{color:#8a4d00}

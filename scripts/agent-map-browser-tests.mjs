@@ -12,7 +12,7 @@ const server=http.createServer((req,res)=>{
  if(url.pathname==='/'){res.setHeader('Content-Type','text/html');res.end(html);return;}
  const file=path.resolve(root,'.'+url.pathname);
  if(!file.startsWith(root+path.sep)||!fs.existsSync(file)||!fs.statSync(file).isFile()){res.statusCode=404;res.end();return;}
- res.setHeader('Content-Type',file.endsWith('.css')?'text/css':file.endsWith('.js')?'text/javascript':'application/octet-stream');res.end(fs.readFileSync(file));
+ res.setHeader('Content-Type',file.endsWith('.html')?'text/html':file.endsWith('.css')?'text/css':file.endsWith('.js')?'text/javascript':'application/octet-stream');res.end(fs.readFileSync(file));
 });await new Promise(r=>server.listen(0,'127.0.0.1',r));
 const browser=await chromium.launch({headless:true});const page=await browser.newPage({viewport:{width:1440,height:1100}});
 const errors=[];page.on('pageerror',error=>errors.push(error.message));
@@ -43,6 +43,7 @@ try {
  await page.addScriptTag({path:path.join(root,'encounter-actions-ui.js')});
  await page.addScriptTag({path:path.join(root,'encounter-coordinator-ui.js')});
  await page.addScriptTag({path:path.join(root,'agent-map-ui.js')});
+ await page.addScriptTag({path:path.join(root,'encounter-review-ui.js')});
  await page.addScriptTag({path:path.join(root,'orchestrator-commands.js')});
  await page.addScriptTag({path:path.join(root,'orchestrator-voice-ui.js')});
  await page.locator('[data-note]').waitFor();
@@ -88,6 +89,14 @@ try {
  await page.evaluate(()=>{document.querySelector('#orchestratorVoice [data-command]').value='Open the proposed orders.';document.querySelector('#orchestratorVoice [data-command-form]').dispatchEvent(new Event('submit',{cancelable:true}));});
  assert.equal(await page.evaluate(()=>window.ENCOUNTER_AGENT_MAP.selected()),'orders');
  assert.equal(await page.evaluate(()=>window.testRequests.some(r=>r.method==='POST')),false);
+ await page.evaluate(()=>window.ENCOUNTER_REVIEW_UI.open());
+ assert.equal(await page.locator('#encounterReviewChecklist [data-review-count]').textContent(),'2 review items remaining');
+ for(const theme of ['dark','light'])for(const width of [1440,390,320]){
+  await page.setViewportSize({width,height:1000});await page.evaluate(value=>{document.documentElement.dataset.theme=value;},theme);
+  const metrics=await page.locator('#encounterReviewChecklist').evaluate(n=>({width:n.clientWidth,scroll:n.scrollWidth,button:n.querySelector('button').getBoundingClientRect().height}));assert(metrics.scroll<=metrics.width+1);assert(metrics.button>=44);
+  await page.locator('#encounterReviewChecklist').screenshot({path:path.join(output,theme+'-'+width+'-review-checklist.png')});
+ }
+ await page.locator('#encounterReviewChecklist [data-review-next]').click();assert.equal(await page.locator('[data-action] select').evaluate(n=>n===document.activeElement),true);
  // Render the actual authenticated inbox, mobile routing and scoped coordinator together.
  await page.evaluate(()=>{
   const prior=window.fetch;window.CLINICIAN_AUTH={userId:()=> 'browser-physician'};window.PATIENTS=[window.currentPatient];window.BACKEND_PATIENT_READY=Promise.resolve();
@@ -113,6 +122,7 @@ try {
  assert.equal(await page.locator('[data-mode] option[value=sms]').evaluate(n=>n.disabled),true,'SMS option is natively disabled without a configured verified phone');
  for(const theme of ['dark','light']){
   await page.setViewportSize({width:1440,height:1100});await page.evaluate(v=>{document.documentElement.dataset.theme=v;},theme);
+  await page.locator('.phone-connection').screenshot({path:path.join(output,theme+'-phone-connection.png')});
   await page.locator('[data-preferences]').screenshot({path:path.join(output,theme+'-phone-alert-preferences.png')});
   await page.locator('.phone-preview').screenshot({path:path.join(output,theme+'-phone-alert-message.png')});
  }
@@ -120,6 +130,7 @@ try {
   await page.setViewportSize({width,height:1000});await page.evaluate(()=>{document.documentElement.dataset.theme='light';});
   const metrics=await page.evaluate(()=>{const n=document.getElementById('encounterInboxDialog');return {page:document.documentElement.scrollWidth,viewport:innerWidth,dialog:n.scrollWidth,width:n.clientWidth,targets:[...document.querySelectorAll('#encounterPhoneAlerts button,#encounterPhoneAlerts select,#encounterPhoneAlerts input:not([type=checkbox]),#encounterPhoneAlerts .phone-check')].map(b=>b.getBoundingClientRect().height).filter(h=>h>0)};});
   assert(metrics.page<=metrics.viewport+1,JSON.stringify(metrics));assert(metrics.dialog<=metrics.width+1,JSON.stringify(metrics));assert(metrics.targets.every(h=>h>=44),JSON.stringify(metrics));
+  await page.locator('.phone-connection').screenshot({path:path.join(output,'light-'+width+'-phone-connection.png')});
   await page.locator('[data-preferences]').screenshot({path:path.join(output,'light-'+width+'-phone-alert-preferences.png')});
   await page.locator('.phone-preview').screenshot({path:path.join(output,'light-'+width+'-phone-alert-message.png')});
  }
@@ -128,6 +139,8 @@ try {
  assert.equal(await page.locator('#mainLayout').evaluate(n=>n.classList.contains('mobile-pane-patient')),true);assert.match(await page.locator('#encounterInboxNotice').textContent(),/original preparation changed/);
  assert.equal(await page.locator('.coordinator-finalize').isDisabled(),true,'inbox navigation cannot approve action drafts');
  assert.equal(await page.locator('[data-note]').count(),1);
+ const guide=await browser.newPage();await guide.goto('http://127.0.0.1:'+server.address().port+'/phone-alert-setup.html',{waitUntil:'networkidle'});assert.equal(await guide.locator('table tbody tr').count(),6);assert.equal(await guide.locator('input,textarea,script').count(),0,'setup instructions never collect credentials');
+ for(const theme of ['dark','light'])for(const width of [1440,390,320]){await guide.emulateMedia({colorScheme:theme});await guide.setViewportSize({width,height:1000});const metrics=await guide.evaluate(()=>({scroll:document.documentElement.scrollWidth,width:innerWidth}));assert(metrics.scroll<=metrics.width+1,JSON.stringify(metrics));await guide.screenshot({path:path.join(output,theme+'-'+width+'-phone-setup-guide.png'),fullPage:true});}await guide.close();
  assert.deepEqual(errors,[]);
  console.log('Browser checks passed: real UI modules, dark/light rendering, labeled dot targets, one note editor, 760/390/320px overflow and hit-target separation. Synthetic backend only.');
 } catch(error) {
