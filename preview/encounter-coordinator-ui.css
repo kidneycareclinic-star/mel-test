@@ -18,3 +18,10 @@
 .coordinator-actions {display:flex;flex-wrap:wrap;gap:8px;margin:14px 0}
 .coordinator-finalize {border-color:var(--accent);font-weight:700}
 @media (max-width:650px){.coordinator-capture .prechart-inline-actions {flex-wrap:wrap}.coordinator-review textarea {font-size:16px}.encounter-coordinator table {font-size:11px}}
+
+.coordinator-action-drafts {min-width:0}
+.coordinator-action-drafts blockquote {margin:10px 0;padding:10px;border-left:3px solid var(--accent);font-size:13px;overflow-wrap:anywhere}
+.coordinator-action-drafts input:not([type=checkbox]) {display:block;width:100%;box-sizing:border-box;margin:6px 0}
+.coordinator-review input[type=checkbox] {width:18px;height:18px;vertical-align:middle}
+.coordinator-review [data-instructions-reviewed] + button {margin-left:8px}
+.coordinator-review [data-evidence] a {color:var(--accent);overflow-wrap:anywhere}
