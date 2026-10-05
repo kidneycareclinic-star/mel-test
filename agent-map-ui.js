@@ -84,7 +84,7 @@
       note:'Choose your template and detail, then edit the prepared note below. Your existing physician edits remain protected when preparation changes.',
       orders:'Review source-linked action drafts and synchronized patient instructions below. Clarify flagged intent or missing medication fields, or exclude a draft. Finalization saves the selected simulated items into follow-up tracking.',
       verification:'Review the entire note, source evidence, proposed values and exclusions below. The existing authenticated, version-checked finalization control signs the exact reviewed packet.',
-      followup:'Inspect this patient’s open loops and the assigned-patient follow-up queue. Clinical orders remain simulated. Secure phone alerts and mobile approvals are planned.'
+      followup:'Inspect this patient’s open loops and the assigned-patient follow-up queue. Clinical orders remain simulated. The encounter inbox opens current work for review. Phone delivery is planned.'
     };description.textContent=text[id];
     if(id==='chart')chart.querySelector('details')?.setAttribute('open','');
     if(id==='voice'){action('Reviewed transcript',function(){focusControl('#ambientReviewedInput');});action('Physician dictation',function(){document.getElementById('dictationModeBtn')?.click();focusControl('#physicianDictationInput');});}
@@ -94,7 +94,7 @@
     if(id==='orders')action('Patient instructions',function(){focusControl('[data-instructions]');});
     if(id==='verification')action('Review packet',function(){focusControl('[data-note]');});
     if(id==='evidence'&&clinicalPane){content.appendChild(clinicalPane);clinicalPane.classList.add('agent-map-inline-clinical');}
-    if(id==='followup'){if(loops)content.appendChild(loops);action('Assigned-patient queue',function(){window.FOLLOW_UP_QUEUE_UI?.open();});}
+    if(id==='followup'){if(loops)content.appendChild(loops);action('Encounter inbox',function(){window.ENCOUNTER_INBOX_UI?.open();});action('Assigned-patient queue',function(){window.FOLLOW_UP_QUEUE_UI?.open();});}
     refresh();
   }
   function refresh(){

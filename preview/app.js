@@ -559,6 +559,15 @@ function renderPatient(patient, resetChat = true) {
   $("#agentStatus").textContent = "ready";
 }
 
+window.openEncounterPatient = function (patient) {
+  currentSetting = 'office';
+  expandedPatientId = null;
+  $('#search').value = '';
+  currentPatient = patient;
+  renderWorkspace();
+  $('#chat').innerHTML = '';
+};
+
 function selectPatient(patient) {
   renderPatient(patient, true);
   renderCensus($("#search").value);
@@ -779,3 +788,4 @@ function initializeHarness() {
 Promise.resolve(window.BACKEND_PATIENT_READY)
   .catch(function () { return null; })
   .then(initializeHarness);
+

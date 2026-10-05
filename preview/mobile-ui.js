@@ -49,6 +49,8 @@
     }, 0);
   });
 
+  window.MOBILE_PANE_UI = { show: showPane };
+
   var saved = null;
   try {
     saved = sessionStorage.getItem("nephrology-mobile-pane");
