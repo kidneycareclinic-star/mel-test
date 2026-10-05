@@ -3,9 +3,9 @@
   'use strict';
   function parse(input) {
     if (typeof input !== 'string' || !input.trim() || input.length > 4000) return {kind:'unknown'};
-    var raw=input.trim(), command=raw.replace(/^(?:please|orchestrator)[,:]?\s+/i,'').replace(/[.!?]+$/,'').trim();
-    var add=command.match(/^(?:add to (?:the )?plan|revise (?:the )?plan to add)\s*[:,]\s*([\s\S]+)$/i);
-    if (add) return {kind:'edit',operation:'add',text:raw.slice(raw.indexOf(add[1])).trim()};
+    var raw=input.trim().replace(/^(?:please|orchestrator)[,:]?\s+/i,''), command=raw.replace(/[.!?]+$/,'').trim();
+    var add=raw.match(/^(?:add to (?:the )?plan|revise (?:the )?plan to add)\s*[:,]\s*([\s\S]+)$/i);
+    if (add) return {kind:'edit',operation:'add',text:add[1].trim()};
     var replace=raw.match(/^replace in (?:the )?plan\s+["“]([^"”]+)["”]\s+with\s+["“]([^"”]+)["”][.!]?$/i);
     if (replace) return {kind:'edit',operation:'replace',find:replace[1],text:replace[2]};
     if (/\b(?:sign|finalize|approve|prescribe|send|release|delete)\b/i.test(command)) return {kind:'held'};

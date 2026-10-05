@@ -52,7 +52,7 @@
         await window.ENCOUNTER_COORDINATOR_UI.voicePrepare(expected,command.soap);
         if(ticket===generation&&same(expected))message('Preparation requested. The agent dots show progress; review and signing remain with you.');
       }else{
-        var now=context();if(!now.current||now.noteText!==expected.noteText)throw Error('The note changed or is unavailable. Repeat the command after preparation finishes.');
+        var now=context();if(!now.current||now.noteText!==expected.noteText||now.preparationId!==expected.preparationId||now.packetHash!==expected.packetHash)throw Error('The note changed or is unavailable. Repeat the command after preparation finishes.');
         var edit=window.ORCHESTRATOR_COMMANDS.proposal(now.noteText,command,window.NOTE_DRAFTING?.preferences?.().headings);
         proposal={context:now,edit:edit,commandText:input.value};
         panel.querySelector('[data-before]').textContent=edit.before;panel.querySelector('[data-after]').textContent=edit.after;proposalBox.hidden=false;

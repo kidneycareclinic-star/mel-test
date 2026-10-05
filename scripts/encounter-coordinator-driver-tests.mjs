@@ -59,7 +59,8 @@ const preferences={template:'soap',detail:'standard',headings:[],instructions:''
   assert.equal((await post({...body,action:'finalize',actions:[],idempotencyKey:webcrypto.randomUUID()})).body.error,'action_decisions_incomplete');
   assert.equal((await post({...body,action:'finalize',actions:run.packet.actions.map(a=>({actionId:a.id,decision:'pending'})),idempotencyKey:webcrypto.randomUUID()})).body.error,'action_review_required');
   assert.equal((await post({...body,action:'finalize',instructionsReviewed:false,idempotencyKey:webcrypto.randomUUID()})).body.error,'patient_instructions_review_required');
-  r=await post({...body,action:'save-review'});assert.equal(r.status,200,JSON.stringify(r));body.reviewVersion=r.body.reviewVersion;
+  const validVoice=await post({action:'prepare',patientId:'PT-002',encounterId:encounter.id,expectedVersion:encounter.version,preferences,voiceCommand:true});assert.equal(validVoice.status,202,JSON.stringify(validVoice));
+  r=await post({...body,action:'save-review',voiceEncounterId:encounter.id,voiceEncounterVersion:encounter.version});assert.equal(r.status,200,JSON.stringify(r));body.reviewVersion=r.body.reviewVersion;
   assert.equal((await get()).body.preparation.edit.reviewed_snapshot.noteText,body.noteText,'physician edits survive reload');assert.equal((await post({...body,reviewVersion:0,action:'save-review'})).body.error,'review_edits_changed');
   const key=webcrypto.randomUUID(),final={...body,action:'finalize',idempotencyKey:key};
   authId='22222222-2222-4222-8222-222222222222';assert.equal((await post(final)).status,409);authId=principal;
