@@ -1,0 +1,44 @@
+name: Publish tested encounter inbox v12
+
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/publish-inbox-v12.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: publish-inbox-v12
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Verify the exact tested preview
+        run: git diff --exit-code f3546342faa8a975076c13bda5dd2b4926ced297 HEAD -- preview/
+      - name: Package only the tested preview
+        run: |
+          mkdir -p "$RUNNER_TEMP/inbox-v12-site/preview"
+          cp -R preview/. "$RUNNER_TEMP/inbox-v12-site/preview/"
+          cat > "$RUNNER_TEMP/inbox-v12-site/index.html" <<'HTML'
+          <!doctype html><html lang="en"><head><meta charset="utf-8"><meta http-equiv="refresh" content="0;url=./preview/"><title>KidneyCare</title></head><body><a href="./preview/">Open KidneyCare</a></body></html>
+          HTML
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: ${{ runner.temp }}/inbox-v12-site
+      - name: Publish static preview
+        id: deployment
+        uses: actions/deploy-pages@v4
