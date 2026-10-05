@@ -16,3 +16,5 @@
 .inbox-message,#encounterInboxNotice { padding:12px; background:var(--panel-2); border-radius:8px; line-height:1.5; }
 .inbox-shell details { margin-top:16px; line-height:1.5; }
 @media(max-width:500px) { .inbox-shell { padding:16px; } #encounterInboxDialog { max-height:94dvh; } }
+.inbox-head button { flex-shrink:0; white-space:nowrap; min-width:58px; }
+#encounterInboxDialog button:disabled { opacity:.45; cursor:default; }
