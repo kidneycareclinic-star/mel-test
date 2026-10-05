@@ -118,6 +118,9 @@ jobs:
       - name: Consolidated encounter review DOM
         run: DOM_TEST_MODULE="$RUNNER_TEMP/jsonb-driver/node_modules/jsdom/lib/api.js" node scripts/encounter-coordinator-ui-tests.mjs
 
+      - name: Durable orchestration UI
+        run: DOM_TEST_MODULE="$RUNNER_TEMP/jsonb-driver/node_modules/jsdom/lib/api.js" node scripts/encounter-orchestrator-ui-tests.mjs
+
       - name: Action decisions and instruction synchronization DOM
         run: DOM_TEST_MODULE="$RUNNER_TEMP/jsonb-driver/node_modules/jsdom/lib/api.js" node scripts/encounter-actions-ui-tests.mjs
 

@@ -82,7 +82,7 @@ export async function testCoordinator(sql,principal,target){
   // Stale and provider failures retain original sources and never sign.
   encounter=await draft();r=await prep();assert.equal(r.status,200);run=r.body.preparation;
   await sql`update ehr.synthetic_encounter set version=version+1 where id=${encounter.id}`;assert.equal((await get()).body.preparation.current,false);
-  assert.equal((await post({...body,preparationId:run.id,packetHash:run.packet_hash,observations:[],idempotencyKey:webcrypto.randomUUID()})).body.error,'preparation_source_changed');
+  assert.equal((await post({...body,preparationId:run.id,packetHash:run.packet_hash,observations:[],idempotencyKey:webcrypto.randomUUID()})).body.error,'review_packet_changed_or_expired');
   encounter.version++;providerMode='fail';r=await prep();assert.equal(r.status,502);assert.equal((await get()).body.job.status,'failed');providerMode='ok';
   race=async()=>{await sql`update ehr.synthetic_encounter set version=version+1 where id=${encounter.id}`;};r=await prep(true);assert.equal(r.status,409);assert.equal(r.body.error,'preparation_source_changed');race=null;encounter.version++;
   race=async()=>{await sql`update iam.patient_assignment set active=false where principal_id=${principal} and patient_id=${patientId}`;};r=await prep();assert.equal(r.status,403);race=null;await sql`update iam.patient_assignment set active=true where principal_id=${principal} and patient_id=${patientId}`;

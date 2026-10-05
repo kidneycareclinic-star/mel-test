@@ -56,7 +56,7 @@
   function restore(node,parent,next){if(!node||!parent)return;if(next?.parentNode===parent)parent.insertBefore(node,next);else parent.appendChild(node);}
   function labelFor(id,s){
     if(!s.hasPatient)return 'Select patient';
-    if(job&&id!=='voice'&&id!=='followup'){if(id==='orchestrator')return ({queued:'Queued · continues in background',running:'Working in background',failed:'Paused · retry available',ready:'Prepared · physician review',superseded:'Source changed',cancelled:'Stopped',finalized:'Finalized'})[job.status]||'Awaiting source';var stage=job.stages?.[id];if(stage)return ({complete:id==='verification'?'Source checks complete · review required':'Task complete',working:'Working',queued:'Queued',waiting:'Waiting for prior task','needs-attention':'Paused · needs attention',held:'Held'})[stage]||'Awaiting source';}
+    if(job&&!s.signed&&id!=='voice'&&id!=='followup'){if(id==='orchestrator')return ({queued:'Queued · continues in background',running:'Working in background',failed:'Paused · retry available',ready:'Prepared · physician review',superseded:'Source changed',cancelled:'Stopped',finalized:'Finalized'})[job.status]||'Awaiting source';var stage=job.stages?.[id];if(stage)return ({complete:id==='verification'?'Source checks complete · review required':'Task complete',working:'Working',queued:'Queued',waiting:'Waiting for prior task','needs-attention':'Paused · needs attention',held:'Held'})[stage]||'Awaiting source';}
     if(id==='voice')return recordingSource?'Recording':'Capture & review';
     if(id==='chart')return s.chart?'Chart available':'Awaiting chart';
     if(id==='evidence')return coordinator.querySelector('[data-evidence]')?'KDIGO references available':'Awaiting preparation';
