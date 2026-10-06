@@ -13,10 +13,11 @@
     if(!s.owner){count.textContent='Sign in required';status.textContent='Sign in to review the selected encounter.';return;}
     if(s.signed){count.textContent='Signed';status.textContent='Signed note and approved simulated visit completion are saved.';row('signed','Encounter finalized','The receipt remains in this patient view.','complete');return;}
     var preparing=['queued','running'].includes(s.job?.status),paused=s.job?.status==='failed';
-    var remaining=s.pendingActions+s.clarificationActions+(s.instructionsConfirmationRequired&&!s.instructionsConfirmed?1:0);
+    var remaining=(s.revisionPending?1:0)+s.pendingActions+s.clarificationActions+(s.instructionsConfirmationRequired&&!s.instructionsConfirmed?1:0);
     count.textContent=preparing?'Preparing':paused?'Preparation paused':!s.noteAvailable?'Awaiting reviewed source':s.savePending?'Saving edits':!s.current?'Preparation needs refresh':s.busy?'Working':s.readyToSign?'Ready for your final review':remaining?remaining+' review item'+(remaining===1?'':'s')+' remaining':'Review held';
     status.textContent=s.readyToSign?'Draft decisions are saved. Read the full note and source facts, then use Finalize reviewed encounter when satisfied.':s.savePending?'Your latest edits are saving. Signing stays unavailable until they are saved.':s.noteAvailable?'Resolve the items below and review the complete note before signing.':'Save a corrected transcript, dictation or typed source to prepare this encounter.';
     row('preparation','Prepared from reviewed sources',preparing?'Agents are preparing this encounter.':paused?'Preparation paused; inspect the orchestrator status and retry.':s.current?'Current preparation available.':s.noteAvailable?'Preparation needs refresh.':'Reviewed source not yet prepared.',s.current?'complete':'attention');
+    if(s.revisionPending)row('revision','Proposed encounter revisions','Approve or discard the coordinated revisions before final review.','attention');
     row('note','Nephrology note and source facts',s.noteAvailable?'Read the note, source excerpts, numbers, medications and negations before signing.':'No prepared note is available yet.','review');
     row('actions','Orders and follow-up drafts',s.pendingActions?s.pendingActions+' draft'+(s.pendingActions===1?' needs':'s need')+' a decision.':s.clarificationActions?s.clarificationActions+' included draft'+(s.clarificationActions===1?' needs':'s need')+' clarification or complete medication fields.':s.actionCount?'All action decisions recorded · simulated.':'No source-linked action drafts.',s.pendingActions||s.clarificationActions?'attention':s.noteAvailable?'complete':'waiting');
     row('instructions','Patient instructions',s.instructionsConfirmationRequired?s.instructionsConfirmed?'Instruction review confirmed.':'Compare instructions against the note and selected actions, then confirm review.':s.noteAvailable?'Read the instructions with the note before signing.':'No prepared instructions yet.',s.instructionsConfirmed?'complete':'review');
@@ -27,13 +28,14 @@
     var s=summary();if(!s.owner||s.signed)return;
     if(!s.noteAvailable){window.ENCOUNTER_AGENT_MAP?.select(s.job?.status==='failed'?'orchestrator':'voice');focus(s.job?.status==='failed'?'.coordinator-retry':'#ambientReviewedInput');return;}
     if(!s.current){window.ENCOUNTER_AGENT_MAP?.select('orchestrator');focus('.coordinator-retry');return;}
+    if(s.revisionPending){window.ENCOUNTER_REVISION_UI?.open();return;}
     if(s.pendingActions||s.clarificationActions){window.ENCOUNTER_AGENT_MAP?.select('orders');var rows=Array.from(coordinator.querySelectorAll('[data-action]')),row=rows.find(function(r){var decision=r.querySelector('select').value;return decision==='pending'||decision!=='rejected'&&(r.dataset.blocked==='true'&&(decision!=='edited'||!r.querySelector('[data-clarified]').checked)||Array.from(r.querySelectorAll('[data-med]')).some(function(n){return !n.value.trim();}));});if(row){row.scrollIntoView?.({block:'center'});row.querySelector('select').focus();}return;}
     window.ENCOUNTER_AGENT_MAP?.select(s.instructionsConfirmationRequired&&!s.instructionsConfirmed?'orders':'verification');focus(s.instructionsConfirmationRequired&&!s.instructionsConfirmed?'[data-instructions-reviewed]':'[data-note]');
   }
   function open(){window.ENCOUNTER_AGENT_MAP?.select('verification');panel.open=true;refresh();panel.scrollIntoView?.({block:'center'});panel.querySelector('summary').focus();}
   next.addEventListener('click',continueReview);
   coordinator.addEventListener('input',refresh);coordinator.addEventListener('change',refresh);
-  ['encounter-agent-progress','encounter-finalized','scribe-patient-changed'].forEach(function(name){window.addEventListener(name,function(){last=null;refresh();});});
+  ['encounter-agent-progress','encounter-finalized','scribe-patient-changed','encounter-revision-state'].forEach(function(name){window.addEventListener(name,function(){last=null;refresh();});});
   var observer=new MutationObserver(refresh);observer.observe(coordinator.querySelector('.coordinator-review'),{childList:true,subtree:true});observer.observe(coordinator.querySelector('.coordinator-finalize'),{attributes:true,attributeFilter:['disabled']});observer.observe(coordinator.querySelector('.coordinator-status'),{childList:true,characterData:true,subtree:true});
   timer=setInterval(refresh,1000);window.addEventListener('pagehide',function(){disposed=true;clearInterval(timer);observer.disconnect();});
   window.ENCOUNTER_REVIEW_UI={open:open,refresh:refresh,continueReview:continueReview};refresh();

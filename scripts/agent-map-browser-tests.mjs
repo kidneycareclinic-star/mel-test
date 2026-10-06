@@ -1,3 +1,4 @@
+import {testRevisionBrowser} from './encounter-revision-browser-tests.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import http from 'node:http';
@@ -183,6 +184,7 @@ try {
  assert.equal(await page.evaluate(()=>window.testRequests.some(r=>r.method==='POST'&&!/orchestrator-intent-gated|push-alerts-gated/.test(r.url))),false);
  const guide=await browser.newPage();await guide.goto('http://127.0.0.1:'+server.address().port+'/phone-alert-setup.html',{waitUntil:'networkidle'});assert.equal(await guide.locator('table tbody tr').count(),6);assert.equal(await guide.locator('input,textarea,script').count(),0,'setup instructions never collect credentials');
  for(const theme of ['dark','light'])for(const width of [1440,390,320]){await guide.emulateMedia({colorScheme:theme});await guide.setViewportSize({width,height:1000});const metrics=await guide.evaluate(()=>({scroll:document.documentElement.scrollWidth,width:innerWidth}));assert(metrics.scroll<=metrics.width+1,JSON.stringify(metrics));await guide.screenshot({path:path.join(output,theme+'-'+width+'-phone-setup-guide.png'),fullPage:true});}await guide.close();
+ await testRevisionBrowser(browser,root,'http://127.0.0.1:'+server.address().port,output);
  assert.deepEqual(errors,[]);
  console.log('Browser checks passed: real UI modules, dark/light rendering, labeled dot targets, one note editor, 760/390/320px overflow and hit-target separation. Synthetic backend only.');
 } catch(error) {
