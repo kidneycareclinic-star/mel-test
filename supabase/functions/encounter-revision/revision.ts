@@ -32,9 +32,9 @@ export function revisionPlan(note:string,headings:string[]=[]){
  for(const line of lines){const h=heading(line);if(/^(?:plan|recommendations|assessment (?:and|&) plan(?: by problem)?)$/.test(h))plans.push({start:Math.min(note.length,position+line.length+1)});if(/^(?:subjective|objective|assessment|plan|history|hpi|physical examination|recommendations|follow[- ]up|patient instructions|assessment (?:and|&) plan(?: by problem)?)$/.test(h)||headings.some(s=>heading(s)===h))boundaries.push(position);position+=line.length+1;}
  if(plans.length!==1)revisionFail('revision_plan_heading_required',422);const start=plans[0].start,end=boundaries.find(p=>p>=start)??note.length;return {start,end,text:note.slice(start,end)};
 }
-function patchText(text:string,edits:any[],command:string,packet:any,plan=false){
+function patchText(text:string,edits:any[],command:string,packet:any,plan=false,emptyInstructions=false){
  if(!Array.isArray(edits)||edits.length>6)revisionFail('revision_invalid_output',502);
- const ranges=edits.map(e=>{revisionExact(e,['before','after']);revisionText(e.before,4000);revisionText(e.after,4000);const start=text.indexOf(e.before);if(start<0||text.indexOf(e.before,start+1)>=0||e.before===e.after)revisionFail('revision_text_not_unique',422);numberFence(e.before,e.after,command);languageFence(e.before,e.after);medFence(e.before,e.after,packet);if(plan&&e.after.split('\n').some(l=>/^(?:subjective|objective|assessment|plan|recommendations|history|patient instructions|follow[- ]up)$/.test(heading(l))))revisionFail('revision_invalid_output',502);return {...e,start,end:start+e.before.length};}).sort((a,b)=>a.start-b.start);
+ const ranges=edits.map(e=>{revisionExact(e,['before','after']);revisionText(e.before,4000);revisionText(e.after,4000);const start=text.indexOf(e.before);if(start<0||text.indexOf(e.before,start+1)>=0||e.before===e.after)revisionFail('revision_text_not_unique',422);if(!emptyInstructions){numberFence(e.before,e.after,command);languageFence(e.before,e.after);}medFence(e.before,e.after,packet);if(plan&&e.after.split('\n').some(l=>/^(?:subjective|objective|assessment|plan|recommendations|history|patient instructions|follow[- ]up)$/.test(heading(l))))revisionFail('revision_invalid_output',502);return {...e,start,end:start+e.before.length};}).sort((a,b)=>a.start-b.start);
  if(ranges.some((r,i)=>i>0&&r.start<ranges[i-1].end))revisionFail('revision_overlapping_edits',422);
  let after=text;for(const r of [...ranges].reverse())after=after.slice(0,r.start)+r.after+after.slice(r.end);return after;
 }
@@ -73,7 +73,11 @@ export function buildRevision(value:any,before:any,packet:any,command:string){
   Object.assign(decision,{decision:'edited',clarified:false,label:edit.label,details:edit.details,timing:edit.timing,patientText:edit.patientText,medication:null});
   changes.push({kind:'action',label:original.kind+' · '+old.label,before:fields.map(k=>k+': '+(old[k]||'')).join('\n'),after:fields.map(k=>k+': '+edit[k]).join('\n'),sourceTitle:original.sourceTitle,sourceQuote:original.sourceQuote});
  }
- const instructions=patchText(before.patientInstructions,value.instructionEdits,command,packet);if(instructions.length>40000||!instructions.trim())revisionFail('revision_invalid_output',502);result.patientInstructions=instructions;
+ // This exact UI placeholder is status text, not a clinical "no" instruction.
+ // Its replacement must be only the already validated revised actions' patient wording.
+ const placeholder='No patient-specific instructions selected.',emptyInstructions=before.patientInstructions===placeholder&&value.instructionEdits.length>0;
+ if(emptyInstructions&&(value.instructionEdits.length!==1||value.instructionEdits[0].before!==placeholder||!value.actionEdits.length||value.instructionEdits[0].after!==value.actionEdits.map((e:any)=>e.patientText).join('\n\n')))revisionFail('revision_incomplete',422);
+ const instructions=patchText(before.patientInstructions,value.instructionEdits,command,packet,false,emptyInstructions);if(instructions.length>40000||!instructions.trim())revisionFail('revision_invalid_output',502);result.patientInstructions=instructions;
  if(instructions!==before.patientInstructions){result.instructionsManual=true;changes.push({kind:'instructions',label:'Full patient instructions',before:before.patientInstructions,after:instructions});}
  if(!wordingOnly&&(followScope||labScope)&&(!value.actionEdits.length||!value.instructionEdits.length||!value.noteEdits.length))revisionFail('revision_incomplete',422);
  if(/\b(?:change|revise|update|correct)\b.*\bfollow[- ]?up\b/i.test(command)&&!value.actionEdits.some((e:any)=>packet.actions.find((a:any)=>a.id===e.actionId)?.kind==='follow-up'))revisionFail('revision_target_required',422);
