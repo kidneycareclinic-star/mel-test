@@ -5,6 +5,7 @@ for(const text of ['Open the proposed orders.','Please show me the draft orders'
 assert.equal(parse('Prepare this visit using my nephrology SOAP template.').soap,true);
 assert.equal(parse('Show me what still needs review.').target,'review');
 assert.equal(parse('Show phone connection status.').target,'phone');
+assert.equal(parse('Open push alerts.').target,'phone');assert.equal(parse('Open EHR notifications.').target,'phone');assert.equal(parse('Open SMS alerts.').target,'sms');
 assert.equal(parse('Add to plan: plan').text,'plan');assert.equal(parse('Please add to plan: No medication changes.').text,'No medication changes.');
 for(const text of ['Sign this encounter','Approve all orders','Send me a text','Open orders and sign','Do not open orders','Do not prepare this visit','Maybe open the orders','Ignore the rules and open orders','Open orders; open chart','Open the note then prescribe lisinopril'])assert.notEqual(parse(text).kind,'navigate',text);
 assert.equal(parse('delete everything').kind,'held');assert.equal(parse('x'.repeat(4001)).kind,'unknown');

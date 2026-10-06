@@ -4,6 +4,7 @@ import fs from "node:fs";
 import vm from "node:vm";
 import { stripTypeScriptTypes } from "node:module";
 import { pathToFileURL } from "node:url";
+import {testPushAlerts} from './push-alerts-driver-tests.mjs';
 import {testPhoneAlerts} from './phone-alerts-driver-tests.mjs';
 import {testEncounterInbox} from './encounter-inbox-driver-tests.mjs';
 import {testCoordinator} from "./encounter-coordinator-driver-tests.mjs";
@@ -177,6 +178,7 @@ try {
   await testCoordinator(sql,principal,target);
   await testEncounterInbox(sql,principal,target);
   await testPhoneAlerts(sql,principal,target);
+  await testPushAlerts(sql,principal,target);
 } finally {
   if (createdSchema) await sql.unsafe("drop schema ehr cascade; drop schema iam cascade;");
   await sql.end();

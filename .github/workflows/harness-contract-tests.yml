@@ -20,6 +20,7 @@ on:
       - orchestrator-voice-v14
       - encounter-readiness-v15
       - natural-voice-v16
+      - ehr-push-v17
   pull_request:
     branches:
       - main
@@ -29,7 +30,7 @@ permissions:
 
 jobs:
   contracts:
-    runs-on: ${{ (github.ref_name == 'encounter-attention-v12' || github.ref_name == 'phone-alerts-v13' || github.ref_name == 'orchestrator-voice-v14' || github.ref_name == 'encounter-readiness-v15' || github.ref_name == 'natural-voice-v16') && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
+    runs-on: ${{ (github.ref_name == 'encounter-attention-v12' || github.ref_name == 'phone-alerts-v13' || github.ref_name == 'orchestrator-voice-v14' || github.ref_name == 'encounter-readiness-v15' || github.ref_name == 'natural-voice-v16' || github.ref_name == 'ehr-push-v17') && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -59,6 +60,8 @@ jobs:
           node --check orchestrator-commands.js
           node --check orchestrator-voice-ui.js
           node --check encounter-review-ui.js
+          node --check push-alerts-ui.js
+          node --check ehr-push-sw.js
       - name: Harness contracts
         run: node scripts/harness-contract-tests.mjs
       - name: Scribe review safety
@@ -92,11 +95,13 @@ jobs:
         run: node scripts/orchestrator-commands-tests.mjs
       - name: Natural command interpretation and authorization
         run: node scripts/orchestrator-intent-tests.mjs
+      - name: Push worker and notification privacy
+        run: node scripts/push-alerts-tests.mjs
       - name: SOAP and transcript fidelity safety
         run: node scripts/soap-scribe-tests.mjs
 
   jsonb-driver:
-    runs-on: ${{ (github.ref_name == 'encounter-attention-v12' || github.ref_name == 'phone-alerts-v13' || github.ref_name == 'orchestrator-voice-v14' || github.ref_name == 'encounter-readiness-v15' || github.ref_name == 'natural-voice-v16') && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
+    runs-on: ${{ (github.ref_name == 'encounter-attention-v12' || github.ref_name == 'phone-alerts-v13' || github.ref_name == 'orchestrator-voice-v14' || github.ref_name == 'encounter-readiness-v15' || github.ref_name == 'natural-voice-v16' || github.ref_name == 'ehr-push-v17') && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
     services:
       postgres:
         image: postgres:17
@@ -116,11 +121,11 @@ jobs:
         with:
           node-version: "24"
       - name: Install the exact deployed Postgres.js version
-        run: npm install --prefix "$RUNNER_TEMP/jsonb-driver" --ignore-scripts --no-audit --no-fund postgres@3.4.7 jsdom@26.1.0
+        run: npm install --prefix "$RUNNER_TEMP/jsonb-driver" --ignore-scripts --no-audit --no-fund postgres@3.4.7 jsdom@26.1.0 web-push@3.6.7
       - name: Real driver draft and signing regression
         env:
           ENCOUNTER_TEST_DB_URL: postgres://postgres:synthetic-ci-only@127.0.0.1:5432/encounter_jsonb_test
-        run: POSTGRES_DRIVER_PATH="$RUNNER_TEMP/jsonb-driver/node_modules/postgres/src/index.js" node scripts/encounter-jsonb-driver-tests.mjs
+        run: WEB_PUSH_TEST_MODULE="$RUNNER_TEMP/jsonb-driver/node_modules/web-push/src/index.js" POSTGRES_DRIVER_PATH="$RUNNER_TEMP/jsonb-driver/node_modules/postgres/src/index.js" node scripts/encounter-jsonb-driver-tests.mjs
       - name: Real driver natural command scope and revision gates
         env:
           ENCOUNTER_TEST_DB_URL: postgres://postgres:synthetic-ci-only@127.0.0.1:5432/encounter_jsonb_test
@@ -156,11 +161,14 @@ jobs:
       - name: Voice command capture and encounter isolation DOM
         run: DOM_TEST_MODULE="$RUNNER_TEMP/jsonb-driver/node_modules/jsdom/lib/api.js" node scripts/orchestrator-voice-ui-tests.mjs
 
+      - name: Push device setup and account isolation DOM
+        run: DOM_TEST_MODULE="$RUNNER_TEMP/jsonb-driver/node_modules/jsdom/lib/api.js" node scripts/push-alerts-ui-tests.mjs
+
       - name: Hierarchical agent-dot navigation DOM
         run: DOM_TEST_MODULE="$RUNNER_TEMP/jsonb-driver/node_modules/jsdom/lib/api.js" node scripts/agent-map-ui-tests.mjs
 
   agent-map-browser:
-    runs-on: ${{ (github.ref_name == 'encounter-attention-v12' || github.ref_name == 'phone-alerts-v13' || github.ref_name == 'orchestrator-voice-v14' || github.ref_name == 'encounter-readiness-v15' || github.ref_name == 'natural-voice-v16') && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
+    runs-on: ${{ (github.ref_name == 'encounter-attention-v12' || github.ref_name == 'phone-alerts-v13' || github.ref_name == 'orchestrator-voice-v14' || github.ref_name == 'encounter-readiness-v15' || github.ref_name == 'natural-voice-v16' || github.ref_name == 'ehr-push-v17') && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -177,3 +185,20 @@ jobs:
         with:
           name: agent-map-browser-screenshots
           path: agent-map-screenshots/
+
+  push-runtime:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v1.46.3
+      - name: Verify committed push runtime lock
+        run: deno cache --lock=supabase/functions/push-alerts/deno.lock supabase/functions/push-alerts/index.ts supabase/functions/push-alert-worker/index.ts
+      - name: Actual Deno encryption and fetch boundary
+        run: deno run --no-check --allow-read --allow-env --lock=supabase/functions/push-alerts/deno.lock scripts/push-provider-runtime-tests.ts
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: push-runtime-lock
+          path: supabase/functions/push-alerts/deno.lock

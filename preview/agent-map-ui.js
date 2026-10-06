@@ -95,7 +95,7 @@
     if(id==='orders')action('Patient instructions',function(){focusControl('[data-instructions]');});
     if(id==='verification')action('Review packet',function(){focusControl('[data-note]');});
     if(id==='evidence'&&clinicalPane){content.appendChild(clinicalPane);clinicalPane.classList.add('agent-map-inline-clinical');}
-    if(id==='followup'){if(loops)content.appendChild(loops);action('Encounter inbox',function(){window.ENCOUNTER_INBOX_UI?.open();});action('Assigned-patient queue',function(){window.FOLLOW_UP_QUEUE_UI?.open();});}
+    if(id==='followup'){if(loops)content.appendChild(loops);action('Encounter inbox',function(){window.ENCOUNTER_INBOX_UI?.open();});action('EHR push notifications',function(){window.PUSH_ALERTS_UI?.open();});action('Assigned-patient queue',function(){window.FOLLOW_UP_QUEUE_UI?.open();});}
     refresh();
   }
   function refresh(){
