@@ -124,6 +124,7 @@
     return messages[code] || code;
   }
   async function request(method, patientId, body) {
+    var requestOwner=window.CLINICIAN_AUTH?.userId?.();
     var cfg = config();
     if (!cfg || !cfg.anonJwt) throw new Error("Sign in as a clinician first.");
     var url = cfg.baseUrl + "/functions/v1/synthetic-encounter-gated" +
@@ -136,6 +137,7 @@
       cache: "no-store"
     });
     var payload = await result.json().catch(function () { return {}; });
+    if(window.CLINICIAN_AUTH?.userId?.()!==requestOwner)throw new Error("The clinician session changed. Reload this encounter.");
     if (!result.ok) throw new Error(requestError(payload.error) || "Encounter request failed (HTTP " + result.status + ").");
     return payload;
   }
@@ -163,7 +165,8 @@
           "Add a synthetic pre-chart source, then save a draft before recording observations.");
       }
       if (window.SCRIBE_REVIEW_UI?.refresh) SCRIBE_REVIEW_UI.refresh();
-    } catch (error) { setStatus("Encounter load failed: " + error.message, true); }
+      return result;
+    } catch (error) { setStatus("Encounter load failed: " + error.message, true); return {loadError:error.message}; }
   }
   async function saveDraft(patientId) {
     var local = window.PRECHART_WORKSPACE_API?.getPatientState(patientId);
@@ -177,7 +180,7 @@
     });
     drafts.set(patientId, { id: result.encounterId, version: result.version });
     window.dispatchEvent(new CustomEvent("encounter-draft-saved",{detail:{patientId:patientId,saved:result}}));
-    window.PRECHART_WORKSPACE_API?.markSaved(patientId,local.note||"");
+    window.PRECHART_WORKSPACE_API?.markSaved(patientId,local.note||"",local.sources);
     setStatus("Encounter draft v" + result.version + " saved. Structured observations now link to this encounter.");
     if (window.SCRIBE_REVIEW_UI?.refresh) SCRIBE_REVIEW_UI.refresh();
     return result;
@@ -213,7 +216,7 @@
   document.getElementById("encounterRefreshBtn").addEventListener("click", function () { withBusy(refresh); });
   var open = document.getElementById("openPrechartWorkspaceBtn");
   if (open) open.addEventListener("click", function () { window.setTimeout(refresh, 0); });
-  window.ENCOUNTER_WORKFLOW_UI = { currentId: currentId, refresh: refresh, saveDraft: async function(patientId) {
+  window.ENCOUNTER_WORKFLOW_UI = { currentId: currentId, refresh: refresh, isBusy:function(){return busy;}, saveDraft: async function(patientId) {
     if(busy)throw new Error("An encounter request is already in progress. Retry saving the reviewed text.");
     if(activePatient()?.id!==patientId)throw new Error("The selected patient changed. Reopen its workspace before saving.");
     busy=true;

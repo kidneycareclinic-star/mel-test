@@ -21,7 +21,7 @@ for (const filename of [
   "index.html", "clinician-auth-ui.js", "clinician-auth-ui.css",
   "activity-audit-ui.js", "app.js", "backend-patient-loader.js",
   "prechart-workspace.js", "scribe-review-ui.js", "workspace-review-ui.js",
-  "workflow-prep-ui.js", "encounter-workflow-ui.js", "encounter-workflow-ui.css"
+  "workflow-prep-ui.js", "encounter-workflow-ui.js", "encounter-workflow-ui.css", "encounter-lifecycle-ui.js", "encounter-lifecycle-ui.css", "encounter-coordinator-ui.js"
 ]) {
   assert(fs.readFileSync(`preview/${filename}`, "utf8") === fs.readFileSync(filename, "utf8"),
     `published preview ${filename} must match the protected app`);
@@ -74,3 +74,4 @@ assert(new Set(ids).size === ids.length, "synthetic bootstrap patient IDs must b
 assert(!ids.includes("PT-001"), "PT-001 must remain backend-owned");
 
 console.log("Harness contract tests passed");
+
