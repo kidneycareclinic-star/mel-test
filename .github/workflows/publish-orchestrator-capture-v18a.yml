@@ -1,0 +1,37 @@
+name: Publish tested orchestrator capture fix v18a
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/publish-orchestrator-capture-v18a.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-24.04-arm
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Verify exact tested preview and stage public assets
+        run: |
+          git diff --exit-code 35d00266883c4463534a5aa33d175062584df1fe HEAD -- preview/
+          mkdir -p "$RUNNER_TEMP/orchestrator-capture-preview/preview"
+          cp -R preview/. "$RUNNER_TEMP/orchestrator-capture-preview/preview/"
+          cat > "$RUNNER_TEMP/orchestrator-capture-preview/index.html" <<'HTML'
+          <!doctype html><html lang="en"><meta charset="utf-8"><meta http-equiv="refresh" content="0;url=./preview/"><title>KidneyCare preview</title><a href="./preview/">Open the synthetic EHR preview</a></html>
+          HTML
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: ${{ runner.temp }}/orchestrator-capture-preview
+      - id: deployment
+        uses: actions/deploy-pages@v4
