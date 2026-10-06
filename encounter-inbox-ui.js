@@ -13,7 +13,7 @@
   function say(text){message.textContent=text;}
   function show(){if(!dialog.open){if(dialog.showModal)dialog.showModal();else dialog.setAttribute('open','');}}
   function close(){if(dialog.close)dialog.close();else dialog.removeAttribute('open');launch.focus();}
-  function reset(){sequence++;routeSequence++;owner=account();list.replaceChildren();window.PHONE_ALERTS_UI?.reset();launch.textContent='Encounter inbox';dialog.querySelector('.inbox-summary').textContent='';say('Sign in to see encounters assigned to you.');}
+  function reset(){sequence++;routeSequence++;owner=account();list.replaceChildren();window.PHONE_ALERTS_UI?.reset();window.PUSH_ALERTS_UI?.reset();launch.textContent='Encounter inbox';dialog.querySelector('.inbox-summary').textContent='';say('Sign in to see encounters assigned to you.');}
   async function request(query,body){var requestedOwner=account(),cfg=window.SUPABASE_DEMO_BACKEND;if(!signedIn())throw Error('Sign in to open your encounter inbox.');
     var res=await fetch(cfg.baseUrl+'/functions/v1/encounter-inbox-gated'+(query?'?'+query:''),{method:body?'POST':'GET',headers:{Authorization:'Bearer '+cfg.anonJwt,...(body?{'Content-Type':'application/json'}:{})},body:body?JSON.stringify(body):undefined,cache:'no-store',signal:AbortSignal.timeout(12000)});
     var data=await res.json().catch(function(){return {};});if(account()!==requestedOwner){reset();throw Error('Clinician session changed. Sign in again.');}if(!res.ok)throw Error(errors[data.error]||'The encounter inbox is unavailable. Refresh or sign in again.');return data;
@@ -45,7 +45,7 @@
       refresh();
     }catch(e){if(ticket===routeSequence){show();say(e.message);}}
   }
-  async function route(){var match=/^#review\/([0-9a-f-]{36})$/i.exec(window.location.hash);if(match&&signedIn())await openReview(match[1]);else if(window.location.hash.startsWith('#review/')&&signedIn()){show();say(errors.invalid_link);}}
+  async function route(){if(window.location.hash==='#inbox'){if(signedIn()){show();await refresh();}return;}var match=/^#review\/([0-9a-f-]{36})$/i.exec(window.location.hash);if(match&&signedIn())await openReview(match[1]);else if(window.location.hash.startsWith('#review/')&&signedIn()){show();say(errors.invalid_link);}}
   launch.addEventListener('click',function(){show();refresh();window.PHONE_ALERTS_UI?.refresh();});dialog.querySelector('[data-close]').addEventListener('click',close);
   dialog.querySelector('[data-refresh]').addEventListener('click',refresh);
   dialog.querySelectorAll('[data-filter]').forEach(function(b){b.addEventListener('click',function(){filter=b.dataset.filter;page=0;refresh();});});

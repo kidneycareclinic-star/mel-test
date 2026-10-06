@@ -11,6 +11,7 @@
     if (/\b(?:sign|finalize|approve|prescribe|send|release|delete)\b/i.test(command)) return {kind:'held'};
     if (/^(?:prepare|rebuild) (?:this|the) (?:visit|encounter)(?: using (?:(?:my|the) )?(?:nephrology )?soap(?: (?:note )?template)?)?$/i.test(command)) return {kind:'prepare',soap:/\bsoap\b/i.test(command)};
     var routes=[
+      [/^(?:open|show)(?: me)? (?:the )?sms alerts$/i,'followup','sms'],
       [/^(?:show (?:me )?what (?:still )?needs review|show (?:me )?(?:the )?(?:pending review|review checklist)|open (?:the )?review)$/i,'verification','review'],
       [/^(?:open|show)(?: me)? (?:the )?(?:proposed orders|draft orders|orders|draft actions)$/i,'orders','orders'],
       [/^(?:open|show)(?: me)? (?:the )?patient instructions$/i,'orders','instructions'],
@@ -19,7 +20,7 @@
       [/^(?:open|show)(?: me)? (?:the )?(?:chart|labs)$/i,'chart','chart'],
       [/^(?:open|show)(?: me)? (?:the )?(?:evidence|guideline references)$/i,'evidence','evidence'],
       [/^(?:open|show)(?: me)? (?:the )?encounter inbox$/i,'followup','inbox'],
-      [/^(?:open|show)(?: me)? (?:the )?(?:phone alerts|phone connection(?: status)?)$/i,'followup','phone']
+      [/^(?:open|show)(?: me)? (?:the )?(?:phone alerts|push alerts|ehr notifications|phone connection(?: status)?)$/i,'followup','phone']
     ];
     for (var route of routes) if (route[0].test(command)) return {kind:'navigate',agent:route[1],target:route[2]};
     return {kind:'unknown'};

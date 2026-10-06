@@ -151,6 +151,36 @@ try {
  assert.equal(await page.locator('#mainLayout').evaluate(n=>n.classList.contains('mobile-pane-patient')),true);assert.match(await page.locator('#encounterInboxNotice').textContent(),/original preparation changed/);
  assert.equal(await page.locator('.coordinator-finalize').isDisabled(),true,'inbox navigation cannot approve action drafts');
  assert.equal(await page.locator('[data-note]').count(),1);
+ // Verify the actual worker can install at the app scope; no subscription or provider send.
+ const workerPage=await browser.newPage();await workerPage.goto('http://127.0.0.1:'+server.address().port);
+ const worker=await workerPage.evaluate(async()=>{const r=await navigator.serviceWorker.register('/ehr-push-sw.js',{scope:'/',updateViaCache:'none'});await navigator.serviceWorker.ready;return {scope:r.scope,script:(r.active||r.waiting||r.installing).scriptURL,caches:await caches.keys()};});
+ assert.match(worker.script,/ehr-push-sw\.js$/);assert.equal(new URL(worker.scope).pathname,'/');assert.deepEqual(worker.caches,[]);await workerPage.close();
+ // Real push controls, browser permission and provider are mocked. Never send a real push.
+ await page.evaluate(()=>{
+  window.browserPush={version:1,active:false,history:[],sub:null,permissionCalls:0};window.CLINICIAN_AUTH={userId:()=> 'browser-physician'};
+  Object.defineProperty(window,'Notification',{configurable:true,value:{permission:'default',requestPermission:async()=>{window.browserPush.permissionCalls++;window.Notification.permission='granted';return 'granted';}}});
+  const sub={endpoint:'https://fcm.googleapis.com/wp/browser-fixture',toJSON:()=>({endpoint:sub.endpoint,keys:{p256dh:'B'.repeat(87),auth:'C'.repeat(22)}}),unsubscribe:async()=>{window.browserPush.sub=null;return true;}};
+  const reg={pushManager:{getSubscription:async()=>window.browserPush.sub,subscribe:async()=>window.browserPush.sub=sub}};
+  Object.defineProperty(navigator,'serviceWorker',{configurable:true,value:{register:async()=>reg,ready:Promise.resolve(reg),getRegistration:async()=>reg}});
+  const prior=window.fetch;window.fetch=async(url,options)=>{
+   if(!url.includes('push-alerts-gated'))return prior(url,options);
+   const body=options?.body&&JSON.parse(options.body),state=window.browserPush;window.testRequests.push({url,method:options?.method});
+   if(body){if(!['subscribe','test','unsubscribe','disable-all'].includes(body.action)||body.patientId||body.noteText)throw Error('Unexpected push authority');if(body.action==='subscribe'){if(!body.consent)throw Error('Consent required');state.active=true;state.version++;}else if(body.action==='test')state.history=[{test:true,status:'accepted',createdAt:new Date().toISOString()}];else {state.active=false;state.version++;}}
+   return {ok:true,json:async()=>({apiVersion:'push-alerts-v17',preferences:{version:state.version,enabled:state.active,quietHours:true,timeZone:'America/New_York'},serverReady:true,publicKey:'B'+'A'.repeat(86),device:state.active?{id:'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',active:true}:null,activeDevices:state.active?1:0,history:state.history})};
+  };
+ });
+ await page.addScriptTag({path:path.join(root,'push-alerts-ui.js')});await page.evaluate(()=>window.PUSH_ALERTS_UI.open());
+ await page.locator('[data-push-enable]').click();assert.equal(await page.evaluate(()=>window.browserPush.permissionCalls),0);
+ await page.locator('[data-push-consent]').check();await page.locator('[data-push-enable]').click();await page.waitForFunction(()=>document.querySelector('[data-push-state]').textContent==='Enabled on this device');
+ await page.locator('[data-push-test]').click();await page.waitForFunction(()=>document.querySelector('[data-push-status]').textContent.includes('about a minute'));assert.match(await page.locator('[data-push-history]').textContent(),/receipt is not confirmed/);
+ await page.evaluate(()=>document.querySelector('#encounterPushAlerts details').open=true);
+ for(const theme of ['dark','light'])for(const width of [1440,760,390,320]){
+  await page.setViewportSize({width,height:1100});await page.evaluate(v=>document.documentElement.dataset.theme=v,theme);
+  const metrics=await page.locator('#encounterInboxDialog').evaluate(n=>({page:document.documentElement.scrollWidth,viewport:innerWidth,width:n.clientWidth,scroll:n.scrollWidth,targets:[...document.querySelectorAll('#encounterPushAlerts button,#encounterPushAlerts select,#encounterPushAlerts label')].map(b=>b.getBoundingClientRect().height).filter(h=>h>0)}));assert(metrics.page<=metrics.viewport+1,JSON.stringify(metrics));assert(metrics.scroll<=metrics.width+1,JSON.stringify(metrics));assert(metrics.targets.every(h=>h>=44),JSON.stringify(metrics));
+  await page.locator('#encounterPushAlerts').screenshot({path:path.join(output,theme+'-'+width+'-ehr-push.png')});
+ }
+ await page.locator('[data-push-disable-all]').click();await page.waitForFunction(()=>!window.browserPush.active);assert.equal(await page.evaluate(()=>window.browserPush.sub),null);await page.evaluate(()=>document.getElementById('encounterInboxDialog').close());
+ assert.equal(await page.evaluate(()=>window.testRequests.some(r=>r.method==='POST'&&!/orchestrator-intent-gated|push-alerts-gated/.test(r.url))),false);
  const guide=await browser.newPage();await guide.goto('http://127.0.0.1:'+server.address().port+'/phone-alert-setup.html',{waitUntil:'networkidle'});assert.equal(await guide.locator('table tbody tr').count(),6);assert.equal(await guide.locator('input,textarea,script').count(),0,'setup instructions never collect credentials');
  for(const theme of ['dark','light'])for(const width of [1440,390,320]){await guide.emulateMedia({colorScheme:theme});await guide.setViewportSize({width,height:1000});const metrics=await guide.evaluate(()=>({scroll:document.documentElement.scrollWidth,width:innerWidth}));assert(metrics.scroll<=metrics.width+1,JSON.stringify(metrics));await guide.screenshot({path:path.join(output,theme+'-'+width+'-phone-setup-guide.png'),fullPage:true});}await guide.close();
  assert.deepEqual(errors,[]);
