@@ -1,0 +1,6 @@
+.encounter-revision{border:1px solid var(--border);border-radius:14px;padding:14px;margin:16px 0;background:var(--bg);overflow-wrap:anywhere}
+.encounter-revision h5{font-size:15px;margin:16px 0 8px}.encounter-revision article{border-top:1px solid var(--border);padding:4px 0 14px}
+.encounter-revision blockquote{margin:8px 0;border-left:3px solid var(--accent);padding:8px 12px;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--muted)}
+.encounter-revision [data-revision-context]{font-size:13px}.encounter-revision [data-revision-status]{color:var(--text);font-weight:600}
+.encounter-revision .orchestrator-proposal-grid>div{background:var(--panel)}.encounter-revision button{min-height:44px}
+@media(max-width:420px){.encounter-revision{padding:12px}.encounter-revision .orchestrator-voice-buttons>button{flex:1 1 140px}}

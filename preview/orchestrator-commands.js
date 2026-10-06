@@ -9,6 +9,7 @@
     var replace=raw.match(/^replace in (?:the )?plan\s+["“]([^"”]+)["”]\s+with\s+["“]([^"”]+)["”][.!]?$/i);
     if (replace) return {kind:'edit',operation:'replace',find:replace[1],text:replace[2]};
     if (/\b(?:sign|finalize|approve|prescribe|send|release|delete)\b/i.test(command)) return {kind:'held'};
+    if (/^(?:change|revise|update|reword|correct|make)\b/i.test(command)&&/\b(?:follow[- ]?up|return|lab(?:s|oratory)?|bmp|cmp|renal panel|urine|patient instructions)\b/i.test(command)) return {kind:'revise'};
     if (/^(?:prepare|rebuild) (?:this|the) (?:visit|encounter)(?: using (?:(?:my|the) )?(?:nephrology )?soap(?: (?:note )?template)?)?$/i.test(command)) return {kind:'prepare',soap:/\bsoap\b/i.test(command)};
     var routes=[
       [/^(?:open|show)(?: me)? (?:the )?sms alerts$/i,'followup','sms'],
