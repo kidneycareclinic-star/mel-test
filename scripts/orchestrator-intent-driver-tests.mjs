@@ -33,6 +33,6 @@ try{
  hook=()=>sql`insert into ehr.synthetic_encounter values(${other},${patient},${owner},'draft',1,now()+interval '1 minute')`;assert.equal((await post()).status,409);await sql`delete from ehr.synthetic_encounter where id=${other}`;
  hook=null;await sql`update ehr.synthetic_encounter set clinician_principal_id=${other}`;assert.equal((await post()).status,409);await sql`update ehr.synthetic_encounter set clinician_principal_id=${owner}`;
  assert.equal((await post()).status,200);const [row]=await sql`select count(*)::int as count,min(status) as status,min(version) as version from ehr.synthetic_encounter`;assert.deepEqual(row,{count:1,status:'draft',version:1});
- const [audit]=await sql`select count(*) filter(where allowed=false)::int as denied,count(*) filter(where allowed=true)::int as allowed from iam.access_audit`;assert.ok(audit.denied>=4&&audit.allowed>=8);
+ const [audit]=await sql`select count(*) filter(where allowed=false)::int as denied,count(*) filter(where allowed=true)::int as allowed from iam.access_audit`;assert.equal(audit.denied,3,'assignment/permission denials are audited; inactive principal is rejected before patient access');assert.ok(audit.allowed>=8);
  console.log('Natural intent real driver passed: active clinician/assignment/permission, owner filtering, stale/latest source revisions, post-provider revocation, safe audit and unchanged encounter (provider mocked).');
 }finally{if(created)await sql.unsafe('drop schema ehr cascade; drop schema iam cascade;');await sql.end();}
