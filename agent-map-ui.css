@@ -49,11 +49,12 @@ body.agentic-shell {background:radial-gradient(ellipse at 46% 0,var(--agent-map-
 .agent-dot-circle {display:flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:50%;border:1px solid var(--role-color);color:var(--role-color);background:var(--agent-map-surface);box-shadow:0 0 16px color-mix(in srgb,var(--role-color) 14%,transparent),inset 0 0 9px color-mix(in srgb,var(--role-color) 8%,transparent);font-size:18px;font-weight:500;margin:2px 0 4px;flex-shrink:0;}
 .agent-dot.is-selected .agent-dot-circle {box-shadow:0 0 0 4px color-mix(in srgb,var(--role-color) 12%,transparent),0 0 22px color-mix(in srgb,var(--role-color) 23%,transparent);border-width:2px;}
 .agent-dot-voice .agent-dot-circle {width:128px;height:128px;flex-direction:column;gap:7px;border-width:2px;box-shadow:0 0 0 6px color-mix(in srgb,var(--role-color) 9%,transparent),0 0 0 7px color-mix(in srgb,var(--role-color) 35%,transparent),0 0 34px color-mix(in srgb,var(--role-color) 16%,transparent),inset 0 0 22px color-mix(in srgb,var(--role-color) 12%,transparent);}
-.agent-dot-orchestrator .agent-dot-circle {width:78px;height:78px;font-size:32px;margin-top:25px;margin-bottom:29px;}
+.agent-dot-orchestrator .agent-dot-circle {width:78px;height:78px;font-size:32px;margin-top:25px;margin-bottom:29px;flex-direction:column;gap:3px;}
+.agent-dot-orchestrator .agent-orb-levels {height:30px;gap:3px;}.agent-dot-orchestrator .agent-orb-levels i {width:4px;}.agent-dot-orchestrator .agent-orb-caption {font-size:8px;letter-spacing:.8px;}
 .agent-orb-caption {font-size:11px;letter-spacing:2.8px;}
 .agent-orb-levels {height:51px;display:flex;align-items:center;gap:4px;}
 .agent-orb-levels i {width:5px;height:var(--orb-height);border-radius:4px;background:var(--role-color);transition:height 75ms linear;opacity:.72;}
-.is-recording .agent-orb-levels i {opacity:1;}
+.agent-dot.is-capturing .agent-orb-levels i {opacity:1;}
 .agent-dot strong {font-size:12px;line-height:1.4;font-weight:600;overflow-wrap:anywhere;}
 .agent-dot-role {font-size:11px;line-height:1.45;color:var(--agent-map-muted);}
 .agent-dot-state {font-size:10px;line-height:1.5;color:var(--role-color);}

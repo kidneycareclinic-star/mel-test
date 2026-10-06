@@ -4,3 +4,5 @@
 .encounter-revision [data-revision-context]{font-size:13px}.encounter-revision [data-revision-status]{color:var(--text);font-weight:600}
 .encounter-revision .orchestrator-proposal-grid>div{background:var(--panel)}.encounter-revision button{min-height:44px}
 @media(max-width:420px){.encounter-revision{padding:12px}.encounter-revision .orchestrator-voice-buttons>button{flex:1 1 140px}}
+
+.encounter-revision{scroll-margin-top:100px}@media(max-width:760px){.encounter-revision{scroll-margin-top:16px}}

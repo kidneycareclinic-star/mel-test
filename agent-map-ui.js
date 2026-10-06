@@ -27,19 +27,21 @@
     var button=document.createElement('button');button.type='button';button.className='agent-dot agent-dot-'+definition.id;
     button.dataset.agent=definition.id;button.setAttribute('aria-pressed','false');button.setAttribute('aria-controls','agentFunctionPanel');
     var circle=document.createElement('span');circle.className='agent-dot-circle';circle.setAttribute('aria-hidden','true');
-    if(definition.id==='voice'){
+    if(definition.id==='voice'||definition.id==='orchestrator'){
       var levels=document.createElement('span');levels.className='agent-orb-levels';
       for(var i=0;i<7;i++){var bar=document.createElement('i');bar.style.setProperty('--orb-height','8px');levels.appendChild(bar);}circle.appendChild(levels);
-      var center=document.createElement('span');center.className='agent-orb-caption';center.textContent='VOICE';circle.appendChild(center);
+      var center=document.createElement('span');center.className='agent-orb-caption';center.textContent=definition.id==='voice'?'VOICE':'COMMAND';circle.appendChild(center);
     }else circle.textContent=definition.symbol;
     button.appendChild(circle);
     var label=document.createElement('strong');label.textContent=definition.name;button.appendChild(label);
     var role=document.createElement('span');role.className='agent-dot-role';role.textContent=definition.role;button.appendChild(role);
     var state=document.createElement('span');state.className='agent-dot-state';state.textContent='Not started';button.appendChild(state);
     (definition.tier<3?leads:specialists).appendChild(button);
-    button.addEventListener('click',function(){select(definition.id);});
+    if(definition.id==='orchestrator')button.setAttribute('aria-controls','agentFunctionPanel orchestratorVoice');
+    button.addEventListener('click',function(){select(definition.id);if(definition.id==='orchestrator')window.ORCHESTRATOR_VOICE_UI?.open();});
   });
-  var job=window.ENCOUNTER_COORDINATOR_UI?.job?.()||null,selected='voice',recordingSource=null,disposed=false,queued=false;
+  var job=window.ENCOUNTER_COORDINATOR_UI?.job?.()||null,selected='voice',recordingSource=null,commandState=null,disposed=false,queued=false;
+  function ambientRecording(){return recordingSource==='ambientCaptureCard'||recordingSource==='dictationCaptureCard';}
   var capture=coordinator.querySelector('.coordinator-capture'),chart=coordinator.querySelector('.coordinator-chart');
   var clinicalPane=document.querySelector('.agent-pane'),clinicalHome=clinicalPane?.parentNode,clinicalNext=clinicalPane?.nextSibling;
   var loops=document.getElementById('openLoopList')?.closest('.loop-panel'),loopHome=loops?.parentNode,loopNext=loops?.nextSibling;
@@ -56,8 +58,9 @@
   function restore(node,parent,next){if(!node||!parent)return;if(next?.parentNode===parent)parent.insertBefore(node,next);else parent.appendChild(node);}
   function labelFor(id,s){
     if(!s.hasPatient)return 'Select patient';
+    if(id==='orchestrator'&&commandState?.phase&&commandState.phase!=='idle')return ({requesting:'Microphone permission',recording:'Recording command · press Stop',transcribing:'Transcribing command',processing:'Preparing response',heard:'Command available',ready:'Response ready · review',error:'Command needs attention'})[commandState.phase]||'Command available';
     if(job&&!s.signed&&id!=='voice'&&id!=='followup'){if(id==='orchestrator')return ({queued:'Queued · continues in background',running:'Working in background',failed:'Paused · retry available',ready:'Prepared · physician review',superseded:'Source changed',cancelled:'Stopped',finalized:'Finalized'})[job.status]||'Awaiting source';var stage=job.stages?.[id];if(stage)return ({complete:id==='verification'?'Source checks complete · review required':'Task complete',working:'Working',queued:'Queued',waiting:'Waiting for prior task','needs-attention':'Paused · needs attention',held:'Held'})[stage]||'Awaiting source';}
-    if(id==='voice')return recordingSource?'Recording':'Capture & review';
+    if(id==='voice')return ambientRecording()?'Recording encounter':'Capture & review';
     if(id==='chart')return s.chart?'Chart available':'Awaiting chart';
     if(id==='evidence')return coordinator.querySelector('[data-evidence]')?'KDIGO references available':'Awaiting preparation';
     if(id==='note')return s.signed?'Signed':s.note?'Draft available':'Awaiting reviewed source';
@@ -74,11 +77,11 @@
     clinicalPane?.classList.remove('agent-map-inline-clinical');
     selected=id;map.querySelectorAll('[data-agent]').forEach(function(button){var active=button.dataset.agent===id;button.setAttribute('aria-pressed',String(active));button.classList.toggle('is-selected',active);});
     inspector.dataset.agent=id;inspector.querySelector('h4').textContent=definitions.find(function(d){return d.id===id;}).name;
-    actions.replaceChildren();content.replaceChildren();capture.hidden=id!=='voice'&&!recordingSource;chart.hidden=id!=='chart';
+    actions.replaceChildren();content.replaceChildren();capture.hidden=id!=='voice'&&!ambientRecording();chart.hidden=id!=='chart';
     coordinator.querySelector('.coordinator-preferences').hidden=id!=='note'&&id!=='voice';
     var text={
       voice:'Record or dictate, correct the transcript, then save reviewed text. The note and approval packet remain below. Selecting this dot does not start the microphone.',
-      orchestrator:'Coordinates preparation from saved, reviewed sources. Follow the actual status below; resolve exceptions and finalize the current encounter packet when ready.',
+      orchestrator:'Press Talk to orchestrator, speak, then press Stop command. The heard words and response appear in the command panel. Its COMMAND waveform shows this microphone; the larger VOICE circle is for encounter capture. Revisions need a prepared, editable encounter.',
       chart:'Inspect dated laboratory values, problem list, medications and allergies assembled for this patient. Source detail remains available below the encounter.',
       evidence:'Inspect the versioned KDIGO monitoring and risk references below, then assess relevance to this patient. References remain separate from the documented plan. Astra analysis is also available here.',
       note:'Choose your template and detail, then edit the prepared note below. Your existing physician edits remain protected when preparation changes.',
@@ -88,7 +91,7 @@
     };description.textContent=text[id];
     if(id==='chart')chart.querySelector('details')?.setAttribute('open','');
     if(id==='voice'){action('Reviewed transcript',function(){focusControl('#ambientReviewedInput');});action('Physician dictation',function(){document.getElementById('dictationModeBtn')?.click();focusControl('#physicianDictationInput');});}
-    if(id==='orchestrator')action('Talk to orchestrator',function(){window.ORCHESTRATOR_VOICE_UI?.open();window.ORCHESTRATOR_VOICE_UI?.start();});
+    if(id==='orchestrator')action('Open command controls',function(){window.ORCHESTRATOR_VOICE_UI?.open();});
     if(id==='note'){action('Template & detail',function(){var prefs=coordinator.querySelector('.coordinator-preferences');prefs.open=true;prefs.querySelector('select')?.focus();});action('Edit note',function(){focusControl('[data-note]');});}
     if(id==='evidence')action('KDIGO reference review',function(){var detail=coordinator.querySelector('[data-evidence] details');if(detail){detail.open=true;detail.scrollIntoView?.({block:'center'});}});
     if(id==='orders')action('Draft actions',function(){focusControl('[data-action] select');});
@@ -105,7 +108,7 @@
     var stateLabel=labelFor(selected,s),stateNode=inspector.querySelector('#agentFunctionState');if(stateNode.textContent!==stateLabel)stateNode.textContent=stateLabel;
     var activeElement=document.activeElement;
     // Do not collapse a capture pane while its editor has keyboard focus.
-    if(!capture.contains(activeElement))capture.hidden=selected!=='voice'&&!recordingSource;
+    if(!capture.contains(activeElement))capture.hidden=selected!=='voice'&&!ambientRecording();
     // Patient switch or asynchronous failures must never imply an available approval.
     map.dataset.encounterState=s.error?'attention':s.signed?'finalized':s.ready?'review':'preparing';
   }
@@ -117,20 +120,22 @@
   observer.observe(coordinator.querySelector('.coordinator-finalize'),{attributes:true,attributeFilter:['disabled']});
   observer.observe(chart,{childList:true});
   function meter(event){
-    var d=event.detail;if(!d||!['ambientCaptureCard','dictationCaptureCard'].includes(d.sourceId))return;
-    if(d.kind==='start'){recordingSource=d.sourceId;map.classList.add('is-recording');map.querySelector('#agentMapStop').hidden=false;capture.hidden=false;map.querySelector('#agentMapCaptureState').textContent='Recording · microphone connected';}
-    if(d.kind==='stop'&&recordingSource===d.sourceId){recordingSource=null;map.classList.remove('is-recording');map.querySelector('#agentMapStop').hidden=true;map.querySelector('#agentMapCaptureState').textContent='Microphone stopped';map.querySelectorAll('.agent-orb-levels i').forEach(function(bar){bar.style.setProperty('--orb-height','8px');});}
+    var d=event.detail;if(!d||!['ambientCaptureCard','dictationCaptureCard','orchestratorVoice'].includes(d.sourceId))return;
+    var command=d.sourceId==='orchestratorVoice',dot=map.querySelector('[data-agent="'+(command?'orchestrator':'voice')+'"]');
+    if(d.kind==='start'){map.querySelectorAll('.agent-dot.is-capturing').forEach(function(n){n.classList.remove('is-capturing');n.querySelectorAll('.agent-orb-levels i').forEach(function(b){b.style.setProperty('--orb-height','8px');});});recordingSource=d.sourceId;map.classList.add('is-recording');dot.classList.add('is-capturing');map.querySelector('#agentMapStop').hidden=false;map.querySelector('#agentMapStop').textContent=command?'Stop command':'Stop capture';if(!command)capture.hidden=false;map.querySelector('#agentMapCaptureState').textContent=command?'Recording command · press Stop command':'Recording encounter · microphone connected';}
+    if(d.kind==='stop'&&recordingSource===d.sourceId){recordingSource=null;map.classList.remove('is-recording');dot.classList.remove('is-capturing');map.querySelector('#agentMapStop').hidden=true;map.querySelector('#agentMapCaptureState').textContent=command?'Command microphone stopped':'Encounter microphone stopped';dot.querySelectorAll('.agent-orb-levels i').forEach(function(bar){bar.style.setProperty('--orb-height','8px');});}
     if(d.sourceId===recordingSource&&d.kind==='level'){
-      var level=Math.max(0,Math.min(1,Number(d.level)||0));map.querySelectorAll('.agent-orb-levels i').forEach(function(bar,index){var shape=[.45,.72,.9,1,.9,.72,.45][index];bar.style.setProperty('--orb-height',(8+level*42*shape)+'px');});
-      map.querySelector('#agentMapCaptureState').textContent=d.label||'Recording';
+      var level=Math.max(0,Math.min(1,Number(d.level)||0));dot.querySelectorAll('.agent-orb-levels i').forEach(function(bar,index){var shape=[.45,.72,.9,1,.9,.72,.45][index];bar.style.setProperty('--orb-height',(8+level*(command?20:42)*shape)+'px');});
+      map.querySelector('#agentMapCaptureState').textContent=(command?'Command · ':'Encounter · ')+(d.label||'Recording')+(command?' · press Stop command':'');
     }
-    if(d.sourceId===recordingSource&&d.kind==='unavailable')map.querySelector('#agentMapCaptureState').textContent='Recording · level meter unavailable';
+    if(d.sourceId===recordingSource&&d.kind==='unavailable')map.querySelector('#agentMapCaptureState').textContent=(command?'Command':'Encounter')+' recording · level meter unavailable';
     schedule();
   }
   window.addEventListener('microphone-meter-state',meter);
-  map.querySelector('#agentMapStop').addEventListener('click',function(){window.RECORDED_AUDIO_UI?.stop();window.PRECHART_WORKSPACE_API?.stopVoice();});
+  map.querySelector('#agentMapStop').addEventListener('click',function(){if(recordingSource==='orchestratorVoice'){window.ORCHESTRATOR_VOICE_UI?.stop();return;}window.RECORDED_AUDIO_UI?.stop();window.PRECHART_WORKSPACE_API?.stopVoice();});
+  window.addEventListener('orchestrator-command-state',function(event){commandState=event.detail;if(!recordingSource)map.querySelector('#agentMapCaptureState').textContent=commandState?.phase==='transcribing'?'Command microphone stopped · transcribing':commandState?.phase==='processing'?'Command microphone stopped · preparing response':commandState?.phase==='ready'?'Response ready · review command and proposal':commandState?.phase==='error'?'Command needs attention · see command panel':'Command microphone off · press Talk to orchestrator';schedule();});
   window.addEventListener('encounter-agent-progress',function(event){if(event.detail?.patientId!==patient()?.id)return;job=event.detail.job; schedule();});
-  window.addEventListener('scribe-patient-changed',function(){job=null;select('voice');schedule();});
+  window.addEventListener('scribe-patient-changed',function(){job=null;commandState=null;select('voice');schedule();});
   window.addEventListener('pagehide',function(event){if(event.persisted)return;disposed=true;observer.disconnect();window.removeEventListener('microphone-meter-state',meter);});
   window.ENCOUNTER_AGENT_MAP={select:select,selected:function(){return selected;},refresh:refresh};
   select('voice');
