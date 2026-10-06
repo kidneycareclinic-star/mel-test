@@ -212,6 +212,8 @@
   }
   function markSaved(patientId,note) {
     var state=getState(patientId);state.savedNote=note;state.savedStatus="draft";
+    state.savedSourceSnapshot={encounterId:window.ENCOUNTER_WORKFLOW_UI?.currentId(patientId),note:note,sources:JSON.parse(JSON.stringify(state.sources))};
+    state.captureStarted=false;
     if(activePatientId()===patientId)renderNarrative(activePatient());
   }
   async function saveReviewedText(patientId,statusElement) {
@@ -288,6 +290,9 @@
     var patient = activePatient();
     if (!patient || !text || !text.trim()) return false;
 
+    // A new visit must not silently carry forward the signed visit's sources.
+    try { if(savedEncounterNotes.has(patient.id)&&!window.ENCOUNTER_WORKFLOW_UI?.currentId(patient.id))beginNewCapture(patient.id); }
+    catch(error){setRuntimeStatus(error.message,"error");if(ambientReviewStatus)ambientReviewStatus.textContent=error.message;return false;}
     var state=getState(patient.id);
     state.sources.push({
       id: newId("text"),
@@ -600,6 +605,23 @@
     workspace.classList.add("hidden");
     workspace.setAttribute("aria-hidden", "true");
     document.body.style.overflow = "";
+  }
+
+  function beginNewCapture(patientId) {
+    if(activePatientId()!==patientId)throw Error("The selected patient changed. Open the current encounter again.");
+    if(window.ENCOUNTER_WORKFLOW_UI?.currentId(patientId))return false;
+    if(activeRecognition||window.RECORDED_AUDIO_UI?.isRecording()||window.ORCHESTRATOR_VOICE_UI?.isRecording())throw Error("Stop recording before starting another encounter. Your captured text is kept.");
+    var state=getState(patientId);if(state.captureStarted)return true;
+    var signed=savedEncounterNotes.get(patientId),baseline=state.savedSourceSnapshot;
+    var sources=state.sources.filter(function(s){return s.kind!=="lab-trend";});
+    var known=!!signed&&baseline?.encounterId===signed.id;
+    var previous=known?baseline.sources.filter(function(s){return s.kind!=="lab-trend";}):[];
+    if(sources.length&&(!known||JSON.stringify(sources)!==JSON.stringify(previous))||state.note.trim()&&state.note!==buildOrganizedNote(activePatient(),state)&&(!known||state.note!==baseline.note))throw Error("Unfinished source or note edits are kept. Review them in Other sources and history before starting a new encounter.");
+    if(known)state.noteHistory.push({note:baseline.note,sources:baseline.sources,encounterId:signed.id,status:"signed"});
+    state.sources=state.sources.filter(function(s){if(s.kind==="lab-trend")return true;if(fileUrlStore.has(s.id)){URL.revokeObjectURL(fileUrlStore.get(s.id));fileUrlStore.delete(s.id);}return false;});
+    state.note="";state.savedNote=null;state.savedStatus=null;state.savedSourceSnapshot=null;state.captureStarted=true;
+    // The raw, reviewed, dictated and typed input fields remain untouched.
+    renderWorkspace();return true;
   }
 
   openBtn.addEventListener("click", openWorkspace);
@@ -1418,6 +1440,8 @@
       }else renderNarrative(patient);
     },
     markSaved: markSaved,
+    beginNewCapture: beginNewCapture,
+    isRecording: function(){return !!activeRecognition||!!window.RECORDED_AUDIO_UI?.isRecording();},
     receiveSavedEncounter: function(patientId,result){
       if(result.lastSigned){savedEncounterNotes.set(patientId,result.lastSigned);var state=getState(patientId);if(!result.draft&&state.note===result.lastSigned.note_text){state.savedNote=state.note;state.savedStatus="signed";}}
       if(activePatientId()===patientId)renderNarrative(activePatient());
@@ -1476,4 +1500,3 @@
     }
   };
 })();
-
