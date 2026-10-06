@@ -4,18 +4,18 @@
   var coordinator=document.getElementById('encounterCoordinator');
   if(!coordinator||!window.ORCHESTRATOR_COMMANDS)return;
   var panel=document.createElement('section');panel.id='orchestratorVoice';panel.className='orchestrator-voice';
-  panel.innerHTML='<div class="orchestrator-voice-heading"><div><h4>Talk to your orchestrator</h4><p>Prepare, navigate, or propose an exact dictated plan change.</p></div><button data-record class="small-btn" type="button">Talk to orchestrator</button></div><p data-status role="status" aria-live="polite">Press Talk, speak a command, then Stop. Stopping sends this short recording to OpenAI. Synthetic speech only.</p><audio data-playback controls preload="metadata" hidden></audio><form data-command-form><label>Heard command · correct it or type instead<textarea data-command rows="2" maxlength="4000" placeholder="Open the proposed orders"></textarea></label><div class="orchestrator-voice-buttons"><button data-run class="small-btn" type="submit">Run command</button><button data-cancel class="small-btn" type="button">Clear command</button></div></form><details class="orchestrator-command-help"><summary>What can I say?</summary><ul><li>Prepare this visit using my nephrology SOAP template.</li><li>Show me what still needs review.</li><li>Open the proposed orders / patient instructions / chart / note.</li><li>Open the encounter inbox / phone alerts.</li><li>Add to plan: [your exact dictated wording].</li><li>Replace in plan "exact existing text" with "new text".</li></ul><p>Commands use these English phrases. Plan changes are proposals until you apply them. Signing, approving actions and sending messages require their existing controls.</p></details><section data-proposal hidden aria-label="Proposed plan change"><h4>Review proposed plan change</h4><p>Check the heard command, numbers, doses and negations against playback. Applying changes only the draft note and resets action and instruction review.</p><div class="orchestrator-proposal-grid"><div><strong>Current plan</strong><pre data-before></pre></div><div><strong>Proposed plan</strong><pre data-after></pre></div></div><div class="orchestrator-voice-buttons"><button data-apply class="small-btn" type="button">Apply to draft</button><button data-reject class="small-btn" type="button">Discard proposal</button></div></section>';
+  panel.innerHTML='<div class="orchestrator-voice-heading"><div><h4>Talk to your orchestrator</h4><p>Prepare, navigate, or propose an exact dictated plan change.</p></div><button data-record class="small-btn" type="button">Talk to orchestrator</button></div><p data-status role="status" aria-live="polite">Press Talk, speak a command, then Stop. Stopping sends this short recording to OpenAI. Synthetic speech only.</p><audio data-playback controls preload="metadata" hidden></audio><form data-command-form><label>Heard command · correct it or type instead<textarea data-command rows="2" maxlength="4000" placeholder="Open the proposed orders"></textarea></label><div class="orchestrator-voice-buttons"><button data-run class="small-btn" type="submit">Run command</button><button data-cancel class="small-btn" type="button">Clear command</button></div></form><details class="orchestrator-command-help"><summary>What can I say?</summary><ul><li>Prepare this visit using my nephrology SOAP template.</li><li>Show me what still needs review.</li><li>Open the proposed orders / patient instructions / chart / note.</li><li>Open the encounter inbox / phone alerts.</li><li>Add to plan: [your exact dictated wording].</li><li>Replace in plan "exact existing text" with "new text".</li></ul><p>You can also use everyday English, such as “Take me to the patient instructions” or “Get this saved visit ready with a SOAP note.” Natural phrasing is sent to OpenAI to interpret; check the intended action before continuing. Plan changes are proposals until you apply them. Signing, approving actions and sending messages require their existing controls.</p></details><section data-intent class="orchestrator-intent" hidden aria-label="Confirm intended command"><h4>I understood…</h4><p data-intent-summary></p><p data-intent-context></p><p data-intent-effect></p><div class="orchestrator-voice-buttons"><button data-confirm-intent class="small-btn" type="button">Continue</button><button data-discard-intent class="small-btn" type="button">Discard command</button></div></section><section data-proposal hidden aria-label="Proposed plan change"><h4>Review proposed plan change</h4><p>Check the heard command, numbers, doses and negations against playback. Applying changes only the draft note and resets action and instruction review.</p><div class="orchestrator-proposal-grid"><div><strong>Current plan</strong><pre data-before></pre></div><div><strong>Proposed plan</strong><pre data-after></pre></div></div><div class="orchestrator-voice-buttons"><button data-apply class="small-btn" type="button">Apply to draft</button><button data-reject class="small-btn" type="button">Discard proposal</button></div></section>';
   var map=document.getElementById('encounterAgentMap');if(map)map.after(panel);else coordinator.prepend(panel);
   var record=panel.querySelector('[data-record]'),status=panel.querySelector('[data-status]'),input=panel.querySelector('[data-command]'),run=panel.querySelector('[data-run]'),apply=panel.querySelector('[data-apply]'),proposalBox=panel.querySelector('[data-proposal]'),playback=panel.querySelector('[data-playback]'),meter=window.MICROPHONE_METER?.mount(panel);
   if(meter?.element)panel.querySelector('.orchestrator-voice-heading').after(meter.element);
-  var generation=0,recorder=null,stream=null,timer=null,controller=null,waiting=false,executing=false,scope=null,proposal=null,audioUrl=null,watch=null;
+  var generation=0,recorder=null,stream=null,timer=null,controller=null,waiting=false,executing=false,scope=null,proposal=null,audioUrl=null,watch=null,pendingIntent=null;
   function context(){return window.ENCOUNTER_COORDINATOR_UI.voiceContext();}
   function same(expected){var now=context();return !!expected?.owner&&now.owner===expected.owner&&now.patientId===expected.patientId&&now.encounterId===expected.encounterId&&now.sourceVersion===expected.sourceVersion;}
   function message(text,error){status.textContent=text;status.classList.toggle('is-error',!!error);}
-  function controls(){record.textContent=recorder?.state==='recording'?'Stop command':waiting&&!controller?'Cancel microphone request':'Talk to orchestrator';record.disabled=!!controller||executing;run.disabled=waiting||!!recorder||executing;apply.disabled=executing;}
+  function controls(){record.textContent=recorder?.state==='recording'?'Stop command':waiting&&!controller?'Cancel microphone request':'Talk to orchestrator';record.disabled=!!controller||executing;run.disabled=waiting||!!recorder||executing;apply.disabled=executing;panel.querySelector('[data-confirm-intent]').disabled=executing;}
   function release(){if(timer)clearTimeout(timer);timer=null;meter?.stop('Command microphone stopped');if(stream)stream.getTracks().forEach(function(track){track.stop();});stream=null;}
   function clearAudio(){if(audioUrl)URL.revokeObjectURL(audioUrl);audioUrl=null;playback.removeAttribute('src');playback.hidden=true;}
-  function reject(){proposal=null;proposalBox.hidden=true;panel.querySelector('[data-before]').textContent='';panel.querySelector('[data-after]').textContent='';}
+  function reject(){pendingIntent=null;panel.querySelector('[data-intent]').hidden=true;proposal=null;proposalBox.hidden=true;panel.querySelector('[data-before]').textContent='';panel.querySelector('[data-after]').textContent='';}
   function cancel(){generation++;controller?.abort();controller=null;var old=recorder;recorder=null;if(old?.state==='recording')old.stop();release();clearAudio();reject();scope=null;input.value='';waiting=false;executing=false;if(watch)clearInterval(watch);watch=null;controls();message('Command cleared. Saved encounter text is retained.');}
   function watchContext(){if(watch)clearInterval(watch);watch=setInterval(function(){if(scope&&!same(scope)){cancel();message('The patient, encounter or clinician changed. Repeat the command for the current visit.',true);}},500);}
   function open(){window.ENCOUNTER_AGENT_MAP?.select('orchestrator');window.MOBILE_PANE_UI?.show('patient');panel.scrollIntoView?.({block:'center'});record.focus();}
@@ -40,27 +40,55 @@
     }
     message(text);
   }
+  function offer(command,expected){
+    pendingIntent={command:command,context:expected,commandText:input.value};
+    panel.querySelector('[data-intent-summary]').textContent=window.ORCHESTRATOR_COMMANDS.describe(command);
+    panel.querySelector('[data-intent-context]').textContent='Current patient: '+expected.patientId+' · '+(expected.encounterId?'saved encounter revision '+expected.sourceVersion:'no saved encounter');
+    panel.querySelector('[data-intent-effect]').textContent=command.kind==='prepare'?'This rebuilds draft content from saved, reviewed sources. Review the resulting note, orders and instructions before signing.':'This opens the existing section for you to review.';
+    panel.querySelector('[data-confirm-intent]').textContent=command.kind==='prepare'?'Prepare saved visit':'Open this section';
+    panel.querySelector('[data-intent]').hidden=false;
+    message('Check the intended action, then continue or correct your command.');
+  }
+  async function interpret(text,expected,ticket){
+    var cfg=window.SUPABASE_DEMO_BACKEND;if(!cfg?.anonJwt)throw Error('Sign in as a clinician first.');
+    if(typeof text!=='string'||!text.trim()||text.length>4000)throw Error('Enter one short command first.');
+    var intentController=new AbortController();controller=intentController;var timeout=setTimeout(function(){intentController.abort();},40000),original=input.value;
+    message('Understanding your command…');
+    try{
+      var response=await fetch(cfg.baseUrl+'/functions/v1/orchestrator-intent-gated',{method:'POST',cache:'no-store',headers:{Authorization:'Bearer '+cfg.anonJwt,'Content-Type':'application/json'},body:JSON.stringify({patientId:expected.patientId,encounterId:expected.encounterId,sourceVersion:expected.sourceVersion,command:text.trim()}),signal:controller.signal});
+      var result=await response.json().catch(function(){return {};});
+      if(ticket!==generation||!same(expected)||input.value!==original)return;
+      if(!response.ok)throw Error(result.error==='command_context_changed'?'The saved encounter changed. Refresh and repeat the command.':'Could not interpret this command. Try a phrase in “What can I say?” or correct the wording.');
+      if(result.patientId!==expected.patientId||result.encounterId!==expected.encounterId||result.sourceVersion!==expected.sourceVersion||result.command!==text.trim()||result.confirmationRequired!==true||result.clinicalWrites!==false)throw Error('The interpreted command did not match this encounter.');
+      var command=window.ORCHESTRATOR_COMMANDS.fromIntent(result.intent);
+      if(command.kind==='unknown'){message('Please ask for one screen to open or to prepare this saved visit. For a plan change, use “Add to plan: [exact wording]”.',true);return;}
+      offer(command,expected);
+    }finally{clearTimeout(timeout);if(ticket===generation)controller=null;}
+  }
+  async function prepareCommand(command,expected,ticket){
+    if(!same(expected))throw Error('The patient, encounter or clinician changed. Repeat the command.');
+    message('Queuing preparation from saved, reviewed encounter sources…');
+    await window.ENCOUNTER_COORDINATOR_UI.voicePrepare(expected,command.soap);
+    if(ticket===generation&&same(expected))message('Preparation requested. The agent dots show progress; review and signing remain with you.');
+  }
   async function execute(text,expected){
     if(executing)return;
     if(!same(expected)){message('Select the current encounter again before running this command.',true);return;}
     reject();var command=window.ORCHESTRATOR_COMMANDS.parse(text);
     if(command.kind==='held'){message('Use the existing physician review controls to sign, approve actions or send messages. Voice commands cannot perform those actions.',true);return;}
-    if(command.kind==='unknown'){message('Command not recognized. Open “What can I say?” or correct the heard command.',true);return;}
     if(command.kind==='navigate'){navigate(command);return;}
+    if(command.kind==='prepare'){offer(command,expected);return;}
     executing=true;controls();var ticket=generation;
     try{
-      if(command.kind==='prepare'){
-        message('Queuing preparation from saved, reviewed encounter sources…');
-        await window.ENCOUNTER_COORDINATOR_UI.voicePrepare(expected,command.soap);
-        if(ticket===generation&&same(expected))message('Preparation requested. The agent dots show progress; review and signing remain with you.');
-      }else{
+      if(command.kind==='unknown')await interpret(text,expected,ticket);
+      else{
         var now=context();if(!now.current||now.noteText!==expected.noteText||now.preparationId!==expected.preparationId||now.packetHash!==expected.packetHash)throw Error('The note changed or is unavailable. Repeat the command after preparation finishes.');
         var edit=window.ORCHESTRATOR_COMMANDS.proposal(now.noteText,command,window.NOTE_DRAFTING?.preferences?.().headings);
         proposal={context:now,edit:edit,commandText:input.value};
         panel.querySelector('[data-before]').textContent=edit.before;panel.querySelector('[data-after]').textContent=edit.after;proposalBox.hidden=false;
         window.ENCOUNTER_AGENT_MAP?.select('note');message('Proposed plan change ready. Review it before applying to the draft.');
       }
-    }catch(error){if(ticket===generation)message(error.message||'Command failed. No approval was performed.',true);}
+    }catch(error){if(ticket===generation)message(error.message||'Command failed. Repeat or correct the command.',true);}
     finally{if(ticket===generation){executing=false;controls();}}
   }
   async function transcribe(blob,expected,ticket){
@@ -100,7 +128,14 @@
   record.addEventListener('click',start);
   panel.querySelector('[data-cancel]').addEventListener('click',cancel);
   panel.querySelector('[data-command-form]').addEventListener('submit',function(event){event.preventDefault();if(waiting||recorder||executing)return;scope=context();watchContext();execute(input.value,scope);});
-  input.addEventListener('input',reject);
+  input.addEventListener('input',function(){reject();if(controller){generation++;controller.abort();controller=null;waiting=false;executing=false;controls();message('Command changed. Press Run command to use the corrected wording.');}});
+  panel.querySelector('[data-discard-intent]').addEventListener('click',function(){reject();message('Command discarded.');});
+  panel.querySelector('[data-confirm-intent]').addEventListener('click',async function(){
+    if(!pendingIntent||executing)return;var selected=pendingIntent,ticket=generation;
+    if(!same(selected.context)||input.value!==selected.commandText){reject();message('The command or encounter changed. Repeat it for the current visit.',true);return;}
+    reject();if(selected.command.kind==='navigate'){navigate(selected.command);return;}
+    executing=true;controls();try{await prepareCommand(selected.command,selected.context,ticket);}catch(error){if(ticket===generation)message(error.message||'Preparation could not be requested.',true);}finally{if(ticket===generation){executing=false;controls();}}
+  });
   panel.querySelector('[data-reject]').addEventListener('click',function(){reject();message('Proposal discarded. The draft note is unchanged.');});
   apply.addEventListener('click',async function(){if(!proposal||executing)return;var selected=proposal,ticket=generation;if(input.value!==selected.commandText){reject();message('The command changed. Run it again to create a new proposal.',true);return;}executing=true;controls();try{await window.ENCOUNTER_COORDINATOR_UI.voiceApply(selected.context,selected.edit.noteText);if(ticket===generation){reject();message('Plan change saved to the draft. Review action drafts and patient instructions against the new plan before signing.');}}catch(error){if(ticket===generation)message(error.message||'The proposal could not be saved. Review the current draft.',true);}finally{if(ticket===generation){executing=false;controls();}}});
   window.addEventListener('scribe-patient-changed',cancel);window.addEventListener('encounter-finalized',cancel);window.addEventListener('pagehide',cancel);

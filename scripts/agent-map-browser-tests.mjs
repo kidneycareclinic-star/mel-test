@@ -31,7 +31,7 @@ try {
   window.browserJob={id:'browser-job',status:'ready',stage:'verification',stages:{chart:'complete',evidence:'complete',note:'complete',orders:'complete',verification:'complete'}};
   window.testRequests=[];
   window.fetch=async(url,options)=>{
-   window.testRequests.push({url,method:options?.method});if(options?.method==='POST')throw Error('No clinical writes allowed in browser navigation test');
+   window.testRequests.push({url,method:options?.method});if(url.includes('orchestrator-intent-gated')){const body=JSON.parse(options.body);return {ok:true,json:async()=>({...body,intent:{kind:'navigate',target:'instructions',soap:false},confirmationRequired:true,clinicalWrites:false})};}if(options?.method==='POST')throw Error('No clinical writes allowed in browser navigation test');
    return {ok:true,json:async()=>({patient:window.currentPatient,profile:{preferences:{template:'soap',detail:'standard',headings:[],instructions:''}},job:window.browserJob,draft:{id:'ci-encounter',version:1},preparation:{id:'ci-preparation',encounter_id:'ci-encounter',status:'ready',current:true,packet_hash:'ci-hash',packet:{noteText:'SUBJECTIVE\nPatient reports no new swelling.\n\nOBJECTIVE\nHistorical eGFR 31 mL/min/1.73m².\n\nASSESSMENT\nCKD G3b per chart.\n\nPLAN\nPhysician review of the current chart and encounter.',patientInstructions:'No patient-specific instructions documented.',sources:[{kind:'reviewed-transcript',text:'No new swelling.'}],observations:[],reviews:[],tools:[],sections:[],actions:[{id:'browser-lab',kind:'lab',label:'Repeat BMP',details:'Repeat BMP.',timing:'in 3 months',sourceTitle:'Reviewed transcript',sourceQuote:'Physician: repeat BMP in 3 months.',intent:'physician-plan',patientText:'Get a repeat BMP in 3 months.',blockers:[],medication:null}],clinicalEvidence:{applicability:'Historical CKD G3b chart context; confirm applicability.',corpusVersion:'kdigo-2024-monitoring-20261005',checkedAt:'2026-10-05',clinicalValidation:'Starter reference set; physician review required',references:[{title:'Kidney function and albuminuria monitoring',summary:'Review GFR and albuminuria monitoring in CKD.',section:'Practice Points 2.1.1–2.1.2',page:40,url:'https://kdigo.org/wp-content/uploads/2026/04/KDIGO-2024-CKD-Guideline.pdf#page=40',role:'Reference; not an order'}]}}}})};
   };
   document.getElementById('ptName').textContent='Synthetic patient · PT-001';document.getElementById('ptMeta').textContent='Office follow-up · Synthetic testing only';
@@ -89,6 +89,18 @@ try {
  await page.evaluate(()=>{document.querySelector('#orchestratorVoice [data-command]').value='Open the proposed orders.';document.querySelector('#orchestratorVoice [data-command-form]').dispatchEvent(new Event('submit',{cancelable:true}));});
  assert.equal(await page.evaluate(()=>window.ENCOUNTER_AGENT_MAP.selected()),'orders');
  assert.equal(await page.evaluate(()=>window.testRequests.some(r=>r.method==='POST')),false);
+ // Confirmed natural-language navigation stays readable without a clinical mutation.
+ await page.evaluate(()=>{document.querySelector('#orchestratorVoice [data-command]').value='Take me to the patient instructions.';document.querySelector('#orchestratorVoice [data-command-form]').dispatchEvent(new Event('submit',{cancelable:true}));});
+ await page.locator('#orchestratorVoice [data-intent]').waitFor({state:'visible'});
+ assert.equal(await page.locator('#orchestratorVoice [data-intent-summary]').textContent(),'Open patient instructions');
+ for(const theme of ['dark','light'])for(const width of [1440,760,390,320]){
+  await page.setViewportSize({width,height:1000});await page.evaluate(value=>{document.documentElement.dataset.theme=value;},theme);
+  const metrics=await page.locator('#orchestratorVoice [data-intent]').evaluate(n=>({page:document.documentElement.scrollWidth,viewport:innerWidth,scroll:n.scrollWidth,width:n.clientWidth,targets:[...n.querySelectorAll('button')].map(b=>b.getBoundingClientRect().height)}));
+  assert(metrics.page<=metrics.viewport+1,JSON.stringify(metrics));assert(metrics.scroll<=metrics.width+1);assert(metrics.targets.every(h=>h>=44));
+  await page.locator('#orchestratorVoice').screenshot({path:path.join(output,theme+'-'+width+'-natural-voice.png')});
+ }
+ await page.locator('#orchestratorVoice [data-confirm-intent]').click();assert.equal(await page.locator('[data-instructions]').evaluate(n=>n===document.activeElement),true);
+ assert.equal(await page.evaluate(()=>window.testRequests.some(r=>r.method==='POST'&&!r.url.includes('/functions/v1/orchestrator-intent-gated'))),false);
  await page.evaluate(()=>window.ENCOUNTER_REVIEW_UI.open());
  assert.equal(await page.locator('#encounterReviewChecklist [data-review-count]').textContent(),'2 review items remaining');
  for(const theme of ['dark','light'])for(const width of [1440,390,320]){

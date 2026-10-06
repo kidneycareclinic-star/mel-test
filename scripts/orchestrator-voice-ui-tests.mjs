@@ -7,12 +7,17 @@ let owner='voice-physician',version=1,reviewVersion=0,sourceChanged=false,record
 const requests=[],meterEvents=[],encounterId='11111111-1111-4111-8111-111111111111',preparationId='22222222-2222-4222-8222-222222222222';
 let noteText='SUBJECTIVE\nNo edema.\n\nOBJECTIVE\nPotassium 4.9 mmol/L.\n\nASSESSMENT\nCKD per chart.\n\nPLAN\nDo not increase to two tablets.\nRepeat BMP in 3 months.';
 const packet={noteText,patientInstructions:'Repeat BMP in 3 months.',sources:[{kind:'typed-note',text:'No edema. Repeat BMP in 3 months.'}],sections:[],observations:[],reviews:[],tools:[],actions:[{id:'voice-lab',kind:'lab',label:'Repeat BMP',details:'Repeat BMP.',timing:'in 3 months',sourceTitle:'Reviewed source',sourceQuote:'Repeat BMP in 3 months.',intent:'physician-plan',patientText:'Repeat BMP in 3 months.',blockers:[],medication:null}]};
-let saved=null;
+let saved=null,intentHold=null,intentValue={kind:'navigate',target:'instructions',soap:false},intentOverrides={};
 function ready(){return {patient,profile:{preferences:{template:'soap',detail:'standard',headings:[],instructions:''}},draft:w.currentPatient.id===patient.id?{id:encounterId,version,sources:[{kind:'typed-note',text:'Reviewed synthetic source'}]}:null,preparation:w.currentPatient.id===patient.id?{id:preparationId,encounter_id:encounterId,status:'ready',packet_hash:'voice-hash',current:!sourceChanged,packet,edit:saved?{version:reviewVersion,reviewed_snapshot:saved}:null}:null};}
 w.CLINICIAN_AUTH={userId:()=>owner};w.SUPABASE_DEMO_BACKEND={baseUrl:'https://synthetic.test',get anonJwt(){return owner?'ci-session':null;}};
 w.SYNTHETIC_ENCOUNTER_COORDINATOR_ENABLED=true;w.PRECHART_WORKSPACE_API={stopVoice(){},whenSourcesReady:async()=>{}};
 w.RECORDED_AUDIO_UI={isRecording:()=>recording};w.MOBILE_PANE_UI={show(){}};
 w.fetch=async(url,options)=>{
+ if(url.includes('orchestrator-intent-gated')){
+  const body=JSON.parse(options.body);requests.push({type:'intent',intentBody:body});assert.deepEqual(Object.keys(body).sort(),['command','encounterId','patientId','sourceVersion']);
+  if(intentHold)await intentHold;
+  return {ok:true,json:async()=>({...body,intent:intentValue,confirmationRequired:true,clinicalWrites:false,...intentOverrides})};
+ }
  if(url.includes('audio-transcription-gated')){
   const form=options.body;assert.equal(form.get('purpose'),'orchestrator-command');assert.equal(form.get('patientId'),patient.id);requests.push({type:'audio'});
   if(transcriptionHold)await transcriptionHold;
@@ -39,6 +44,16 @@ await type('Show me what still needs review.');assert.equal(checklist.open,true)
 await type('Open the proposed orders.');assert.equal(w.ENCOUNTER_AGENT_MAP.selected(),'orders');assert.equal(d.activeElement,d.querySelector('[data-action] select'));assert.equal(requests.filter(r=>r.body).length,0);
 for(const text of ['Sign this encounter.','Approve all orders.','Send me a text.','Open orders and sign.']){await type(text);assert.match(panel.querySelector('[data-status]').textContent,/cannot perform/);}
 assert.equal(requests.filter(r=>r.body).length,0,'navigation and held commands never write');
+// Everyday phrasing suggests one bounded action and requires confirmation.
+await type('Take me to the patient instructions.');assert.equal(panel.querySelector('[data-intent]').hidden,false);assert.equal(w.ENCOUNTER_AGENT_MAP.selected(),'orders');assert.match(panel.querySelector('[data-intent-summary]').textContent,/Open patient instructions/);assert.equal(requests.filter(r=>r.body).length,0);
+panel.querySelector('[data-confirm-intent]').click();assert.equal(d.activeElement,d.querySelector('[data-instructions]'));assert.equal(panel.querySelector('[data-intent]').hidden,true);
+await type('Take me to the patient instructions.');input.value='Open the note';input.dispatchEvent(new w.Event('input'));assert.equal(panel.querySelector('[data-intent]').hidden,true);panel.querySelector('[data-confirm-intent]').click();assert.equal(d.activeElement,d.querySelector('[data-instructions]'));
+intentValue={kind:'sign',target:'none',soap:false};await type('Go to my review');assert.equal(panel.querySelector('[data-intent]').hidden,true);assert.match(panel.querySelector('[data-status]').textContent,/one screen/);
+intentValue={kind:'navigate',target:'instructions',soap:false};intentOverrides={clinicalWrites:true};await type('Take me to the patient instructions.');assert.equal(panel.querySelector('[data-intent]').hidden,true);assert.match(panel.querySelector('[data-status]').textContent,/did not match/);intentOverrides={};
+let releaseIntent;intentHold=new Promise(r=>releaseIntent=r);await type('Take me to the patient instructions.');input.value='Corrected wording';input.dispatchEvent(new w.Event('input'));releaseIntent();await settle();assert.equal(panel.querySelector('[data-intent]').hidden,true);assert.equal(input.value,'Corrected wording');intentHold=null;
+intentHold=new Promise(r=>releaseIntent=r);await type('Take me to the patient instructions.');owner='different-physician';assert.equal(w.ENCOUNTER_COORDINATOR_UI.voiceContext().noteText,'');assert.equal(w.ENCOUNTER_COORDINATOR_UI.voiceContext().current,false);releaseIntent();await settle();assert.equal(panel.querySelector('[data-intent]').hidden,true);intentHold=null;owner='voice-physician';w.ORCHESTRATOR_VOICE_UI.cancel();
+await type('Take me to the patient instructions.');version++;await w.ENCOUNTER_COORDINATOR_UI.refresh();panel.querySelector('[data-confirm-intent]').click();assert.match(panel.querySelector('[data-status]').textContent,/changed/);assert.equal(panel.querySelector('[data-intent]').hidden,true);version--;await w.ENCOUNTER_COORDINATOR_UI.refresh();
+assert.equal(requests.filter(r=>r.body).length,0,'intent suggestions and navigation never mutate clinical data');
 await type('Add to plan: Do not start a new medication. Potassium 4.9 mmol/L.');assert.equal(panel.querySelector('[data-proposal]').hidden,false);assert.match(panel.querySelector('[data-after]').textContent,/Do not start/);assert.equal(d.querySelector('[data-note]').value,packet.noteText);assert.equal(requests.filter(r=>r.body).length,0,'proposals are read-only');
 panel.querySelector('[data-reject]').click();assert.equal(d.querySelector('[data-note]').value,packet.noteText);
 await type('Add to plan: Return in 2 months.');d.querySelector('[data-note]').value+='\nManual edit.';panel.querySelector('[data-apply]').click();await settle();assert.match(panel.querySelector('[data-status]').textContent,/changed/);assert.equal(requests.filter(r=>r.body?.action==='save-review').length,0);
@@ -59,7 +74,7 @@ heard='Open the proposed orders.';hints=[' orders'];await w.ORCHESTRATOR_VOICE_U
 hints=[];await w.ORCHESTRATOR_VOICE_UI.start();w.ORCHESTRATOR_VOICE_UI.stop();await settle();assert.equal(w.ENCOUNTER_AGENT_MAP.selected(),'orders');
 assert.equal(d.getElementById('ambientReviewedInput').value,'','commands never enter ambient review sources');
 recording=true;await w.ORCHESTRATOR_VOICE_UI.start();assert.match(panel.querySelector('[data-status]').textContent,/Stop the ambient/);recording=false;
-await type('Prepare this visit using my nephrology SOAP template.');assert.equal(requests.filter(r=>r.body?.action==='prepare').length,1);w.ENCOUNTER_REVIEW_UI.refresh();assert.equal(checklist.querySelector('[data-review-count]').textContent,'Preparing');
+await type('Prepare this visit using my nephrology SOAP template.');assert.equal(requests.filter(r=>r.body?.action==='prepare').length,0,'preparation waits for explicit confirmation');assert.equal(panel.querySelector('[data-intent]').hidden,false);assert.match(panel.querySelector('[data-intent-summary]').textContent,/SOAP template/);panel.querySelector('[data-confirm-intent]').click();await settle();assert.equal(requests.filter(r=>r.body?.action==='prepare').length,1);w.ENCOUNTER_REVIEW_UI.refresh();assert.equal(checklist.querySelector('[data-review-count]').textContent,'Preparing');
 assert.equal(requests.some(r=>['finalize','approve','sign','preferences','verify-start'].includes(r.body?.action)),false,'no voice clinical approval or SMS mutation');
 w.ORCHESTRATOR_VOICE_UI.cancel();dom.window.close();
-console.log('Voice DOM passed: direct navigation, explicit read-only plan proposal, exact guarded draft save, approval reset, source/edit races, actual capture lifecycle, permission/account isolation, token-hint review, separate ambient sources and saved-context preparation (provider/audio mocked).');
+console.log('Voice DOM passed: direct and confirmed natural navigation, interpretation envelope validation, command/account/revision races, explicit read-only plan proposal, exact guarded draft save, approval reset, source/edit races, actual capture lifecycle, permission/account isolation, token-hint review, separate ambient sources and saved-context preparation (provider/audio mocked).');
