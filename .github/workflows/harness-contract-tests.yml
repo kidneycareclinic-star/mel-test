@@ -19,6 +19,7 @@ on:
       - phone-alerts-v13
       - orchestrator-voice-v14
       - encounter-readiness-v15
+      - natural-voice-v16
   pull_request:
     branches:
       - main
@@ -28,7 +29,7 @@ permissions:
 
 jobs:
   contracts:
-    runs-on: ${{ (github.ref_name == 'encounter-attention-v12' || github.ref_name == 'phone-alerts-v13' || github.ref_name == 'orchestrator-voice-v14' || github.ref_name == 'encounter-readiness-v15') && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
+    runs-on: ${{ (github.ref_name == 'encounter-attention-v12' || github.ref_name == 'phone-alerts-v13' || github.ref_name == 'orchestrator-voice-v14' || github.ref_name == 'encounter-readiness-v15' || github.ref_name == 'natural-voice-v16') && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -89,11 +90,13 @@ jobs:
         run: node scripts/phone-alerts-tests.mjs
       - name: Bounded orchestrator commands and exact plan proposals
         run: node scripts/orchestrator-commands-tests.mjs
+      - name: Natural command interpretation and authorization
+        run: node scripts/orchestrator-intent-tests.mjs
       - name: SOAP and transcript fidelity safety
         run: node scripts/soap-scribe-tests.mjs
 
   jsonb-driver:
-    runs-on: ${{ (github.ref_name == 'encounter-attention-v12' || github.ref_name == 'phone-alerts-v13' || github.ref_name == 'orchestrator-voice-v14' || github.ref_name == 'encounter-readiness-v15') && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
+    runs-on: ${{ (github.ref_name == 'encounter-attention-v12' || github.ref_name == 'phone-alerts-v13' || github.ref_name == 'orchestrator-voice-v14' || github.ref_name == 'encounter-readiness-v15' || github.ref_name == 'natural-voice-v16') && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
     services:
       postgres:
         image: postgres:17
@@ -118,6 +121,10 @@ jobs:
         env:
           ENCOUNTER_TEST_DB_URL: postgres://postgres:synthetic-ci-only@127.0.0.1:5432/encounter_jsonb_test
         run: POSTGRES_DRIVER_PATH="$RUNNER_TEMP/jsonb-driver/node_modules/postgres/src/index.js" node scripts/encounter-jsonb-driver-tests.mjs
+      - name: Real driver natural command scope and revision gates
+        env:
+          ENCOUNTER_TEST_DB_URL: postgres://postgres:synthetic-ci-only@127.0.0.1:5432/encounter_jsonb_test
+        run: POSTGRES_DRIVER_PATH="$RUNNER_TEMP/jsonb-driver/node_modules/postgres/src/index.js" node scripts/orchestrator-intent-driver-tests.mjs
       - name: Visit completion DOM regression
         run: DOM_TEST_MODULE="$RUNNER_TEMP/jsonb-driver/node_modules/jsdom/lib/api.js" node scripts/encounter-completion-ui-tests.mjs
       - name: Follow-up queue DOM regression
@@ -153,7 +160,7 @@ jobs:
         run: DOM_TEST_MODULE="$RUNNER_TEMP/jsonb-driver/node_modules/jsdom/lib/api.js" node scripts/agent-map-ui-tests.mjs
 
   agent-map-browser:
-    runs-on: ${{ (github.ref_name == 'encounter-attention-v12' || github.ref_name == 'phone-alerts-v13' || github.ref_name == 'orchestrator-voice-v14' || github.ref_name == 'encounter-readiness-v15') && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
+    runs-on: ${{ (github.ref_name == 'encounter-attention-v12' || github.ref_name == 'phone-alerts-v13' || github.ref_name == 'orchestrator-voice-v14' || github.ref_name == 'encounter-readiness-v15' || github.ref_name == 'natural-voice-v16') && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

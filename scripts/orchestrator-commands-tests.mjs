@@ -24,3 +24,8 @@ assert.match(proposal('Plan',parse('Add to plan: No changes.'),[]).noteText,/Pla
 assert.match(proposal('Assessment and plan by problem\nCKD stable.\nFollow-up\n3 months',parse('Add to plan: Repeat BMP.'),[]).noteText,/CKD stable\.\nRepeat BMP\.\n\nFollow-up\n3 months/);
 assert.match(proposal('Plan\n\nCUSTOM CLOSE\nKeep me.',parse('Add to plan: Repeat BMP.'),['Plan','CUSTOM CLOSE']).noteText,/Repeat BMP\.\n\nCUSTOM CLOSE\nKeep me\./);
 console.log('Voice commands passed: anchored navigation, approval/tool prohibitions, exact dictated text and negations, unique plan edits, protected surrounding sections, custom/end headings and ambiguity rejection.');
+
+const {fromIntent,describe}=sandbox.ORCHESTRATOR_COMMANDS;
+for(const target of ['review','orders','instructions','note','template','chart','evidence','inbox','phone']){assert.equal(fromIntent({kind:'navigate',target,soap:false}).target,target);assert.ok(describe(fromIntent({kind:'navigate',target,soap:false})));}
+for(const value of [{kind:'sign',target:'none',soap:false},{kind:'navigate',target:'__proto__',soap:false},{kind:'navigate',target:'phone',soap:true},{kind:'prepare',target:'orders',soap:false},{kind:'prepare',target:'none',soap:false,tools:[]}])assert.equal(fromIntent(value).kind,'unknown');
+assert.equal(fromIntent({kind:'prepare',target:'none',soap:true}).soap,true);
