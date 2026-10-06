@@ -48,5 +48,16 @@
     if(next.length>20000||after===before) throw Error('The proposal is unchanged or exceeds the note limit.');
     return {before:before,after:after,noteText:next};
   }
-  root.ORCHESTRATOR_COMMANDS={parse:parse,proposal:proposal};
+  function fromIntent(value) {
+    if(!value||Object.keys(value).sort().join(',')!=='kind,soap,target'||typeof value.soap!=='boolean') return {kind:'unknown'};
+    var routes={review:'verification',orders:'orders',instructions:'orders',note:'note',template:'note',chart:'chart',evidence:'evidence',inbox:'followup',phone:'followup'};
+    if(value.kind==='navigate'&&Object.prototype.hasOwnProperty.call(routes,value.target)&&value.soap===false) return {kind:'navigate',target:value.target,agent:routes[value.target]};
+    if(value.kind==='prepare'&&value.target==='none') return {kind:'prepare',soap:value.soap};
+    return {kind:'unknown'};
+  }
+  function describe(command){
+    var labels={review:'Open the encounter review checklist',orders:'Open the proposed orders',instructions:'Open patient instructions',note:'Open the note draft',template:'Open template and detail settings',chart:'Open the chart and labs',evidence:'Open guideline references',inbox:'Open the encounter inbox',phone:'Open the phone connection checklist'};
+    return command.kind==='prepare'?'Prepare this saved visit'+(command.soap?' using the SOAP template':' using your selected template'):labels[command.target];
+  }
+  root.ORCHESTRATOR_COMMANDS={parse:parse,proposal:proposal,fromIntent:fromIntent,describe:describe};
 })(typeof window==='undefined'?globalThis:window);
