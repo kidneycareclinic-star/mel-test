@@ -1,0 +1,37 @@
+name: Publish tested EHR push preview v17
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/publish-ehr-push-v17.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-24.04-arm
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Verify exact tested preview and stage only public assets
+        run: |
+          git diff --exit-code 95d61ecb5d1464022e6f7b9af6340d4dc54fc4d0 HEAD -- preview/
+          mkdir -p "$RUNNER_TEMP/ehr-push-preview/preview"
+          cp -R preview/. "$RUNNER_TEMP/ehr-push-preview/preview/"
+          cat > "$RUNNER_TEMP/ehr-push-preview/index.html" <<'HTML'
+          <!doctype html><html lang="en"><meta charset="utf-8"><meta http-equiv="refresh" content="0;url=./preview/"><title>KidneyCare preview</title><a href="./preview/">Open the synthetic EHR preview</a></html>
+          HTML
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: ${{ runner.temp }}/ehr-push-preview
+      - id: deployment
+        uses: actions/deploy-pages@v4

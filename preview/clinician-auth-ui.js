@@ -93,6 +93,7 @@
   }
 
   async function signOut() {
+    try { await window.PUSH_ALERTS_UI?.signOut(); } catch (_) {}
     var token = accessToken;
     accessToken = null;
     signedInUserId = null;
