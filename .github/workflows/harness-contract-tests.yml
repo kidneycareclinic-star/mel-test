@@ -193,8 +193,8 @@ jobs:
       - uses: denoland/setup-deno@v2
         with:
           deno-version: v1.46.3
-      - name: Resolve pinned push runtime and write lock
-        run: deno cache --lock=supabase/functions/push-alerts/deno.lock --lock-write supabase/functions/push-alerts/index.ts supabase/functions/push-alert-worker/index.ts
+      - name: Verify committed push runtime lock
+        run: deno cache --lock=supabase/functions/push-alerts/deno.lock supabase/functions/push-alerts/index.ts supabase/functions/push-alert-worker/index.ts
       - name: Actual Deno encryption and fetch boundary
         run: deno run --no-check --allow-read --allow-env --lock=supabase/functions/push-alerts/deno.lock scripts/push-provider-runtime-tests.ts
       - uses: actions/upload-artifact@v4
