@@ -210,16 +210,15 @@
     label.textContent=state.savedNote===state.note?(state.savedStatus==="signed"?"Reviewed text · signed encounter":"Reviewed text · saved in encounter draft"):"Pre-charting text · changes in this tab; save the encounter draft to keep them";box.appendChild(label);
     var text=document.createElement("pre");text.textContent=state.note;box.appendChild(text);
   }
-  function markSaved(patientId,note) {
+  function markSaved(patientId,note,savedSources) {
     var state=getState(patientId);state.savedNote=note;state.savedStatus="draft";
-    state.savedSourceSnapshot={encounterId:window.ENCOUNTER_WORKFLOW_UI?.currentId(patientId),note:note,sources:JSON.parse(JSON.stringify(state.sources))};
+    state.savedSourceSnapshot=savedSources?{encounterId:window.ENCOUNTER_WORKFLOW_UI?.currentId(patientId),note:note,sources:JSON.parse(JSON.stringify(savedSources))}:null;
     state.captureStarted=false;
     if(activePatientId()===patientId)renderNarrative(activePatient());
   }
   async function saveReviewedText(patientId,statusElement) {
     if(!window.ENCOUNTER_WORKFLOW_UI?.saveDraft){statusElement.textContent="Added to Pre-charting on the main patient screen. Save the encounter draft to keep it after reload.";return;}
-    var note=getState(patientId).note;
-    try{await window.ENCOUNTER_WORKFLOW_UI.saveDraft(patientId);markSaved(patientId,note);if(activePatientId()===patientId)statusElement.textContent="Reviewed text saved to the encounter draft and shown in Pre-charting on the main patient screen. Audio stays in this tab.";}
+    try{await window.ENCOUNTER_WORKFLOW_UI.saveDraft(patientId);if(activePatientId()===patientId)statusElement.textContent="Reviewed text saved to the encounter draft and shown in Pre-charting on the main patient screen. Audio stays in this tab.";}
     catch(error){if(activePatientId()===patientId)statusElement.textContent="Text is visible in Pre-charting, but encounter save failed: "+error.message+" Retry Save encounter draft before leaving.";}
   }
 
@@ -616,7 +615,8 @@
     var sources=state.sources.filter(function(s){return s.kind!=="lab-trend";});
     var known=!!signed&&baseline?.encounterId===signed.id;
     var previous=known?baseline.sources.filter(function(s){return s.kind!=="lab-trend";}):[];
-    if(sources.length&&(!known||JSON.stringify(sources)!==JSON.stringify(previous))||state.note.trim()&&state.note!==buildOrganizedNote(activePatient(),state)&&(!known||state.note!==baseline.note))throw Error("Unfinished source or note edits are kept. Review them in Other sources and history before starting a new encounter.");
+    function fingerprint(source){return JSON.stringify([source.id,source.kind,source.title,source.text,source.rawText||null,source.reviewMethod||null,source.status,source.provenance,source.createdAt,source.file?{name:source.file.name,size:source.file.size,type:source.file.type,label:source.file.label}:null]);}
+    if(sources.length&&(!known||JSON.stringify(sources.map(fingerprint))!==JSON.stringify(previous.map(fingerprint)))||state.note.trim()&&state.note!==buildOrganizedNote(activePatient(),state)&&(!known||state.note!==baseline.note))throw Error("Unfinished source or note edits are kept. Review them in Other sources and history before starting a new encounter.");
     if(known)state.noteHistory.push({note:baseline.note,sources:baseline.sources,encounterId:signed.id,status:"signed"});
     state.sources=state.sources.filter(function(s){if(s.kind==="lab-trend")return true;if(fileUrlStore.has(s.id)){URL.revokeObjectURL(fileUrlStore.get(s.id));fileUrlStore.delete(s.id);}return false;});
     state.note="";state.savedNote=null;state.savedStatus=null;state.savedSourceSnapshot=null;state.captureStarted=true;
@@ -1469,6 +1469,7 @@
           provenance:"Saved synthetic encounter", createdAt:new Date().toISOString()
         };
       });
+      state.savedSourceSnapshot={encounterId:draft.id,note:state.note,sources:JSON.parse(JSON.stringify(state.sources))};
       if (activePatientId() === patientId) renderWorkspace();
       return true;
     },

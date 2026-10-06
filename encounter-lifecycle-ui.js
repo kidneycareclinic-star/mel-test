@@ -9,7 +9,7 @@
   document.getElementById('encounterAgentMap').after(panel);
   var next=panel.querySelector('[data-lifecycle-next]'),title=panel.querySelector('h4'),status=panel.querySelector('[data-lifecycle-status]'),error=panel.querySelector('[data-lifecycle-error]'),busy=false,disposed=false,last=null,ownerPatient=null;
   function summary(){return window.ENCOUNTER_COORDINATOR_UI.reviewSummary();}
-  function focusCapture(){window.ENCOUNTER_AGENT_MAP?.select('voice');document.getElementById('ambientModeBtn')?.click();var input=document.getElementById('ambientReviewedInput');input?.scrollIntoView?.({block:'center'});input?.focus();}
+  function focusCapture(){window.ENCOUNTER_AGENT_MAP?.select('voice');window.MOBILE_PANE_UI?.show('patient');var input=document.getElementById('ambientReviewedInput');input?.scrollIntoView?.({block:'center'});input?.focus();}
   function report(text){error.textContent=text;error.hidden=!text;}
   function render(){
     if(disposed)return;var s=summary(),key=s.owner+':'+s.patientId;if(key!==ownerPatient){ownerPatient=key;report('');last=null;}

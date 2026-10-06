@@ -4,7 +4,7 @@ export function lifecycleFixture(w){
  w.currentPatient=w.PATIENTS[0];t.patient=w.currentPatient;t.second=w.PATIENTS[1];
  w.CLINICIAN_AUTH={userId:()=>t.owner};w.SUPABASE_DEMO_BACKEND={baseUrl:'https://synthetic.test',get anonJwt(){return t.owner?'synthetic-session':null;}};
  w.SYNTHETIC_ENCOUNTER_COORDINATOR_ENABLED=true;w.SYNTHETIC_NOTE_DRAFTING_ENABLED=true;w.SYNTHETIC_AUDIO_TRANSCRIPTION_ENABLED=true;
- w.renderPatient=()=>{};w.SCRIBE_REVIEW_UI={refresh(){},applyBackendPatient(){}};w.RECORDED_AUDIO_UI={isRecording:()=>false};w.MOBILE_PANE_UI={show(){}};
+ t.permissionCalls=0;w.renderPatient=()=>{};w.SCRIBE_REVIEW_UI={refresh(){},applyBackendPatient(){}};w.RECORDED_AUDIO_UI={isRecording:()=>false,start(){t.permissionCalls++;}};w.MOBILE_PANE_UI={show(){}};
  const copy=v=>JSON.parse(JSON.stringify(v));
  w.fetch=async(url,opts)=>{
   const body=opts?.body?JSON.parse(opts.body):null,id=body?.patientId||new URL(url).searchParams.get('patient_id');t.requests.push({url,body});
@@ -17,7 +17,7 @@ export function lifecycleFixture(w){
   if(body.action==='save-draft'){
    if(t.draft){if(body.encounterId!==t.draft.id||body.expectedVersion!==t.draft.version)throw Error('Stale save authority');t.draft.version++;}
    else {if(body.encounterId!==null)throw Error('Signed encounter reused');t.draft={id:'11111111-1111-4111-8111-'+String(++t.counter).padStart(12,'0'),version:1};}
-   Object.assign(t.draft,{note_text:body.noteText,sources:copy(body.sources)});return {ok:true,json:async()=>({encounterId:t.draft.id,version:t.draft.version})};
+   Object.assign(t.draft,{note_text:body.noteText,sources:copy(body.sources)});if(t.saveHold)await t.saveHold;return {ok:true,json:async()=>({encounterId:t.draft.id,version:t.draft.version})};
   }
   if(body.action==='prepare'){
    if(t.failPrepare)return {ok:false,json:async()=>({error:'note_drafting_provider_failed'})};

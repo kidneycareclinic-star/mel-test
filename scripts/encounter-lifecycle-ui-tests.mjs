@@ -3,7 +3,7 @@ const {JSDOM}=await import(pathToFileURL(process.env.DOM_TEST_MODULE).href);
 const dom=new JSDOM(fs.readFileSync('index.html','utf8'),{url:'https://example.test/preview/',runScripts:'outside-only'}),w=dom.window,d=w.document;
 w.eval(fs.readFileSync('data.js','utf8'));lifecycleFixture(w);
 for(const name of ['note-drafting-ui.js','prechart-workspace.js','encounter-workflow-ui.js','encounter-actions-ui.js','encounter-coordinator-ui.js','agent-map-ui.js','encounter-review-ui.js','encounter-lifecycle-ui.js'])w.eval(fs.readFileSync(name,'utf8'));
-const errors=[];w.HTMLElement.prototype.scrollIntoView=function(){};w.addEventListener('error',e=>errors.push(e.message));
+w.URL.createObjectURL=()=> 'blob:synthetic-file';w.URL.revokeObjectURL=()=>{};const errors=[];w.HTMLElement.prototype.scrollIntoView=function(){};w.addEventListener('error',e=>errors.push(e.message));
 const t=w.lifecycleTest,settle=ms=>new Promise(r=>setTimeout(r,ms||30)),next=()=>d.querySelector('[data-lifecycle-next]');
 try{
  w.PRECHART_WORKSPACE_API.refresh();await settle();w.ENCOUNTER_LIFECYCLE_UI.refresh();assert.equal(next().textContent,'Start new encounter');
@@ -21,6 +21,13 @@ try{
  // Late checks cannot reset or move focus after changing patients or accounts.
  let release;t.getHold=new Promise(r=>release=r);const pending=w.ENCOUNTER_LIFECYCLE_UI.start();await settle();w.currentPatient=t.second;w.PRECHART_WORKSPACE_API.refresh();await settle();d.getElementById('ambientReviewedInput').value='OTHER PATIENT CAPTURE';release();await pending;assert.equal(d.getElementById('ambientReviewedInput').value,'OTHER PATIENT CAPTURE');assert.deepEqual(w.PRECHART_WORKSPACE_API.getPatientState(t.patient.id),before);
  t.getHold=new Promise(r=>release=r);const accountPending=w.ENCOUNTER_LIFECYCLE_UI.start();await settle();t.owner='other-clinician';release();await accountPending;assert.equal(d.getElementById('ambientReviewedInput').value,'OTHER PATIENT CAPTURE');assert.equal(w.ENCOUNTER_COORDINATOR_UI.reviewSummary().capturingNew,false);
- assert.deepEqual(errors,[]);assert.equal(t.requests.filter(r=>r.body?.action==='finalize').length,1);assert.equal(t.requests.some(r=>/push|audio|revision/.test(r.url)),false);
+ assert.equal(t.permissionCalls,0,'navigation never requests microphone capture');assert.deepEqual(errors,[]);assert.equal(t.requests.filter(r=>r.body?.action==='finalize').length,1);assert.equal(t.requests.some(r=>/push|audio|revision/.test(r.url)),false);
+ // A file added after save submission must not be mistaken for a saved source.
+ t.owner='lifecycle-clinician';w.currentPatient=t.patient;w.PRECHART_WORKSPACE_API.refresh();await settle();
+ t.getHold=null;t.draft={id:'race-draft',version:1,sources:before.sources,note_text:before.note};t.run=null;await w.ENCOUNTER_WORKFLOW_UI.refresh();
+ let releaseSave;t.saveHold=new Promise(r=>releaseSave=r);const saving=w.ENCOUNTER_WORKFLOW_UI.saveDraft(t.patient.id);await settle();
+ const fileInput=d.getElementById('prechartFileInput');Object.defineProperty(fileInput,'files',{configurable:true,value:[new w.File(['unsubmitted attachment'],'UNSAVED-RACE.txt',{type:'text/plain'})]});fileInput.dispatchEvent(new w.Event('change'));releaseSave();await saving;t.saveHold=null;await settle();
+ t.lastSigned={...t.lastSigned,id:t.draft.id};t.draft=null;t.run={status:'finalized'};await w.ENCOUNTER_WORKFLOW_UI.refresh();await w.ENCOUNTER_COORDINATOR_UI.refresh();
+ const raced=w.PRECHART_WORKSPACE_API.getPatientState(t.patient.id);await w.ENCOUNTER_LIFECYCLE_UI.start();assert.match(d.querySelector('[data-lifecycle-error]').textContent,/Unfinished/);assert.deepEqual(w.PRECHART_WORKSPACE_API.getPatientState(t.patient.id),raced,'in-flight attachment remains unsubmitted and cannot be cleared as signed');assert.equal(t.permissionCalls,0);assert.deepEqual(errors,[]);
  console.log('Lifecycle DOM passed: signed → capture → automatic prepare → review → separate sign, fresh source isolation, draft resume, unfinished text and note preservation, patient/account late-response fences; synthetic services.');
 }finally{w.dispatchEvent(new w.Event('pagehide'));dom.window.close();}

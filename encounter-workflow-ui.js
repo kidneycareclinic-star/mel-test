@@ -180,7 +180,7 @@
     });
     drafts.set(patientId, { id: result.encounterId, version: result.version });
     window.dispatchEvent(new CustomEvent("encounter-draft-saved",{detail:{patientId:patientId,saved:result}}));
-    window.PRECHART_WORKSPACE_API?.markSaved(patientId,local.note||"");
+    window.PRECHART_WORKSPACE_API?.markSaved(patientId,local.note||"",local.sources);
     setStatus("Encounter draft v" + result.version + " saved. Structured observations now link to this encounter.");
     if (window.SCRIBE_REVIEW_UI?.refresh) SCRIBE_REVIEW_UI.refresh();
     return result;
